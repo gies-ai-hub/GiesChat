@@ -164,6 +164,11 @@ async def design_upload(request: Request) -> Response:
     )
 
 
+def has_design(user: str) -> bool:
+    """Whether this user attached their own deck as a design template."""
+    return user in _attached
+
+
 def attached(user: str) -> Dict:
     entry = _attached.get(user)
     if entry is None:

@@ -11,8 +11,8 @@ import uvicorn
 from pptx import Presentation
 
 _OWNED = {"gies_auth", "gies_sandbox", "gies_downloads", "gies_state",
-          "gies_questions", "gies_uploads", "ppt_mcp_server", "gies_server",
-          "utils", "tools"}
+          "gies_questions", "gies_uploads", "gies_preview", "gies_edit",
+          "ppt_mcp_server", "gies_server", "utils", "tools"}
 
 
 def _free_port():

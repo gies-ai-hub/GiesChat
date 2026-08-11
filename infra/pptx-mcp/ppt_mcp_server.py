@@ -231,6 +231,10 @@ register_question_tools(app)
 from gies_uploads import register_upload_tools
 register_upload_tools(app)
 
+# Gies: live HTML preview of the deck being built (see gies_preview.py).
+from gies_preview import register_preview_tools
+register_preview_tools(app, presentations, get_current_presentation_id)
+
 register_chart_tools(
     app,
     presentations,
