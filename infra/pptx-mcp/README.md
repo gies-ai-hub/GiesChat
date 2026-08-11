@@ -17,7 +17,7 @@ The vendored tree (`ppt_mcp_server.py`, `tools/`, `utils/`) is patched in three
 narrow places; everything else is upstream. To update: re-vendor at a new
 commit and re-apply the patches below.
 
-### The three patches (why the fork exists)
+### The patches (why the fork exists)
 
 1. **Per-user state** (`ppt_mcp_server.py` → `gies_state.py`). Upstream keeps one
    shared `presentations` dict plus a single `current_presentation_id` global and
@@ -36,10 +36,22 @@ commit and re-apply the patches below.
    `/download/<token>` URL instead of a server path, so the browser can fetch the
    deck with no auth headers.
 
+4. **Deck preview** (`gies_preview.py`). `preview_presentation` renders the live
+   deck to a static HTML page at `/preview/<token>` — same header-less token deal
+   as `/download` — which GiesChat shows in its artifacts side panel. The token
+   holds the `Presentation` object itself, so the page always matches the file
+   that downloads. Every call also autosaves the deck, making a lost build
+   recoverable with `open_presentation`.
+
+5. **Slide editing** (`gies_edit.py`). `delete_slide` and `move_slide`, which
+   `python-pptx` has no supported API for: both edit `prs.slides._sldIdLst`, and
+   delete drops the relationship so the removed slide leaves the saved file.
+
 The shim modules (`gies_auth.py`, `gies_sandbox.py`, `gies_state.py`,
-`gies_downloads.py`, `gies_server.py`) are ours; `gies_server.py` is the container
+`gies_downloads.py`, `gies_questions.py`, `gies_uploads.py`, `gies_preview.py`,
+`gies_edit.py`, `gies_server.py`) are ours; `gies_server.py` is the container
 entrypoint that wraps upstream's ASGI app with the auth middleware and the
-download route.
+download, upload, and preview routes.
 
 ## Environment variables
 
@@ -53,6 +65,7 @@ download route.
 | `PPTX_SANDBOX_ROOT` | `/tmp/decks` | Per-user sandbox root. |
 | `PPTX_STATE_TTL` | `7200` | Idle seconds before an in-RAM deck is evicted. |
 | `PPTX_DOWNLOAD_TTL` | `86400` | Seconds a download link stays valid. |
+| `PPTX_PREVIEW_TTL` | `7200` | Seconds a preview link stays valid. A live token pins its deck in RAM for this long. |
 
 ## Tests
 
