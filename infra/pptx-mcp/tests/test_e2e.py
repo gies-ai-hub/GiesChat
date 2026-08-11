@@ -202,3 +202,60 @@ async def test_missing_auth_rejected(server):
     async with httpx.AsyncClient() as c:
         r = await c.post(f"{base}/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize"})
     assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_preview_and_edit_through_the_real_server(server, tmp_path):
+    """The whole panel flow over MCP: build, preview, edit, re-preview, download.
+
+    Covers what the unit tests cannot — that /preview really is exempt from the
+    auth middleware (a browser sends no headers) and that the tools are wired
+    into the running server, not just importable.
+    """
+    from mcp.client.streamable_http import streamablehttp_client
+    from mcp.client.session import ClientSession
+
+    base, template = server
+    headers = {"X-Gies-Key": "testkey", "X-Gies-User": "carol"}
+    async with streamablehttp_client(f"{base}/mcp", headers=headers) as (r, w, _):
+        async with ClientSession(r, w) as session:
+            await session.initialize()
+            await _answer_questions(session)
+            created = await session.call_tool(
+                "create_presentation_from_template", {"template_path": template})
+            pid = _json(created)["presentation_id"]
+            for _ in range(3):
+                await session.call_tool("add_slide", {"layout_index": 0, "presentation_id": pid})
+
+            first = _json(await session.call_tool(
+                "preview_presentation", {"presentation_id": pid}))
+            assert first["slide_count"] == 3
+            assert ':::artifact{identifier="deck-preview"' in first["message"]
+            assert os.path.exists(first["autosave_path"])
+
+            async with httpx.AsyncClient() as c:
+                page = await c.get(first["preview_url"])       # no auth headers, like a browser
+            assert page.status_code == 200
+            assert page.text.count('class="slide"') == 3
+            assert "3 / 3" in page.text
+
+            deleted = _json(await session.call_tool(
+                "delete_slide", {"slide_index": 1, "presentation_id": pid}))
+            assert deleted["slide_count"] == 2
+
+            second = _json(await session.call_tool(
+                "preview_presentation", {"presentation_id": pid}))
+            assert second["preview_url"] != first["preview_url"]
+
+            async with httpx.AsyncClient() as c:
+                page = await c.get(second["preview_url"])
+            assert page.text.count('class="slide"') == 2
+
+            saved = _json(await session.call_tool(
+                "save_presentation", {"file_path": "carol.pptx", "presentation_id": pid}))
+
+    async with httpx.AsyncClient() as c:
+        downloaded = await c.get(saved["download_url"])
+    out = tmp_path / "carol.pptx"
+    out.write_bytes(downloaded.content)
+    assert len(Presentation(str(out)).slides) == 2
