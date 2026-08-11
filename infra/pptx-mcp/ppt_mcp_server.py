@@ -235,6 +235,10 @@ register_upload_tools(app)
 from gies_preview import register_preview_tools
 register_preview_tools(app, presentations, get_current_presentation_id)
 
+# Gies: delete/move slides, which upstream lacks (see gies_edit.py).
+from gies_edit import register_edit_tools
+register_edit_tools(app, presentations, get_current_presentation_id)
+
 register_chart_tools(
     app,
     presentations,
