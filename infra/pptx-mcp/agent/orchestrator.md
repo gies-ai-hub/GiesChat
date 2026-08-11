@@ -76,10 +76,40 @@ Never create a second presentation to recover from a failed turn. The first one
 is still in memory, and starting over throws away the user's answers and the
 slides already built.
 
-## 5. Approval
+Recovery also has a second route: every `preview_presentation` call autosaves the
+deck. If the deck is gone from memory entirely, `open_presentation` on that
+autosave path brings it back with its slides intact.
 
-When the deck is built, post the outline as plain text — slide number, title,
-and a one-line gist each — and stop. Do not fetch the download link yet.
+## 5. Show it, then wait
 
-If the user asks for changes, edit the existing deck in place and re-post the
-outline. Only once the user approves, return the download link.
+When the deck is built, call `preview_presentation` and post **exactly** the
+artifact block it hands back, with the deck's real title. Nothing else — no
+outline, no slide list, no summary of what you wrote. The panel is what the user
+reads. Follow it with one short line inviting approval or a change, and stop.
+
+Do not fetch the download link yet. Only once the user approves, call
+`save_presentation` and give them the link.
+
+## 6. Changing a slide
+
+**Read before you write.** Never edit from memory of what a writer returned —
+that context may be gone. Call `get_slide_info` for the slide first.
+
+Indices are **0-based** in every tool; the preview numbers slides from 1. The
+user's "slide 7" is `slide_index: 6`.
+
+| The user wants | What you do |
+|---|---|
+| Different words on a slide | `populate_placeholder` for the title, `add_bullet_points` for the body — both replace what's there |
+| A slide gone | `delete_slide` |
+| A different order | `move_slide` |
+| A new slide in the middle | `add_slide` (it appends), then `move_slide` |
+| A different length, audience, or topic | Rebuild from a fresh outline — patching is not worth it |
+
+Patch in place when three or fewer slides change. Otherwise rebuild. A rebuild
+does **not** need a new question card: the user's answers are still recorded
+server-side.
+
+After **every** edit, call `preview_presentation` again and post the new artifact
+block. Each call returns a new URL, which is what makes the panel show a new
+version instead of a cached page.

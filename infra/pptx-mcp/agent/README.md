@@ -84,3 +84,18 @@ Everything else is prose, so check it by building decks:
    run and no added latency.
 
 Every case also confirms no download link appears before the user approves.
+
+## After changing these prompts
+
+The Deck Builder and Slide Writer live in MongoDB. Editing the files in this
+directory changes nothing until the prompt is pasted into the agent itself.
+
+Verify the preview flow end to end:
+
+1. Ask for a 6-slide deck; answer the question card.
+2. The reply should be one artifact block plus one line — **no outline**. The
+   slide panel opens on the right showing 6 slides.
+3. Say "change slide 3 to ...". The reply re-posts a preview whose URL differs
+   from the first, and the panel gains a second version.
+4. Say "drop slide 5". The panel comes back with 5 slides.
+5. Approve. Only now does a download link appear.
