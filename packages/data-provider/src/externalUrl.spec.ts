@@ -19,3 +19,34 @@ describe('getAllowedExternalUrl', () => {
     expect(getAllowedExternalUrl(null)).toBeNull();
   });
 });
+
+describe('pptx-mcp preview host', () => {
+  it('allows the deployed preview host', () => {
+    expect(getAllowedExternalUrl('https://pptx-mcp.azurewebsites.net/preview/abc123')).toBe(
+      'https://pptx-mcp.azurewebsites.net/preview/abc123',
+    );
+  });
+
+  it('rejects a lookalike host', () => {
+    expect(
+      getAllowedExternalUrl('https://pptx-mcp.azurewebsites.net.evil.com/preview/abc123'),
+    ).toBeNull();
+  });
+
+  it('rejects the preview host over plain http', () => {
+    expect(getAllowedExternalUrl('http://pptx-mcp.azurewebsites.net/preview/abc123')).toBeNull();
+  });
+
+  it('allows a local dev server over http', () => {
+    expect(getAllowedExternalUrl('http://localhost:8001/preview/abc123')).toBe(
+      'http://localhost:8001/preview/abc123',
+    );
+    expect(getAllowedExternalUrl('http://127.0.0.1:8001/preview/abc123')).toBe(
+      'http://127.0.0.1:8001/preview/abc123',
+    );
+  });
+
+  it('still rejects any other http host', () => {
+    expect(getAllowedExternalUrl('http://evil.com/preview/abc123')).toBeNull();
+  });
+});
