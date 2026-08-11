@@ -36,6 +36,7 @@ export default function AdminDashboard() {
   const [groupId, setGroupId] = useState<string>(ALL_CLASSES);
   const [days, setDays] = useState<number>(30);
   const [selectedAgent, setSelectedAgent] = useState<AdminAgentUsage | null>(null);
+  const [editingAgent, setEditingAgent] = useState<AdminAgentUsage | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
 
   const { data: groupData, error: groupsError } = useAdminGroupsQuery(
@@ -98,6 +99,22 @@ export default function AdminDashboard() {
       navigate(`/c/new?agent_id=${encodeURIComponent(agentId)}`);
     },
     [handleBuilderOpenChange, navigate],
+  );
+
+  /**
+   * Reuses the builder's invalidation so a renamed or re-described agent refreshes in the
+   * table on close. Unlike the create path, this must not navigate — the professor stays
+   * on the dashboard.
+   */
+  const handleEditOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        return;
+      }
+      setEditingAgent(null);
+      queryClient.invalidateQueries([QueryKeys.adminAgentUsage]);
+    },
+    [queryClient],
   );
 
   const handleBack = useCallback(() => setSelectedAgent(null), []);
@@ -212,7 +229,12 @@ export default function AdminDashboard() {
             onSelectAgent={setSelectedAgent}
           />
           {selectedAgent == null && (
-            <AgentUsageTable groupId={groupFilter} days={days} onSelectAgent={setSelectedAgent} />
+            <AgentUsageTable
+              groupId={groupFilter}
+              days={days}
+              onSelectAgent={setSelectedAgent}
+              onEditAgent={setEditingAgent}
+            />
           )}
         </section>
 
@@ -242,6 +264,23 @@ export default function AdminDashboard() {
             </OGDialogContent>
           </OGDialog>
         )}
+
+        {/* Not gated on canCreateAgents: editing is authorised by the EDIT scope the server
+            already applied to this list, not by the CREATE permission. */}
+        <OGDialog open={editingAgent != null} onOpenChange={handleEditOpenChange}>
+          <OGDialogContent className="max-h-[90vh] w-11/12 max-w-lg overflow-y-auto">
+            <OGDialogTitle>
+              {localize('com_ui_admin_edit_agent_title', { name: editingAgent?.name ?? '' })}
+            </OGDialogTitle>
+            {editingAgent != null && (
+              <AgentPanelSwitch
+                key={editingAgent.agent_id}
+                initialAgentId={editingAgent.agent_id}
+                hideAgentSelect
+              />
+            )}
+          </OGDialogContent>
+        </OGDialog>
       </div>
     </main>
   );

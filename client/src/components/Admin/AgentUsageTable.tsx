@@ -1,8 +1,10 @@
 import React, { useCallback } from 'react';
+import { Pencil } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
 import {
   Table,
+  Button,
   TableRow,
   TableBody,
   TableCell,
@@ -21,9 +23,15 @@ interface AgentUsageTableProps {
   groupId: string;
   days: number;
   onSelectAgent: (agent: AdminAgentUsage) => void;
+  onEditAgent: (agent: AdminAgentUsage) => void;
 }
 
-export default function AgentUsageTable({ groupId, days, onSelectAgent }: AgentUsageTableProps) {
+export default function AgentUsageTable({
+  groupId,
+  days,
+  onSelectAgent,
+  onEditAgent,
+}: AgentUsageTableProps) {
   const localize = useLocalize();
   const queryClient = useQueryClient();
   const params = { days, ...(groupId ? { groupId } : {}) };
@@ -113,16 +121,29 @@ export default function AgentUsageTable({ groupId, days, onSelectAgent }: AgentU
                 {formatLastActivity(agent.lastActivity) ?? localize('com_ui_none')}
               </TableCell>
               <TableCell className="text-right">
-                {agent.canDelete && (
-                  <DeleteAgentButton
-                    agentId={agent.agent_id}
-                    agentName={agent.name}
-                    confirmText={localize('com_ui_admin_delete_agent_confirm', {
-                      name: agent.name,
-                    })}
-                    onDeleted={handleDeleted}
-                  />
-                )}
+                {/* Every listed row is author-or-EDIT scoped by the server, so the pencil
+                    needs no per-row flag. DELETE is a narrower bit, hence canDelete. */}
+                <span className="flex justify-end gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    onClick={() => onEditAgent(agent)}
+                    aria-label={localize('com_ui_admin_edit_agent', { name: agent.name })}
+                  >
+                    <Pencil className="size-4" aria-hidden="true" />
+                  </Button>
+                  {agent.canDelete && (
+                    <DeleteAgentButton
+                      agentId={agent.agent_id}
+                      agentName={agent.name}
+                      confirmText={localize('com_ui_admin_delete_agent_confirm', {
+                        name: agent.name,
+                      })}
+                      onDeleted={handleDeleted}
+                    />
+                  )}
+                </span>
               </TableCell>
             </TableRow>
           ))}
