@@ -791,6 +791,8 @@
   "com_ui_admin_dashboard": "Class dashboard",
   "com_ui_admin_delete_agent_confirm": "Delete \"{{name}}\"? Students will lose access to it immediately, and its usage history disappears from this dashboard. This cannot be undone.",
   "com_ui_admin_dashboard_description": "See how your classes are using the agents you build.",
+  "com_ui_admin_edit_agent": "Edit {{name}}",
+  "com_ui_admin_edit_agent_title": "Edit agent · {{name}}",
   "com_ui_admin_filters": "Class and time window filters",
   "com_ui_admin_forbidden": "You don't have access to the class dashboard. Ask an administrator to grant you access.",
   "com_ui_admin_inactive_summary": "{{count}} of {{total}} students have no activity in this window.",
