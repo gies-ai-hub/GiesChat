@@ -233,9 +233,15 @@ interface AgentPanelProps {
   onAgentCreated?: (agentId: string) => void;
   /** Stamped onto agents created here, so a host can later filter to its own builds. */
   createdVia?: string;
+  /** Hides the agent switcher and the chat-navigation buttons, for hosts editing one agent. */
+  hideAgentSelect?: boolean;
 }
 
-export default function AgentPanel({ onAgentCreated, createdVia }: AgentPanelProps = {}) {
+export default function AgentPanel({
+  onAgentCreated,
+  createdVia,
+  hideAgentSelect,
+}: AgentPanelProps = {}) {
   const localize = useLocalize();
   const { user } = useAuthContext();
   const { showToast } = useToastContext();
@@ -554,7 +560,10 @@ export default function AgentPanel({ onAgentCreated, createdVia }: AgentPanelPro
       >
         <div className="flex-1">
           <div className="flex w-full flex-wrap gap-2">
-            <div className="w-full">
+            {/* ponytail: hidden, not unmounted — AgentSelect owns the effect that hydrates
+                the form from the fetched agent, so removing it renders an empty form and a
+                save would wipe the agent. */}
+            <div className={hideAgentSelect === true ? 'hidden' : 'w-full'}>
               <AgentSelect
                 createMutation={create}
                 agentQuery={agentQuery}
@@ -562,7 +571,7 @@ export default function AgentPanel({ onAgentCreated, createdVia }: AgentPanelPro
                 selectedAgentId={agentQuery.isInitialLoading ? null : (current_agent_id ?? null)}
               />
             </div>
-            {agent_id && (
+            {agent_id && hideAgentSelect !== true && (
               <div className="flex w-full gap-2">
                 <Button
                   type="button"
