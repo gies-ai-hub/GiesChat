@@ -53,11 +53,20 @@ jest.mock('~/components/SidePanel/Agents/AgentPanelSwitch', () => ({
   default: ({
     onAgentCreated,
     createdVia,
+    initialAgentId,
+    hideAgentSelect,
   }: {
     onAgentCreated?: (agentId: string) => void;
     createdVia?: string;
+    initialAgentId?: string;
+    hideAgentSelect?: boolean;
   }) => (
-    <div data-testid="agent-panel-switch" data-created-via={createdVia}>
+    <div
+      data-testid="agent-panel-switch"
+      data-created-via={createdVia}
+      data-initial-agent-id={initialAgentId}
+      data-hide-agent-select={String(hideAgentSelect === true)}
+    >
       <button
         type="button"
         data-testid="simulate-create"
@@ -553,6 +562,75 @@ describe('AdminDashboard', () => {
 
       await waitFor(() => expect(mockGetAdminAgentStudentUsage).toHaveBeenCalled());
       expect(screen.getByRole('list', { name: 'Agents you manage' })).toBeInTheDocument();
+    });
+  });
+
+  describe('editing an agent', () => {
+    it('opens the builder on the agent whose pencil was clicked', async () => {
+      renderDashboard();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Edit Case Study Coach' }));
+
+      const panel = await screen.findByTestId('agent-panel-switch');
+      expect(panel).toHaveAttribute('data-initial-agent-id', 'agent_1');
+      expect(panel).toHaveAttribute('data-hide-agent-select', 'true');
+      expect(await screen.findByText('Edit agent · Case Study Coach')).toBeInTheDocument();
+    });
+
+    /**
+     * The create path deliberately navigates to a new chat on success. An edit must not:
+     * the professor is mid-review and would lose the class and window filters they set.
+     */
+    it('stays on the dashboard while editing', async () => {
+      renderDashboard();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Edit Case Study Coach' }));
+      await screen.findByTestId('agent-panel-switch');
+      await userEvent.keyboard('{Escape}');
+
+      expect(await screen.findByRole('heading', { name: /class dashboard/i })).toBeInTheDocument();
+    });
+
+    it('refetches usage when the edit dialog closes so a rename shows up', async () => {
+      renderDashboard();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Edit Case Study Coach' }));
+      await screen.findByTestId('agent-panel-switch');
+      const callsBefore = mockGetAdminAgentUsage.mock.calls.length;
+
+      await userEvent.keyboard('{Escape}');
+
+      await waitFor(() =>
+        expect(mockGetAdminAgentUsage.mock.calls.length).toBeGreaterThan(callsBefore),
+      );
+    });
+
+    /**
+     * Editing is authorised by the EDIT scope the server already applied to this list.
+     * A professor who may not create agents may still revise the ones they own.
+     */
+    it('offers the pencil to a professor without create permission', async () => {
+      mockUseHasAccess.mockReturnValue(false);
+      renderDashboard();
+
+      expect(
+        await screen.findByRole('button', { name: 'Edit Case Study Coach' }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /build an agent/i })).not.toBeInTheDocument();
+    });
+
+    it('offers the pencil even when the agent cannot be deleted', async () => {
+      mockGetAdminAgentUsage.mockResolvedValue({
+        agents: [{ ...agentUsage.agents[0], canDelete: false }],
+      });
+      renderDashboard();
+
+      expect(
+        await screen.findByRole('button', { name: 'Edit Case Study Coach' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /Delete Case Study Coach/ }),
+      ).not.toBeInTheDocument();
     });
   });
 });
