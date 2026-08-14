@@ -7,7 +7,6 @@ import { QueryKeys, Permissions, PermissionTypes } from 'librechat-data-provider
 import type { AdminAgentUsage } from 'librechat-data-provider';
 import type { Option } from '@librechat/client';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
-import { BackgroundToggle } from '~/components/ui';
 import { useAdminAccess, useAdminGroupsQuery } from '~/data-provider';
 import { useHasAccess, useLocalize } from '~/hooks';
 import StudentProgressTable from './StudentProgressTable';
@@ -162,7 +161,6 @@ export default function AdminDashboard() {
               {localize('com_ui_admin_dashboard_description')}
             </p>
           </div>
-          <BackgroundToggle className="shrink-0" />
         </header>
 
         <section

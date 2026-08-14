@@ -21,7 +21,7 @@ import KeyboardDeleteDialog from '~/components/Nav/KeyboardDeleteDialog';
 import { useUserTermsQuery, useGetStartupConfig } from '~/data-provider';
 import useKeyboardShortcuts from '~/hooks/useKeyboardShortcuts';
 import { UnifiedSidebar } from '~/components/UnifiedSidebar';
-import { TermsAndConditionsModal } from '~/components/ui';
+import { TermsAndConditionsModal, TopRightControls } from '~/components/ui';
 import { useHealthCheck } from '~/data-provider';
 import { Banner } from '~/components/Banners';
 import store from '~/store';
@@ -84,6 +84,7 @@ export default function Root() {
           <AgentsMapContext.Provider value={agentsMap}>
             <PromptGroupsProvider>
               <Banner onHeightChange={setBannerHeight} />
+              <TopRightControls />
               <div className="flex" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
                 <div className="relative z-0 flex h-full w-full overflow-hidden">
                   <UnifiedSidebar />

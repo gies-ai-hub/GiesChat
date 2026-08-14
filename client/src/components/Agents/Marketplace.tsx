@@ -220,7 +220,7 @@ const AgentMarketplace: React.FC<AgentMarketplaceProps> = ({ className = '' }) =
             {!isSmallScreen && (
               <div className="container mx-auto max-w-4xl">
                 {hasAccessToCreateAgents && (
-                  <div className="mt-4 flex items-center justify-end gap-2 px-4">
+                  <div className="mt-4 flex items-center justify-end gap-2 px-4 pr-[13.5rem]">
                     <Button
                       variant="outline"
                       className="rounded-xl border-border-medium font-medium"

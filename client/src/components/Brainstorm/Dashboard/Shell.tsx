@@ -140,7 +140,7 @@ export default function Shell({ title, children }: { title: string; children: Re
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b border-border-light bg-surface-primary px-4 py-4 sm:px-7">
           <h1 className="text-lg font-bold text-text-primary">{title}</h1>
-          <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-3.5 md:pr-[13.5rem]">
             {name !== '' && (
               <span className="hidden text-[13px] text-text-secondary md:block">
                 {localize('com_ui_brainstorm_welcome_back', { name })}
