@@ -11,6 +11,7 @@ import MarketplaceAdminSettings from './MarketplaceAdminSettings';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
 import { SidePanelGroup } from '~/components/SidePanel';
 import AgentGrid, { MY_AGENTS_CATEGORY } from './AgentGrid';
+import { TopRightActions } from '~/components/ui';
 import CategoryTabs from './CategoryTabs';
 import SearchBar from './SearchBar';
 import { cn } from '~/utils';
@@ -220,7 +221,7 @@ const AgentMarketplace: React.FC<AgentMarketplaceProps> = ({ className = '' }) =
             {!isSmallScreen && (
               <div className="container mx-auto max-w-4xl">
                 {hasAccessToCreateAgents && (
-                  <div className="mt-4 flex items-center justify-end gap-2 px-4 pr-[13.5rem]">
+                  <TopRightActions>
                     <Button
                       variant="outline"
                       className="rounded-xl border-border-medium font-medium"
@@ -240,9 +241,9 @@ const AgentMarketplace: React.FC<AgentMarketplaceProps> = ({ className = '' }) =
                       <Plus className="icon-md" aria-hidden="true" />
                       {localize('com_agents_create')}
                     </Button>
-                  </div>
+                  </TopRightActions>
                 )}
-                <div className={cn('mb-8 text-center', hasAccessToCreateAgents ? 'mt-2' : 'mt-12')}>
+                <div className="mb-8 mt-12 text-center">
                   <h1 className="mb-3 text-3xl font-bold tracking-tight text-text-primary md:text-5xl">
                     {localize('com_agents_marketplace')}
                   </h1>
