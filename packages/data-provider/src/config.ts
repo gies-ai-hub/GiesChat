@@ -2762,6 +2762,8 @@ export enum LocalStorageKeys {
   LAST_TOOLS = 'lastSelectedTools',
   /** Key for the last selected spec by name*/
   LAST_SPEC = 'lastSelectedSpec',
+  /** The spec in use before Work mode, so leaving Work restores it rather than the default. */
+  LAST_CHAT_SPEC = 'lastChatSpec',
   /** Key for temporary files to delete */
   FILES_TO_DELETE = 'filesToDelete',
   /** Prefix key for the last selected assistant ID by index */

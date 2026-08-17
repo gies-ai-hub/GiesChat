@@ -234,6 +234,9 @@ modelSpecs:
         promptPrefix: *gieschat_baseline
     - name: gieschat-deck-builder
       label: Deck Builder
+      # Reached only through the Work tab (see client/src/hooks/useWorkMode.ts), never the
+      # model menu. This also keeps the deck instructions out of the browser's startup config.
+      showInMenu: false
       description: Build a PowerPoint deck from a short brief - with your own design if you have one.
       iconURL: /assets/mcp-powerpoint.svg
       mcpServers:
