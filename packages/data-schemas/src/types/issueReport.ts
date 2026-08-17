@@ -18,6 +18,8 @@ export type IssueReport = {
   evidence: IssueEvidence[];
   diagnosis: string;
   confidence: 'low' | 'medium' | 'high';
+  githubIssueNumber?: number;
+  githubIssueUrl?: string;
 };
 
 export type IIssueReport = IssueReport &

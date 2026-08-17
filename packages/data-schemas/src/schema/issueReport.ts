@@ -23,6 +23,8 @@ const issueReportSchema: Schema<IIssueReport> = new Schema<IIssueReport>(
     evidence: { type: [issueEvidenceSchema], default: [] },
     diagnosis: { type: String, required: true },
     confidence: { type: String, enum: ['low', 'medium', 'high'], required: true },
+    githubIssueNumber: Number,
+    githubIssueUrl: String,
   },
   { timestamps: true },
 );

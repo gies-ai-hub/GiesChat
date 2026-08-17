@@ -3,8 +3,10 @@ import { nanoid } from 'nanoid';
 import {
   createModels,
   getRecentDiagnosticLogs,
+  logger,
   type DiagnosticLogEntry,
 } from '@librechat/data-schemas';
+import { fileIssue } from './github';
 
 export type SubmitIssueInput = {
   userId: string;
@@ -64,7 +66,13 @@ export async function submitIssue(input: SubmitIssueInput): Promise<{
   const { diagnosis, confidence } = diagnoseIssue(logs);
   const reportId = `ISS-${nanoid(10).toUpperCase()}`;
   const { IssueReport } = createModels(mongoose);
-  await IssueReport.create({
+  const evidence = logs.map(({ timestamp, level, message, requestId }) => ({
+    timestamp,
+    level,
+    message,
+    requestId,
+  }));
+  const report = await IssueReport.create({
     reportId,
     userId: input.userId,
     tenantId: input.tenantId,
@@ -72,14 +80,33 @@ export async function submitIssue(input: SubmitIssueInput): Promise<{
     route: input.route,
     userAgent: input.userAgent,
     occurredAt,
-    evidence: logs.map(({ timestamp, level, message, requestId }) => ({
-      timestamp,
-      level,
-      message,
-      requestId,
-    })),
+    evidence,
     diagnosis,
     confidence,
   });
+
+  /** Mongo stays the source of truth; GitHub is a mirror that happens to have a UI. */
+  const filed = await fileIssue({
+    reportId,
+    userId: input.userId,
+    description: input.description,
+    route: input.route,
+    userAgent: input.userAgent,
+    occurredAt,
+    diagnosis,
+    confidence,
+    evidence: logs,
+  });
+  if (filed) {
+    try {
+      await IssueReport.updateOne(
+        { _id: report._id },
+        { githubIssueNumber: filed.number, githubIssueUrl: filed.url },
+      );
+    } catch (error) {
+      logger.error(`[issues] Filed ${reportId} as ${filed.url} but could not record it`, error);
+    }
+  }
+
   return { reportId, diagnosis, confidence, evidenceCount: logs.length };
 }
