@@ -26,6 +26,7 @@ import type {
 import type { AssistantListItem } from '~/common';
 import {
   updateLastSelectedModel,
+  shouldKeepDraftSpec,
   getLocalStorageItems,
   getDefaultModelSpec,
   getDefaultEndpoint,
@@ -290,6 +291,7 @@ const useNewConvo = (index = 0) => {
       buildDefault = true,
       keepAddedConvos = false,
       disableParams,
+      isDefaultInit = false,
     }: {
       template?: Partial<TConversation>;
       preset?: Partial<TPreset>;
@@ -298,6 +300,8 @@ const useNewConvo = (index = 0) => {
       disableFocus?: boolean;
       keepAddedConvos?: boolean;
       disableParams?: boolean;
+      /** The preset was derived from the admin default, not chosen by the user. */
+      isDefaultInit?: boolean;
     } = {}) {
       pauseGlobalAudio();
       if (!saveBadgesState) {
@@ -337,6 +341,31 @@ const useNewConvo = (index = 0) => {
       }
 
       const prevConversation = getConversation();
+      /**
+       * A blank draft the user has already pointed at a spec (the Chat/Work pills, the
+       * model menu) must not be re-stamped with the admin `default: true` spec. Only an
+       * explicit selection supplies its own preset; everything else reaching here is
+       * app-initiated re-initialization of the same draft, which would otherwise
+       * silently undo the pick before the first send. Nothing else about the draft
+       * changes on such a call, so skipping it whole is safe.
+       */
+      if (
+        shouldKeepDraftSpec({
+          isDerivedDefault: _preset == null || isDefaultInit,
+          nextConversationId: conversation.conversationId,
+          prevConversationId: prevConversation?.conversationId,
+          prevSpec: prevConversation?.spec,
+          nextSpec: preset?.spec,
+        })
+      ) {
+        logger.log(
+          'conversation',
+          'Keeping the draft spec over the default spec',
+          prevConversation?.spec,
+        );
+        return;
+      }
+
       applyModelSpecEffects({
         startupConfig,
         specName: preset?.spec,

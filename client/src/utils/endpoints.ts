@@ -409,6 +409,38 @@ export function getDefaultModelSpec(
   return;
 }
 
+/**
+ * Whether a blank draft's existing spec must survive an incoming conversation switch.
+ *
+ * The admin `default: true` spec is re-derived on every re-initialization of a new chat,
+ * so an app-initiated switch would silently undo a spec the user picked seconds earlier
+ * (the Chat/Work pills, the model menu) — the pick lands, gets stamped over, and the
+ * turn is sent on the default. Only a user selection carries its own preset, so a
+ * derived preset never wins over a draft that already names a different spec. Existing
+ * conversations are untouched: both sides must be drafts.
+ */
+export function shouldKeepDraftSpec({
+  isDerivedDefault,
+  nextConversationId,
+  prevConversationId,
+  prevSpec,
+  nextSpec,
+}: {
+  isDerivedDefault: boolean;
+  nextConversationId?: string | null;
+  prevConversationId?: string | null;
+  prevSpec?: string | null;
+  nextSpec?: string | null;
+}): boolean {
+  return (
+    isDerivedDefault &&
+    nextConversationId === Constants.NEW_CONVO &&
+    prevConversationId === Constants.NEW_CONVO &&
+    prevSpec != null &&
+    prevSpec !== nextSpec
+  );
+}
+
 export function getModelSpecPreset(modelSpec?: t.TModelSpec) {
   if (!modelSpec) {
     return;

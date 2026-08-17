@@ -192,7 +192,7 @@ export default function ChatRoute() {
       newConversation({
         modelsData: modelsQuery.data,
         template: projectTemplate,
-        ...(preset ? { preset } : {}),
+        ...(preset ? { preset, isDefaultInit: true } : {}),
       });
 
       hasSetConversation.current = true;
@@ -225,7 +225,7 @@ export default function ChatRoute() {
       );
       newConversation({
         modelsData: modelsQuery.data,
-        ...(spec ? { preset: getModelSpecPreset(spec) } : {}),
+        ...(spec ? { preset: getModelSpecPreset(spec), isDefaultInit: true } : {}),
       });
       hasSetConversation.current = true;
     } else if (
@@ -240,7 +240,7 @@ export default function ChatRoute() {
       newConversation({
         modelsData: modelsQuery.data,
         template: projectTemplate,
-        ...(preset ? { preset } : {}),
+        ...(preset ? { preset, isDefaultInit: true } : {}),
       });
       hasSetConversation.current = true;
     } else if (
