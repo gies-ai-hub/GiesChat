@@ -61,7 +61,7 @@ export default function QuestionDock() {
       role="group"
       aria-label={localize('com_ui_deck_questions')}
       className={cn(
-        'absolute bottom-full left-0 right-0 z-10 mx-auto mb-1 w-full transition-[max-width] duration-300 sm:px-2',
+        'absolute bottom-full left-0 right-0 z-10 mx-auto mb-4 w-full transition-[max-width] duration-300 sm:px-2',
         maximizeChatSpace ? 'max-w-full' : 'md:max-w-3xl xl:max-w-4xl',
       )}
     >
