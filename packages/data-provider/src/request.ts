@@ -107,6 +107,14 @@ const stripBasePath = (pathname: string) => {
 
 const isSharePage = () => SHARE_PAGE_PATH_REGEX.test(stripBasePath(window.location.pathname));
 
+/** Set by the embedded-chat route. An iframe holds a bearer token and no cookies, so a
+ *  failed refresh must surface as an error to the frame, never as a login redirect
+ *  (Illinois SSO cannot render inside a frame). */
+let embedMode = false;
+export const setEmbedMode = (enabled: boolean) => {
+  embedMode = enabled;
+};
+
 const getRequestPathname = (url?: string) => {
   if (typeof url !== 'string') {
     return '';
@@ -336,7 +344,7 @@ if (typeof window !== 'undefined') {
         return Promise.reject(error);
       }
 
-      if (isAuthRedirectInProgress()) {
+      if (isAuthRedirectInProgress() || embedMode) {
         return Promise.reject(error);
       }
 

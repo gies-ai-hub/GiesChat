@@ -11,6 +11,7 @@ const {
   formatAuthLogMessage,
   maybeRefreshCloudFrontAuthCookiesMiddleware,
   recordRumProxyRequest,
+  isEmbedRequestAllowed,
 } = require('@librechat/api');
 
 const hasPassportStrategy = (strategy) =>
@@ -179,6 +180,17 @@ const requireJwtAuth = (req, res, next) => {
         }
         logAuthenticationFailure({ strategy, info, status: 401, err });
         return res.status(401).json({ message: 'Unauthorized' });
+      }
+      if (
+        user.embedAgentId &&
+        !isEmbedRequestAllowed({
+          method: req.method,
+          url: req.originalUrl,
+          agentId: user.embedAgentId,
+          bodyAgentId: req.body?.agent_id,
+        })
+      ) {
+        return res.status(403).json({ message: 'Embedded guests can only use their agent' });
       }
       req.user = user;
       req.authStrategy = strategy;

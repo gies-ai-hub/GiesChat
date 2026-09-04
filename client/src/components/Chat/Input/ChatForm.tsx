@@ -95,6 +95,7 @@ const ChatForm = memo(function ChatForm({
   const maximizeChatSpace = useRecoilValue(store.maximizeChatSpace);
   const centerFormOnLanding = useRecoilValue(store.centerFormOnLanding);
   const isTemporary = useRecoilValue(store.isTemporary);
+  const embed = useRecoilValue(store.embed);
 
   const [badges, setBadges] = useRecoilState(store.chatBadges);
   const [isEditingBadges, setIsEditingBadges] = useRecoilState(store.isEditingBadges);
@@ -542,15 +543,17 @@ const ChatForm = memo(function ChatForm({
                 isRTL ? 'flex-row-reverse' : 'flex-row',
               )}
             >
-              <div className={`${isRTL ? 'mr-2' : 'ml-2'}`}>
-                <AttachFileChat
-                  conversation={conversation}
-                  disableInputs={disableInputs}
-                  files={files}
-                  setFiles={setFiles}
-                  setFilesLoading={setFilesLoading}
-                />
-              </div>
+              {embed == null && (
+                <div className={`${isRTL ? 'mr-2' : 'ml-2'}`}>
+                  <AttachFileChat
+                    conversation={conversation}
+                    disableInputs={disableInputs}
+                    files={files}
+                    setFiles={setFiles}
+                    setFilesLoading={setFilesLoading}
+                  />
+                </div>
+              )}
               <BadgeRow
                 showEphemeralBadges={
                   !!endpoint &&

@@ -35,6 +35,7 @@ const usage: AdminAgentUsageResponse = {
       messageCount: 310,
       lastActivity: '2026-07-30T10:00:00.000Z',
       canDelete: true,
+      embed: null,
     },
     {
       agent_id: 'agent_2',
@@ -48,6 +49,7 @@ const usage: AdminAgentUsageResponse = {
       messageCount: 0,
       lastActivity: null,
       canDelete: false,
+      embed: null,
     },
   ],
 };

@@ -27,6 +27,7 @@ const handlers = createAdminUsageHandlers({
   aggregateStudentUsage: db.aggregateStudentUsage,
   aggregateAgentAnalytics: db.aggregateAgentAnalytics,
   updateUser: db.updateUser,
+  setAgentEmbed: db.setAgentEmbed,
 });
 
 router.use(requireJwtAuth, requireAdminAccess);
@@ -55,6 +56,13 @@ router.get(
  * NOT `read:usage`/`read:groups`: requiring roster permissions to save a checkbox
  * would be a boundary that means nothing.
  */
+/**
+ * Embedding is a share decision about an agent the caller already edits, so the
+ * usage scope (author-or-EDIT) is the whole gate — no roster is read.
+ */
+router.put('/agents/:agent_id/embed', handlers.updateAgentEmbed);
+router.delete('/agents/:agent_id/embed', handlers.revokeAgentEmbed);
+
 router.get('/layout', handlers.getDashboardLayout);
 router.put('/layout', handlers.updateDashboardLayout);
 

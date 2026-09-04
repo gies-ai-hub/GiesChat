@@ -290,6 +290,7 @@ const startServer = async () => {
   app.use('/api/files', await routes.files.initialize());
   app.use('/images/', createValidateImageRequest(appConfig.secureImageLinks), routes.staticRoute);
   app.use('/api/share', preAuthTenantMiddleware, routes.share);
+  app.use('/api/embed', preAuthTenantMiddleware, routes.embed);
   app.use('/api/rooms', routes.rooms);
   app.use('/api/replit', routes.replit);
   app.use('/api/roles', routes.roles);

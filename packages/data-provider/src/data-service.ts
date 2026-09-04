@@ -1298,6 +1298,22 @@ export function updateAdminDashboardLayout(
   return request.put(endpoints.adminDashboardLayout(), { panels });
 }
 
+export function updateAdminAgentEmbed(
+  agentId: string,
+  settings: q.AgentEmbedSettings,
+): Promise<q.AdminAgentEmbedResponse> {
+  return request.put(endpoints.adminAgentEmbed(agentId), settings);
+}
+
+export function revokeAdminAgentEmbed(agentId: string): Promise<q.AdminAgentEmbedResponse> {
+  return request.delete(endpoints.adminAgentEmbed(agentId));
+}
+
+/* Embedded chat (public) */
+export function startEmbedSession(key: string): Promise<q.EmbedSessionResponse> {
+  return request.post(endpoints.embedSession(key));
+}
+
 /* Roles */
 export function listRoles(): Promise<q.ListRolesResponse> {
   return request.get(`${endpoints.adminRoles()}?limit=200`);

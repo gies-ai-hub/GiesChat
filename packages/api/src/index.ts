@@ -3,6 +3,7 @@ export * from './app';
 export * from './artifacts';
 /* Admin */
 export * from './admin';
+export * from './embed';
 export * from './cdn';
 /* Auth */
 export * from './auth';

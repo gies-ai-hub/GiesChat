@@ -8,7 +8,7 @@ import {
 } from 'librechat-data-provider';
 import type { AgentToolResources } from 'librechat-data-provider';
 import type { FilterQuery, Model, Types } from 'mongoose';
-import type { IAgent, IAclEntry } from '~/types';
+import type { IAgent, IAgentEmbed, IAclEntry } from '~/types';
 import { filterExistingSkillIds } from './skill';
 import logger from '~/config/winston';
 
@@ -1055,8 +1055,25 @@ export function createAgentMethods(
     );
   }
 
+  /** The key is `select: false`, so this is the only read path for it: the public embed session. */
+  async function getAgentByEmbedKey(key: string): Promise<IAgent | null> {
+    const Agent = mongoose.models.Agent as Model<IAgent>;
+    return await Agent.findOne({ 'embed.key': key }).select('+embed.key').lean<IAgent>();
+  }
+
+  /** Deliberately not `updateAgent`: embed settings are not a versioned edit to the agent. */
+  async function setAgentEmbed(agentId: string, embed: IAgentEmbed | null): Promise<IAgent | null> {
+    const Agent = mongoose.models.Agent as Model<IAgent>;
+    const update = embed == null ? { $unset: { embed: 1 } } : { $set: { embed } };
+    return await Agent.findOneAndUpdate({ id: agentId }, update, { new: true })
+      .select('+embed.key')
+      .lean<IAgent>();
+  }
+
   return {
     getAgent,
+    getAgentByEmbedKey,
+    setAgentEmbed,
     getAgentVersions,
     getAgentWithVersionCount,
     getAgents,

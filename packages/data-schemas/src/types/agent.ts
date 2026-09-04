@@ -12,6 +12,16 @@ export interface ISupportContact {
   email?: string;
 }
 
+export type AgentEmbedAudience = 'public' | 'illinois';
+
+export interface IAgentEmbed {
+  /** Random link credential; `select: false` on the schema, so absent unless asked for. */
+  key?: string;
+  audience: AgentEmbedAudience;
+  /** Shown as the agent's first message in every new embedded chat. */
+  greeting?: string;
+}
+
 export interface IAgent extends Omit<Document, 'model'> {
   id: string;
   name?: string;
@@ -48,6 +58,8 @@ export interface IAgent extends Omit<Document, 'model'> {
   course?: string;
   /** Which surface built this agent. A UI hint for filtering — never an access check. */
   createdVia?: string;
+  /** Present only while the agent is embeddable without login; see `IAgentEmbed`. */
+  embed?: IAgentEmbed;
   support_contact?: ISupportContact;
   is_promoted?: boolean;
   /** MCP server names extracted from tools for efficient querying */

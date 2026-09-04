@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
+import { useRecoilValue } from 'recoil';
 import { easings } from '@react-spring/web';
 import { EModelEndpoint } from 'librechat-data-provider';
 import { BirthdayIcon, TooltipAnchor, SplitText } from '@librechat/client';
@@ -16,6 +17,7 @@ import AgentContact from '~/components/Agents/AgentContact';
 import ConvoIcon from '~/components/Endpoints/ConvoIcon';
 import ModeToggle from './ModeToggle';
 import { useLocalize, useAuthContext } from '~/hooks';
+import store from '~/store';
 
 const containerClassName =
   'shadow-stroke relative flex h-full items-center justify-center rounded-full bg-white dark:bg-presentation dark:text-white text-black dark:after:shadow-none ';
@@ -38,6 +40,7 @@ function getTextSizeClass(text: string | undefined | null) {
 
 export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: boolean }) {
   const { conversation } = useChatContext();
+  const embed = useRecoilValue(store.embed);
   const agentsMap = useAgentsMapContext();
   const assistantMap = useAssistantsMapContext();
   const { data: startupConfig } = useGetStartupConfig();
@@ -171,7 +174,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
       className={`flex h-full transform-gpu flex-col items-center justify-center pb-16 transition-all duration-200 ${centerFormOnLanding ? 'max-h-full sm:max-h-0' : 'max-h-full'} ${getDynamicMargin}`}
     >
       <div ref={contentRef} className="flex flex-col items-center gap-0 p-2">
-        <ModeToggle className="mb-6" />
+        {embed == null && <ModeToggle className="mb-6" />}
         <div
           className={`flex ${textHasMultipleLines ? 'flex-col' : 'flex-col md:flex-row'} items-center justify-center gap-2`}
         >
@@ -239,6 +242,14 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
               {description}
             </div>
           ))}
+        {embed?.greeting && (
+          <div
+            role="status"
+            className="animate-fadeIn mt-6 max-w-md rounded-2xl border border-border-light bg-surface-secondary-alt px-4 py-3 text-left text-sm text-text-primary"
+          >
+            {embed.greeting}
+          </div>
+        )}
         {selectedAgent && (
           <AgentContact
             agent={selectedAgent}

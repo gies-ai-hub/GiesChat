@@ -12,6 +12,7 @@ import { useHasAccess, useLocalize } from '~/hooks';
 import StudentProgressTable from './StudentProgressTable';
 import AgentUsageTable from './AgentUsageTable';
 import ShareWithClass from './ShareWithClass';
+import EmbedDialog from './EmbedDialog';
 import AgentCards from './AgentCards';
 import AnalyticsSection from './Analytics';
 
@@ -36,6 +37,7 @@ export default function AdminDashboard() {
   const [days, setDays] = useState<number>(30);
   const [selectedAgent, setSelectedAgent] = useState<AdminAgentUsage | null>(null);
   const [editingAgent, setEditingAgent] = useState<AdminAgentUsage | null>(null);
+  const [embeddingAgent, setEmbeddingAgent] = useState<AdminAgentUsage | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
 
   const { data: groupData, error: groupsError } = useAdminGroupsQuery(
@@ -232,6 +234,7 @@ export default function AdminDashboard() {
               days={days}
               onSelectAgent={setSelectedAgent}
               onEditAgent={setEditingAgent}
+              onEmbedAgent={setEmbeddingAgent}
             />
           )}
         </section>
@@ -262,6 +265,15 @@ export default function AdminDashboard() {
             </OGDialogContent>
           </OGDialog>
         )}
+
+        <EmbedDialog
+          agent={embeddingAgent}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEmbeddingAgent(null);
+            }
+          }}
+        />
 
         {/* Not gated on canCreateAgents: editing is authorised by the EDIT scope the server
             already applied to this list, not by the CREATE permission. */}

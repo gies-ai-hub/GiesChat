@@ -114,6 +114,18 @@ const agentSchema: Schema<IAgent> = new Schema<IAgent>(
       trim: true,
       index: true,
     },
+    /** Public-embed settings. `key` is the link credential, so it is never selected by default. */
+    embed: {
+      type: new Schema(
+        {
+          key: { type: String, select: false, index: true, sparse: true },
+          audience: { type: String, enum: ['public', 'illinois'], default: 'public' },
+          greeting: { type: String, maxlength: 1000 },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
     support_contact: {
       type: Schema.Types.Mixed,
       default: undefined,

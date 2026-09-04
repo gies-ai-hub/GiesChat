@@ -41,6 +41,7 @@ export default function Root() {
   const [showTerms, setShowTerms] = useState(false);
   const [bannerHeight, setBannerHeight] = useState(0);
   const sidebarExpanded = useRecoilValue(store.sidebarExpanded);
+  const embed = useRecoilValue(store.embed);
   const isSmallScreen = useMediaQuery('(max-width: 768px)');
 
   const { isAuthenticated, logout } = useAuthContext();
@@ -83,11 +84,11 @@ export default function Root() {
         <AssistantsMapContext.Provider value={assistantsMap}>
           <AgentsMapContext.Provider value={agentsMap}>
             <PromptGroupsProvider>
-              <Banner onHeightChange={setBannerHeight} />
-              <TopRightControls />
+              {embed == null && <Banner onHeightChange={setBannerHeight} />}
+              {embed == null && <TopRightControls />}
               <div className="flex" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
                 <div className="relative z-0 flex h-full w-full overflow-hidden">
-                  <UnifiedSidebar />
+                  {embed == null && <UnifiedSidebar />}
                   <div
                     className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden"
                     style={{
@@ -113,7 +114,7 @@ export default function Root() {
               modalContent={config.interface.termsOfService.modalContent}
             />
           )}
-          <KeyboardShortcutsProvider />
+          {embed == null && <KeyboardShortcutsProvider />}
         </AssistantsMapContext.Provider>
       </FileMapContext.Provider>
     </SetConvoProvider>

@@ -130,6 +130,7 @@ export enum MutationKeys {
   verifyTwoFactor = 'verifyTwoFactor',
   updateMemoryPreferences = 'updateMemoryPreferences',
   updateAdminDashboardLayout = 'updateAdminDashboardLayout',
+  updateAdminAgentEmbed = 'updateAdminAgentEmbed',
   createProject = 'createProject',
   updateProject = 'updateProject',
   deleteProject = 'deleteProject',

@@ -20,6 +20,8 @@ import dashboardRoutes from './Dashboard';
 import ShareRoute from './ShareRoute';
 import ChatRoute from './ChatRoute';
 import Search from './Search';
+import EmbedRoute from './EmbedRoute';
+import EmbedDone from './EmbedDone';
 import Root from './Root';
 
 const AuthLayout = () => (
@@ -148,6 +150,14 @@ export const router = createBrowserRouter(
           ],
         },
         dashboardRoutes,
+        {
+          path: 'embed/:embedKey',
+          element: <EmbedRoute />,
+        },
+        {
+          path: 'embed/:embedKey/done',
+          element: <EmbedDone />,
+        },
         {
           path: 'brainstorm',
           element: <DashboardRoute />,

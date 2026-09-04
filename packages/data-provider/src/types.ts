@@ -230,6 +230,8 @@ export type TUser = {
   avatar: string;
   role: string;
   provider: string;
+  /** Anonymous embed guests only: the single agent this user is fenced to. */
+  embedAgentId?: string;
   tenantId?: string;
   plugins?: string[];
   twoFactorEnabled?: boolean;

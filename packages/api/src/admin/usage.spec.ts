@@ -315,6 +315,7 @@ interface TestDeps extends AdminUsageDeps {
   aggregateStudentUsage: jest.Mock;
   aggregateAgentAnalytics: jest.Mock;
   updateUser: jest.Mock;
+  setAgentEmbed: jest.Mock;
 }
 
 /** The shape the analytics pipeline returns when nothing happened in the window. */
@@ -361,6 +362,7 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
     aggregateStudentUsage: jest.fn(fakeAggregateStudentUsage(conversations)),
     aggregateAgentAnalytics: jest.fn(async () => EMPTY_ANALYTICS_RAW),
     updateUser: jest.fn(async () => null),
+    setAgentEmbed: jest.fn(async () => null),
     ...overrides,
   };
 
@@ -1144,6 +1146,7 @@ describe('createAdminUsageHandlers', () => {
           'conversationCount',
           'course',
           'description',
+          'embed',
           'lastActivity',
           'messageCount',
           'name',

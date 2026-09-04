@@ -169,6 +169,7 @@ function BadgeRow({
 
   const allBadges = useChatBadges();
   const isEditing = useRecoilValue(store.isEditingBadges);
+  const embed = useRecoilValue(store.embed);
   const { data: startupConfig } = useGetStartupConfig();
 
   const badges = useMemo(
@@ -333,9 +334,11 @@ function BadgeRow({
       isSubmitting={isSubmitting}
     >
       <div ref={containerRef} className="relative flex flex-wrap items-center gap-2">
-        <div className="flex items-center" data-tour="model-picker">
-          <ModelSelector startupConfig={startupConfig} />
-        </div>
+        {embed == null && (
+          <div className="flex items-center" data-tour="model-picker">
+            <ModelSelector startupConfig={startupConfig} />
+          </div>
+        )}
         {showEphemeralBadges === true && <ToolsDropdown />}
         {tempBadges.map((badge, index) => (
           <React.Fragment key={badge.id}>

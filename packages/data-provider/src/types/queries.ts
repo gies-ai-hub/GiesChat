@@ -259,6 +259,42 @@ export type AdminAgentUsage = AdminUsageCounts & {
   userCount: number;
   /** Whether the caller holds DELETE on this agent. EDIT scope alone does not imply it. */
   canDelete: boolean;
+  /** Live embed settings, or `null` when the agent is not embeddable without login. */
+  embed: AgentEmbed | null;
+};
+
+export type AgentEmbedAudience = 'public' | 'illinois';
+
+export type AgentEmbed = {
+  /** The link credential: `/embed/<key>`. */
+  key: string;
+  audience: AgentEmbedAudience;
+  /** Shown as the agent's first message in every new embedded chat; `null` = agent stays silent. */
+  greeting: string | null;
+};
+
+export type AgentEmbedSettings = {
+  audience: AgentEmbedAudience;
+  greeting: string | null;
+};
+
+export type AdminAgentEmbedResponse = {
+  embed: AgentEmbed | null;
+};
+
+export type EmbedSessionAgent = {
+  id: string;
+  name: string;
+  avatar: AgentAvatar | null;
+  audience: AgentEmbedAudience;
+  greeting: string | null;
+};
+
+export type EmbedSessionResponse = {
+  agent: EmbedSessionAgent;
+  /** `null` when the agent is Illinois-only and the visitor has not signed in yet. */
+  token: string | null;
+  user: { id: string; name: string; provider: string; embedAgentId: string | null } | null;
 };
 
 export type AdminAgentUsageResponse = {

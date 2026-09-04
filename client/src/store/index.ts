@@ -12,6 +12,7 @@ import toast from './toast';
 import user from './user';
 import text from './text';
 import misc from './misc';
+import embed from './embed';
 import * as replit from './replit';
 export * from './agents';
 export * from './mcp';
@@ -37,4 +38,5 @@ export default {
   ...misc,
   ...replit,
   ...isTemporary,
+  ...embed,
 };

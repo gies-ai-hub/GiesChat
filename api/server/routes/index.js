@@ -31,6 +31,7 @@ const roles = require('./roles');
 const oauth = require('./oauth');
 const files = require('./files');
 const share = require('./share');
+const embed = require('./embed');
 const rooms = require('./rooms');
 const replit = require('./replit');
 const tags = require('./tags');
@@ -63,6 +64,7 @@ module.exports = {
   oauth,
   files,
   share,
+  embed,
   rooms,
   replit,
   banner,

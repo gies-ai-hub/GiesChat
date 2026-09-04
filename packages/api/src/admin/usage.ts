@@ -1,7 +1,14 @@
+import { randomBytes } from 'node:crypto';
 import { ResourceType, PermissionBits, sanitizeLayout } from 'librechat-data-provider';
 import { logger, isValidObjectIdString } from '@librechat/data-schemas';
 import type { AdminDashboardPanel } from 'librechat-data-provider';
-import type { IUser, IAgent, IGroup } from '@librechat/data-schemas';
+import type {
+  IUser,
+  IAgent,
+  IGroup,
+  IAgentEmbed,
+  AgentEmbedAudience,
+} from '@librechat/data-schemas';
 import type { FilterQuery, Types } from 'mongoose';
 import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
@@ -18,7 +25,10 @@ const DEFAULT_DAYS = 30;
 const MIN_DAYS = 1;
 const MAX_DAYS = 365;
 
-const AGENT_SCOPE_FIELDS = '_id id name author description avatar category course';
+const AGENT_SCOPE_FIELDS =
+  '_id id name author description avatar category course embed.audience embed.greeting +embed.key';
+const EMBED_AUDIENCES: AgentEmbedAudience[] = ['public', 'illinois'];
+const EMBED_GREETING_MAX = 1000;
 /** Only agents built from the class dashboard are listed there. Must match the client. */
 const DASHBOARD_ORIGIN = 'dashboard';
 const STUDENT_FIELDS = '_id name email';
@@ -94,7 +104,36 @@ export interface AdminUsageDeps {
   aggregateStudentUsage: (scope: StudentUsageScope) => Promise<StudentUsageRow[]>;
   aggregateAgentAnalytics: (scope: AgentAnalyticsScope) => Promise<AgentAnalyticsRaw>;
   updateUser: (userId: string, updateData: Partial<IUser>) => Promise<IUser | null>;
+  setAgentEmbed: (agentId: string, embed: IAgentEmbed | null) => Promise<IAgent | null>;
 }
+
+/** What the dashboard shows the professor; `key` is the only place it ever leaves the server. */
+interface AgentEmbedItem {
+  key: string;
+  audience: AgentEmbedAudience;
+  greeting: string | null;
+}
+
+/** Untrusted body → validated settings, or `null` when the body is malformed. */
+export function parseEmbedSettings(body: unknown): Omit<IAgentEmbed, 'key'> | null {
+  if (typeof body !== 'object' || body == null) {
+    return null;
+  }
+  const { audience, greeting } = body as { audience?: unknown; greeting?: unknown };
+  if (!EMBED_AUDIENCES.includes(audience as AgentEmbedAudience)) {
+    return null;
+  }
+  if (greeting != null && typeof greeting !== 'string') {
+    return null;
+  }
+  const trimmed = typeof greeting === 'string' ? greeting.trim().slice(0, EMBED_GREETING_MAX) : '';
+  return { audience: audience as AgentEmbedAudience, ...(trimmed ? { greeting: trimmed } : {}) };
+}
+
+const toEmbedItem = (embed: IAgentEmbed | undefined): AgentEmbedItem | null =>
+  embed?.key
+    ? { key: embed.key, audience: embed.audience, greeting: embed.greeting ?? null }
+    : null;
 
 /** The dashboard's analytics section — aggregate only, no student is identified. */
 interface AnalyticsResponse {
@@ -124,6 +163,8 @@ interface AgentUsageItem {
   lastActivity: string | null;
   /** Whether this caller holds DELETE on the agent — EDIT scope alone does not imply it. */
   canDelete: boolean;
+  /** Live embed settings, or `null` when the agent is not embeddable. */
+  embed: AgentEmbedItem | null;
 }
 
 interface StudentUsageItem {
@@ -169,6 +210,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   listAgentAnalytics: (req: ServerRequest, res: Response) => Promise<Response>;
   getDashboardLayout: (req: ServerRequest, res: Response) => Promise<Response>;
   updateDashboardLayout: (req: ServerRequest, res: Response) => Promise<Response>;
+  updateAgentEmbed: (req: ServerRequest, res: Response) => Promise<Response>;
+  revokeAgentEmbed: (req: ServerRequest, res: Response) => Promise<Response>;
 } {
   const {
     findAgents,
@@ -179,6 +222,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     aggregateStudentUsage,
     aggregateAgentAnalytics,
     updateUser,
+    setAgentEmbed,
   } = deps;
 
   /**
@@ -339,6 +383,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
           messageCount: row?.messageCount ?? 0,
           lastActivity: row?.lastActivity?.toISOString() ?? null,
           canDelete: isAuthor(caller, agent) || deletableIds.has(String(agent._id)),
+          embed: toEmbedItem(agent.embed),
         };
       });
       items.sort(byUsageThenName);
@@ -505,8 +550,66 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     }
   }
 
+  /**
+   * Turns embedding on, or updates its settings. The key is minted once and kept
+   * across settings edits so a link already pasted into Canvas keeps working;
+   * revoking is the only way to rotate it. Scope is the same author-or-EDIT
+   * boundary as every other handler here.
+   */
+  async function updateAgentEmbed(req: ServerRequest, res: Response): Promise<Response> {
+    const rawAgentId = (req.params as AgentUsageParams).agent_id;
+    if (typeof rawAgentId !== 'string') {
+      return res.status(400).json({ error: 'agent_id is required' });
+    }
+    const settings = parseEmbedSettings(req.body);
+    if (settings == null) {
+      return res.status(400).json({ error: 'Invalid embed settings' });
+    }
+    const caller = req.user;
+    if (caller == null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const [agent] = await findScopedAgents(caller, rawAgentId);
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      const key = agent.embed?.key ?? randomBytes(16).toString('hex');
+      const updated = await setAgentEmbed(agent.id, { key, ...settings });
+      return res.status(200).json({ embed: toEmbedItem(updated?.embed) });
+    } catch (error) {
+      logger.error('[adminUsage] updateAgentEmbed error:', error);
+      return res.status(500).json({ error: 'Failed to update embed settings' });
+    }
+  }
+
+  /** Stops new visits immediately; tabs already open run until their token lapses. */
+  async function revokeAgentEmbed(req: ServerRequest, res: Response): Promise<Response> {
+    const rawAgentId = (req.params as AgentUsageParams).agent_id;
+    if (typeof rawAgentId !== 'string') {
+      return res.status(400).json({ error: 'agent_id is required' });
+    }
+    const caller = req.user;
+    if (caller == null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const [agent] = await findScopedAgents(caller, rawAgentId);
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      await setAgentEmbed(agent.id, null);
+      return res.status(200).json({ embed: null });
+    } catch (error) {
+      logger.error('[adminUsage] revokeAgentEmbed error:', error);
+      return res.status(500).json({ error: 'Failed to revoke embed' });
+    }
+  }
+
   return {
     listAgentUsage: listAgentUsageHandler,
+    updateAgentEmbed,
+    revokeAgentEmbed,
     listAgentStudentUsage: listAgentStudentUsageHandler,
     listAgentAnalytics: listAgentAnalyticsHandler,
     getDashboardLayout: getDashboardLayoutHandler,

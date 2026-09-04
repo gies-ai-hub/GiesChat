@@ -31,6 +31,12 @@ import { SESSION_KEY, isSafeRedirect, getPostLoginRedirect } from '~/utils';
 import useTimeout from './useTimeout';
 import store from '~/store';
 
+/** The iframe entry route: it mints its own token from the embed key, so the cookie
+ *  refresh must not run and a missing session must never redirect to /login. The
+ *  popup landing (`/embed/<key>/done`) is a normal page and is deliberately excluded. */
+const EMBED_ENTRY_RE = /^\/embed\/[^/]+\/?$/;
+const isEmbedEntry = () => EMBED_ENTRY_RE.test(window.location.pathname);
+
 const AuthContext = (import.meta.hot?.data?.__AuthContext ??
   createContext<TAuthContext | undefined>(undefined)) as React.Context<TAuthContext | undefined>;
 if (import.meta.hot) {
@@ -45,6 +51,7 @@ const AuthContextProvider = ({
   children: ReactNode;
 }) => {
   const isExternalRedirectRef = useRef(false);
+  const isEmbedFrameRef = useRef(isEmbedEntry());
   const [user, setUser] = useRecoilState(store.user);
   const logoutRedirectRef = useRef<string | undefined>(undefined);
   const [token, setToken] = useState<string | undefined>(undefined);
@@ -176,7 +183,7 @@ const AuthContextProvider = ({
       console.log('Test mode. Skipping silent refresh.');
       return;
     }
-    if (isExternalRedirectRef.current) {
+    if (isExternalRedirectRef.current || isEmbedFrameRef.current) {
       return;
     }
     refreshToken.mutate(undefined, {
@@ -229,7 +236,9 @@ const AuthContextProvider = ({
       setUser(userQuery.data);
     } else if (userQuery.isError) {
       doSetError((userQuery.error as Error).message);
-      navigate(buildLoginRedirectUrl(), { replace: true });
+      if (!isEmbedFrameRef.current) {
+        navigate(buildLoginRedirectUrl(), { replace: true });
+      }
     }
     if (error != null && error && isAuthenticated) {
       doSetError(undefined);

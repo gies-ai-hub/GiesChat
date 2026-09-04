@@ -65,6 +65,10 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: String,
       default: SystemRoles.USER,
     },
+    /** Set only on anonymous embed guests: the one agent_id this user may chat with. */
+    embedAgentId: {
+      type: String,
+    },
     googleId: {
       type: String,
     },

@@ -504,6 +504,12 @@ export const adminAgentAnalytics = (params: q.AdminUsageParams = {}) =>
 /** Per-professor analytics panel layout. A display preference, not class data. */
 export const adminDashboardLayout = () => `${BASE_URL}/api/admin/usage/layout`;
 
+export const adminAgentEmbed = (agentId: string) =>
+  `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/embed`;
+
+/** Public: the key in the path is the credential. */
+export const embedSession = (key: string) => `${BASE_URL}/api/embed/${encodeURIComponent(key)}`;
+
 /* Conversation Tags */
 export const conversationTags = (tag?: string) =>
   `${BASE_URL}/api/tags${tag != null && tag ? `/${encodeURIComponent(tag)}` : ''}`;

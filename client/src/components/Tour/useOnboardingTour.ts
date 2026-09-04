@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { useRecoilValue } from 'recoil';
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import type { Driver, DriveStep, PopoverDOM } from 'driver.js';
 import { TOUR_REPLAY_KEY, TOUR_REPLAY_EVENT, resolveTourSteps } from './steps';
+import store from '~/store';
 import { useCompleteTourMutation } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { useLocalize } from '~/hooks';
@@ -25,6 +27,7 @@ export const addSecondaryButton = (popover: PopoverDOM, label: string, onClick: 
 export default function useOnboardingTour() {
   const localize = useLocalize();
   const { user } = useAuthContext();
+  const embed = useRecoilValue(store.embed);
   const driverRef = useRef<Driver | null>(null);
   const completeTour = useCompleteTourMutation();
   const completeRef = useRef(completeTour.mutate);
@@ -118,7 +121,7 @@ export default function useOnboardingTour() {
   }, [localize]);
 
   useEffect(() => {
-    if (user == null) {
+    if (user == null || embed != null) {
       return;
     }
     const replay = sessionStorage.getItem(TOUR_REPLAY_KEY) === '1';
@@ -132,7 +135,7 @@ export default function useOnboardingTour() {
       startTour();
     }, 600);
     return () => clearTimeout(timeout);
-  }, [user, startTour]);
+  }, [user, embed, startTour]);
 
   useEffect(() => {
     const handler = () => startTour();

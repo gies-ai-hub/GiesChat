@@ -45,6 +45,7 @@ export default function ChatRoute() {
   const queryClient = useQueryClient();
 
   const defaultTemporaryChat = useRecoilValue(temporaryStore.defaultTemporaryChat);
+  const embed = useRecoilValue(store.embed);
   const setIsTemporary = useRecoilCallback(
     ({ set }) =>
       (value: boolean) => {
@@ -166,6 +167,9 @@ export default function ChatRoute() {
     }
 
     const getNewConvoPreset = () => {
+      if (embed != null) {
+        return { endpoint: EModelEndpoint.agents, agent_id: embed.id } as TPreset;
+      }
       const result = getDefaultModelSpec(startupConfig, endpointsQuery.data);
       const spec = result?.default ?? result?.last ?? result?.softDefault;
       const specPreset = spec ? getModelSpecPreset(spec) : undefined;
@@ -192,7 +196,7 @@ export default function ChatRoute() {
       newConversation({
         modelsData: modelsQuery.data,
         template: projectTemplate,
-        ...(preset ? { preset, isDefaultInit: true } : {}),
+        ...(preset ? { preset, isDefaultInit: embed == null } : {}),
       });
 
       hasSetConversation.current = true;
@@ -240,7 +244,7 @@ export default function ChatRoute() {
       newConversation({
         modelsData: modelsQuery.data,
         template: projectTemplate,
-        ...(preset ? { preset, isDefaultInit: true } : {}),
+        ...(preset ? { preset, isDefaultInit: embed == null } : {}),
       });
       hasSetConversation.current = true;
     } else if (

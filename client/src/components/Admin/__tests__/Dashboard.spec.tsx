@@ -113,6 +113,7 @@ const agentUsage: AdminAgentUsageResponse = {
       messageCount: 96,
       lastActivity: '2026-07-20T10:00:00.000Z',
       canDelete: true,
+      embed: null,
     },
   ],
 };

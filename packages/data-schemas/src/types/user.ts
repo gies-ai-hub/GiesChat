@@ -20,6 +20,8 @@ export interface IUser extends Document {
   avatar?: string;
   provider: string;
   role?: string;
+  /** Anonymous embed guests only: the single agent_id this user is fenced to. */
+  embedAgentId?: string;
   googleId?: string;
   facebookId?: string;
   openidId?: string;

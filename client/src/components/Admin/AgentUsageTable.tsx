@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { Pencil } from 'lucide-react';
+import { Code, Pencil } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
 import {
@@ -24,6 +24,7 @@ interface AgentUsageTableProps {
   days: number;
   onSelectAgent: (agent: AdminAgentUsage) => void;
   onEditAgent: (agent: AdminAgentUsage) => void;
+  onEmbedAgent: (agent: AdminAgentUsage) => void;
 }
 
 export default function AgentUsageTable({
@@ -31,6 +32,7 @@ export default function AgentUsageTable({
   days,
   onSelectAgent,
   onEditAgent,
+  onEmbedAgent,
 }: AgentUsageTableProps) {
   const localize = useLocalize();
   const queryClient = useQueryClient();
@@ -132,6 +134,16 @@ export default function AgentUsageTable({
                     aria-label={localize('com_ui_admin_edit_agent', { name: agent.name })}
                   >
                     <Pencil className="size-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    onClick={() => onEmbedAgent(agent)}
+                    aria-label={localize('com_ui_admin_embed_agent', { name: agent.name })}
+                    className={agent.embed ? 'text-[#d94f04] dark:text-[#ff5f05]' : undefined}
+                  >
+                    <Code className="size-4" aria-hidden="true" />
                   </Button>
                   {agent.canDelete && (
                     <DeleteAgentButton
