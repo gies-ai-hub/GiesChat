@@ -13,6 +13,13 @@ interface:
     share: false
   marketplace:
     use: true
+  # Agents must never be exposed over the OpenAI-compatible API or API keys; this
+  # also hides the "Share (API Access)" dialog and the API Keys settings tab.
+  remoteAgents:
+    use: false
+    create: false
+    share: false
+    public: false
   defaultPinnedTools:
     - mcp
   mcpServers:
