@@ -94,6 +94,7 @@ export enum QueryKeys {
   adminAgentUsage = 'adminAgentUsage',
   adminAgentStudentUsage = 'adminAgentStudentUsage',
   adminAgentAnalytics = 'adminAgentAnalytics',
+  adminAgentTopics = 'adminAgentTopics',
   /* The caller's own analytics panel layout */
   adminDashboardLayout = 'adminDashboardLayout',
 }

@@ -1,5 +1,6 @@
 import React from 'react';
-import type { AdminAnalyticsResponse } from 'librechat-data-provider';
+import type { AdminUsageParams, AdminAnalyticsResponse } from 'librechat-data-provider';
+import { useAdminAgentTopicsQuery } from '~/data-provider';
 import { AreaChart, ColumnChart, Meter } from './Charts';
 import { useLocalize } from '~/hooks';
 
@@ -212,6 +213,70 @@ export function SignalsPanel({ data }: PanelProps) {
           </li>
         ))}
       </ul>
+    </Card>
+  );
+}
+
+/**
+ * Fetches on its own so the model call behind it never holds up the numbers.
+ * Plain HTML bars: the labels are sentences, which an SVG column chart cannot fit.
+ */
+export function TopicsPanel({ params }: { params: AdminUsageParams }) {
+  const localize = useLocalize();
+  const { data, isLoading, error } = useAdminAgentTopicsQuery(params);
+  const max = Math.max(1, ...(data?.topics.map((topic) => topic.count) ?? []));
+
+  return (
+    <Card
+      title={localize('com_ui_admin_analytics_topics')}
+      caption={localize('com_ui_admin_analytics_topics_caption')}
+    >
+      {isLoading && (
+        <div className="grid gap-3.5" role="status" aria-label={localize('com_ui_loading')}>
+          {[70, 100, 55, 100, 40, 100].map((width, index) => (
+            <div
+              key={index}
+              className="h-2.5 animate-pulse rounded bg-surface-tertiary"
+              style={{ width: `${width}%` }}
+            />
+          ))}
+        </div>
+      )}
+      {error != null && (
+        <p className="rounded-lg bg-surface-secondary-alt px-3 py-6 text-center text-xs text-text-secondary">
+          {localize('com_ui_admin_analytics_topics_error')}
+        </p>
+      )}
+      {data != null && data.sampleSize === 0 && (
+        <p className="rounded-lg bg-surface-secondary-alt px-3 py-6 text-center text-xs text-text-secondary">
+          {localize('com_ui_admin_analytics_topics_empty')}
+        </p>
+      )}
+      {data != null && data.sampleSize > 0 && (
+        <>
+          <ul className="group grid gap-2.5">
+            {data.topics.map((topic) => (
+              <li
+                key={topic.label}
+                className="grid grid-cols-[1fr_auto] gap-y-1 text-[13px]"
+                title={`${topic.count} · ${Math.round((topic.count / data.sampleSize) * 100)}%`}
+              >
+                <span className="text-text-primary">{topic.label}</span>
+                <b className="text-xs tabular-nums text-text-secondary">{topic.count}</b>
+                <span className="col-span-2 h-2.5 overflow-hidden rounded bg-surface-tertiary">
+                  <span
+                    className="block h-full rounded bg-[#2a78d6] transition-opacity hover:!opacity-100 group-hover:opacity-55 dark:bg-[#3987e5]"
+                    style={{ width: `${(topic.count / max) * 100}%` }}
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] text-text-secondary-alt">
+            {localize('com_ui_admin_analytics_topics_sample', { count: data.sampleSize })}
+          </p>
+        </>
+      )}
     </Card>
   );
 }

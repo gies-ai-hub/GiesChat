@@ -1,9 +1,10 @@
 const express = require('express');
-const { createAdminUsageHandlers } = require('@librechat/api');
+const { createAdminUsageHandlers, topicsModelFromConfig } = require('@librechat/api');
 const { SystemCapabilities } = require('@librechat/data-schemas');
 const { requireCapability } = require('~/server/middleware/roles/capabilities');
 const { findAccessibleResources } = require('~/server/services/PermissionService');
 const { requireJwtAuth } = require('~/server/middleware');
+const { getAppConfig } = require('~/server/services/Config');
 const db = require('~/models');
 
 const router = express.Router();
@@ -26,6 +27,8 @@ const handlers = createAdminUsageHandlers({
   aggregateAgentUsage: db.aggregateAgentUsage,
   aggregateStudentUsage: db.aggregateStudentUsage,
   aggregateAgentAnalytics: db.aggregateAgentAnalytics,
+  sampleStudentMessages: db.sampleStudentMessages,
+  resolveTopicsModel: async () => topicsModelFromConfig(await getAppConfig()),
   updateUser: db.updateUser,
   setAgentEmbed: db.setAgentEmbed,
 });
@@ -43,6 +46,8 @@ router.use(requireJwtAuth, requireAdminAccess);
 router.get('/agents', requireReadUsage, requireReadGroups, handlers.listAgentUsage);
 /** Reports class roster size, so it carries the same `read:groups` requirement as the others. */
 router.get('/analytics', requireReadUsage, requireReadGroups, handlers.listAgentAnalytics);
+/** Reads student message text server-side; returns topic labels and counts only. */
+router.get('/topics', requireReadUsage, requireReadGroups, handlers.listAgentTopics);
 router.get(
   '/agents/:agent_id/students',
   requireReadUsage,

@@ -314,6 +314,8 @@ interface TestDeps extends AdminUsageDeps {
   aggregateAgentUsage: jest.Mock;
   aggregateStudentUsage: jest.Mock;
   aggregateAgentAnalytics: jest.Mock;
+  sampleStudentMessages: jest.Mock;
+  resolveTopicsModel: jest.Mock;
   updateUser: jest.Mock;
   setAgentEmbed: jest.Mock;
 }
@@ -361,6 +363,8 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
     aggregateAgentUsage: jest.fn(fakeAggregateAgentUsage(conversations)),
     aggregateStudentUsage: jest.fn(fakeAggregateStudentUsage(conversations)),
     aggregateAgentAnalytics: jest.fn(async () => EMPTY_ANALYTICS_RAW),
+    sampleStudentMessages: jest.fn(async () => []),
+    resolveTopicsModel: jest.fn(async () => null),
     updateUser: jest.fn(async () => null),
     setAgentEmbed: jest.fn(async () => null),
     ...overrides,

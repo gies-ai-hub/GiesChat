@@ -63,6 +63,8 @@ export interface UsageMethods {
   aggregateAgentUsage(scope: AgentUsageScope): Promise<AgentUsageRow[]>;
   aggregateStudentUsage(scope: StudentUsageScope): Promise<StudentUsageRow[]>;
   aggregateAgentAnalytics(scope: AgentAnalyticsScope): Promise<AgentAnalyticsRaw>;
+  /** Newest in-window student message texts across the scope. Text only — no ids. */
+  sampleStudentMessages(scope: AgentAnalyticsScope, limit: number): Promise<string[]>;
 }
 
 const EMPTY_ANALYTICS: AgentAnalyticsRaw = {
@@ -339,5 +341,58 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
     return result ?? EMPTY_ANALYTICS;
   }
 
-  return { aggregateAgentUsage, aggregateStudentUsage, aggregateAgentAnalytics };
+  async function sampleStudentMessages(
+    { agentIds, userIds, since }: AgentAnalyticsScope,
+    limit: number,
+  ): Promise<string[]> {
+    if (agentIds.length === 0 || userIds?.length === 0) {
+      return [];
+    }
+
+    // eslint-disable-next-line no-restricted-syntax
+    const messageCollection = (mongoose.models.Message as Model<IMessage>).collection.name;
+    const Conversation = mongoose.models.Conversation as Model<IConversation>;
+
+    const rows = await Conversation.aggregate<{ text: string }>([
+      ...scopedActivityStages({ agent_id: { $in: agentIds } }, userIds, since),
+      { $match: { 'activity.0': { $exists: true } } },
+      {
+        $lookup: {
+          from: messageCollection,
+          let: { conversationId: '$conversationId', user: '$user', tenantId: '$tenantId' },
+          pipeline: [
+            {
+              $match: {
+                isCreatedByUser: true,
+                createdAt: { $gte: since },
+                text: { $type: 'string', $ne: '' },
+                $expr: {
+                  $and: [
+                    { $eq: ['$conversationId', '$$conversationId'] },
+                    { $eq: ['$user', '$$user'] },
+                    { $eq: [{ $ifNull: ['$tenantId', '$$tenantId'] }, '$$tenantId'] },
+                  ],
+                },
+              },
+            },
+            { $project: { _id: 0, text: 1, createdAt: 1 } },
+          ],
+          as: 'studentMessages',
+        },
+      },
+      { $unwind: '$studentMessages' },
+      { $sort: { 'studentMessages.createdAt': -1 } },
+      { $limit: limit },
+      { $project: { _id: 0, text: '$studentMessages.text' } },
+    ]);
+
+    return rows.map((row) => row.text);
+  }
+
+  return {
+    aggregateAgentUsage,
+    aggregateStudentUsage,
+    aggregateAgentAnalytics,
+    sampleStudentMessages,
+  };
 }

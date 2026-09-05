@@ -343,6 +343,13 @@ export type AdminAnalyticsResponse = {
   errorRate: number;
 };
 
+/** What students ask: labels and counts only, from a sample of recent student messages. */
+export type AdminTopicsResponse = {
+  topics: { label: string; count: number }[];
+  /** How many student messages the model grouped; 0 means none in the window. */
+  sampleSize: number;
+};
+
 /** The caller's own analytics panel layout. Array order is the panel order. */
 export type AdminDashboardLayoutResponse = {
   panels: AdminDashboardPanel[];

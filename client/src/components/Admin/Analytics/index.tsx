@@ -76,7 +76,7 @@ export default function AnalyticsSection({ groupId, days }: AnalyticsSectionProp
               const { Component } = definition;
               return (
                 <div key={panel.id} className={SPAN_CLASS[columns]}>
-                  <Component data={data} />
+                  <Component data={data} params={params} />
                 </div>
               );
             })}

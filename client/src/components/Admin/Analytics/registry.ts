@@ -1,14 +1,19 @@
 import { PANEL_COLUMNS } from 'librechat-data-provider';
-import type { AdminPanelId, AdminPanelSpan, AdminAnalyticsResponse } from 'librechat-data-provider';
+import type {
+  AdminPanelId,
+  AdminPanelSpan,
+  AdminUsageParams,
+  AdminAnalyticsResponse,
+} from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks';
 import type { ComponentType } from 'react';
-import { KpiRow, ActivityPanel, ReachPanel, DepthPanel, SignalsPanel } from './Panels';
+import { KpiRow, ActivityPanel, TopicsPanel, ReachPanel, DepthPanel, SignalsPanel } from './Panels';
 
 export interface PanelDefinition {
   id: AdminPanelId;
   labelKey: TranslationKeys;
   span: AdminPanelSpan;
-  Component: ComponentType<{ data: AdminAnalyticsResponse }>;
+  Component: ComponentType<{ data: AdminAnalyticsResponse; params: AdminUsageParams }>;
 }
 
 /**
@@ -23,6 +28,7 @@ export const PANEL_REGISTRY: PanelDefinition[] = [
     span: 'wide',
     Component: ActivityPanel,
   },
+  { id: 'topics', labelKey: 'com_ui_admin_panel_topics', span: 'narrow', Component: TopicsPanel },
   { id: 'reach', labelKey: 'com_ui_admin_panel_reach', span: 'narrow', Component: ReachPanel },
   { id: 'depth', labelKey: 'com_ui_admin_panel_depth', span: 'wide', Component: DepthPanel },
   {

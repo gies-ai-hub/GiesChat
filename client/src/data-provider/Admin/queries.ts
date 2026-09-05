@@ -6,6 +6,7 @@ import type { QueryObserverResult, UseQueryOptions } from '@tanstack/react-query
 import type {
   AdminUsageParams,
   AdminGroupListParams,
+  AdminTopicsResponse,
   AdminAnalyticsResponse,
   AdminAgentUsageResponse,
   AdminGroupListResponse,
@@ -116,6 +117,17 @@ export const useAdminAgentAnalyticsQuery = (
     [QueryKeys.adminAgentAnalytics, params?.groupId ?? '', params?.days ?? 0],
     () => dataService.getAdminAgentAnalytics(params),
     { ...adminQueryConfig, retry: false, ...config },
+  );
+
+/** Its own request: the model call behind it must never delay the numbers. */
+export const useAdminAgentTopicsQuery = (
+  params?: AdminUsageParams,
+  config?: UseQueryOptions<AdminTopicsResponse>,
+): QueryObserverResult<AdminTopicsResponse> =>
+  useQuery<AdminTopicsResponse>(
+    [QueryKeys.adminAgentTopics, params?.groupId ?? '', params?.days ?? 0],
+    () => dataService.getAdminAgentTopics(params),
+    { ...adminQueryConfig, retry: false, staleTime: 5 * 60 * 1000, ...config },
   );
 
 /**

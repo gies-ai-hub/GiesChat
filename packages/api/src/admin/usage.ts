@@ -12,6 +12,8 @@ import type {
 import type { FilterQuery, Types } from 'mongoose';
 import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
+import type { TopicsModel, TopicsResult } from './topics';
+import { summarizeTopics, TOPIC_SAMPLE_LIMIT } from './topics';
 import {
   toBuckets,
   zeroFillDays,
@@ -103,6 +105,9 @@ export interface AdminUsageDeps {
   aggregateAgentUsage: (scope: AgentUsageScope) => Promise<AgentUsageRow[]>;
   aggregateStudentUsage: (scope: StudentUsageScope) => Promise<StudentUsageRow[]>;
   aggregateAgentAnalytics: (scope: AgentAnalyticsScope) => Promise<AgentAnalyticsRaw>;
+  sampleStudentMessages: (scope: AgentAnalyticsScope, limit: number) => Promise<string[]>;
+  /** `null` when no model is configured; the topics panel then reports unavailable. */
+  resolveTopicsModel: () => Promise<TopicsModel | null>;
   updateUser: (userId: string, updateData: Partial<IUser>) => Promise<IUser | null>;
   setAgentEmbed: (agentId: string, embed: IAgentEmbed | null) => Promise<IAgent | null>;
 }
@@ -208,6 +213,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   listAgentUsage: (req: ServerRequest, res: Response) => Promise<Response>;
   listAgentStudentUsage: (req: ServerRequest, res: Response) => Promise<Response>;
   listAgentAnalytics: (req: ServerRequest, res: Response) => Promise<Response>;
+  listAgentTopics: (req: ServerRequest, res: Response) => Promise<Response>;
   getDashboardLayout: (req: ServerRequest, res: Response) => Promise<Response>;
   updateDashboardLayout: (req: ServerRequest, res: Response) => Promise<Response>;
   updateAgentEmbed: (req: ServerRequest, res: Response) => Promise<Response>;
@@ -221,6 +227,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     aggregateAgentUsage,
     aggregateStudentUsage,
     aggregateAgentAnalytics,
+    sampleStudentMessages,
+    resolveTopicsModel,
     updateUser,
     setAgentEmbed,
   } = deps;
@@ -516,6 +524,51 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   }
 
   /**
+   * What students ask, as topic labels and counts. Same scope as the analytics;
+   * the model sees message text only and the client sees labels only.
+   */
+  async function listAgentTopicsHandler(req: ServerRequest, res: Response) {
+    const caller = req.user;
+    if (!caller?._id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const rawGroupId = req.query.groupId;
+    if (rawGroupId !== undefined && typeof rawGroupId !== 'string') {
+      return res.status(400).json({ error: 'groupId must be a string' });
+    }
+
+    const since = resolveSince(req.query.days);
+
+    try {
+      const [scope, agents, llm] = await Promise.all([
+        resolveMemberScope(rawGroupId),
+        findScopedAgents(caller),
+        resolveTopicsModel(),
+      ]);
+      if (!scope.found) {
+        return res.status(404).json({ error: 'Group not found' });
+      }
+      if (llm === null) {
+        return res.status(503).json({ error: 'No model configured for topics' });
+      }
+
+      const agentIds = agents.map((agent) => agent.id).sort();
+      const day = since.toISOString().slice(0, 10);
+      const cacheKey = `${String(caller._id)}|${rawGroupId ?? ''}|${day}|${agentIds.join(',')}`;
+      const texts = await sampleStudentMessages(
+        { agentIds, userIds: scope.userIds, since },
+        TOPIC_SAMPLE_LIMIT,
+      );
+      const body: TopicsResult = await summarizeTopics(cacheKey, texts, llm);
+      return res.status(200).json(body);
+    } catch (error) {
+      logger.error('[adminUsage] listAgentTopics error:', error);
+      return res.status(502).json({ error: 'Failed to summarize topics' });
+    }
+  }
+
+  /**
    * A personal display preference, not class data — which is why these two carry
    * `access:admin` alone and touch nothing but the caller's own document.
    */
@@ -612,6 +665,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     revokeAgentEmbed,
     listAgentStudentUsage: listAgentStudentUsageHandler,
     listAgentAnalytics: listAgentAnalyticsHandler,
+    listAgentTopics: listAgentTopicsHandler,
     getDashboardLayout: getDashboardLayoutHandler,
     updateDashboardLayout: updateDashboardLayoutHandler,
   };

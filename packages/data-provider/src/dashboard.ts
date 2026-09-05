@@ -1,5 +1,5 @@
 /** The analytics panels a professor can arrange. Order here is the default order. */
-export const ADMIN_PANEL_IDS = ['kpi', 'activity', 'reach', 'depth', 'signals'] as const;
+export const ADMIN_PANEL_IDS = ['kpi', 'activity', 'topics', 'reach', 'depth', 'signals'] as const;
 
 export type AdminPanelId = (typeof ADMIN_PANEL_IDS)[number];
 

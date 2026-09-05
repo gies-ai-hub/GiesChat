@@ -1288,6 +1288,10 @@ export function getAdminAgentAnalytics(
   return request.get(endpoints.adminAgentAnalytics(params));
 }
 
+export function getAdminAgentTopics(params?: q.AdminUsageParams): Promise<q.AdminTopicsResponse> {
+  return request.get(endpoints.adminAgentTopics(params));
+}
+
 export function getAdminDashboardLayout(): Promise<q.AdminDashboardLayoutResponse> {
   return request.get(endpoints.adminDashboardLayout());
 }

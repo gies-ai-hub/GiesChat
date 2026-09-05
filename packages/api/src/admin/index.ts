@@ -20,3 +20,4 @@ export type {
   StudentUsageRow,
   StudentUsageScope,
 } from './usage';
+export * from './topics';
