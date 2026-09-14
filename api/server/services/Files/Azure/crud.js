@@ -1,11 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const mime = require('mime');
-const axios = require('axios');
 const fetch = require('node-fetch');
 const { logger } = require('@librechat/data-schemas');
 const {
   deleteRagFile,
+  getAzureBlobUrl,
+  parseAzureBlobUrl,
+  getAzureBlobStream,
   assertRemoteFileURL,
   getAzureContainerClient,
   getRemoteFileFetchMaxBytes,
@@ -44,7 +46,7 @@ async function saveBufferToAzure({
     const blobPath = `${basePath}/${userId}/${fileName}`;
     const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
     await blockBlobClient.uploadData(buffer);
-    return blockBlobClient.url;
+    return await getAzureBlobUrl(blockBlobClient, basePath);
   } catch (error) {
     logger.error('[saveBufferToAzure] Error uploading buffer:', error);
     throw error;
@@ -106,7 +108,7 @@ async function getAzureURL({ fileName, basePath = defaultBasePath, userId, conta
     const containerClient = await getAzureContainerClient(containerName);
     const blobPath = userId ? `${basePath}/${userId}/${fileName}` : `${basePath}/${fileName}`;
     const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
-    return blockBlobClient.url;
+    return await getAzureBlobUrl(blockBlobClient, basePath);
   } catch (error) {
     logger.error('[getAzureURL] Error retrieving blob URL:', error);
     throw error;
@@ -124,8 +126,11 @@ async function deleteFileFromAzure(req, file) {
   await deleteRagFile({ userId: req.user.id, file });
 
   try {
-    const containerClient = await getAzureContainerClient(AZURE_CONTAINER_NAME);
-    const blobPath = file.filepath.split(`${AZURE_CONTAINER_NAME}/`)[1];
+    const parsed = parseAzureBlobUrl(file.filepath);
+    const containerClient = await getAzureContainerClient(
+      parsed?.containerName ?? AZURE_CONTAINER_NAME,
+    );
+    const blobPath = parsed?.blobPath ?? '';
     if (!blobPath.includes(req.user.id)) {
       throw new Error('User ID not found in blob path');
     }
@@ -193,7 +198,7 @@ async function streamFileToAzure({
       },
     );
 
-    return blockBlobClient.url;
+    return await getAzureBlobUrl(blockBlobClient, basePath);
   } catch (error) {
     logger.error('[streamFileToAzure] Error streaming file:', error);
     throw error;
@@ -252,12 +257,7 @@ async function uploadFileToAzure({
  */
 async function getAzureFileStream(_req, fileURL) {
   try {
-    const response = await axios({
-      method: 'get',
-      url: fileURL,
-      responseType: 'stream',
-    });
-    return response.data;
+    return await getAzureBlobStream(fileURL);
   } catch (error) {
     logger.error('[getAzureFileStream] Error getting blob stream:', error);
     throw error;

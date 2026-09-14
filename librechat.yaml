@@ -1,5 +1,8 @@
 version: 1.3.11
 cache: true
+# Uploads live in Azure Blob storage (private container, signed links) so they survive
+# container deploys. Falls back to local disk when no AZURE_STORAGE_* credentials are set.
+fileStrategy: azure_blob
 
 interface:
   brainstormRooms: false

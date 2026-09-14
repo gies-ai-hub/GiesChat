@@ -123,7 +123,7 @@ async function processAzureAvatar({
       containerName,
     });
     const isManual = manual === 'true';
-    const url = `${downloadURL}?manual=${isManual}`;
+    const url = `${downloadURL}${downloadURL.includes('?') ? '&' : '?'}manual=${isManual}`;
 
     // Only update user record if this is a user avatar (manual === 'true')
     if (isManual && !agentId) {

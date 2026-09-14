@@ -6,6 +6,23 @@ import { initializeFirebase } from '~/cdn/firebase';
 import { initializeS3 } from '~/cdn/s3';
 import { initializeCloudFront } from '~/cdn/cloudfront';
 
+/**
+ * `azure_blob` without storage credentials falls back to the container disk. Local dev has
+ * no connection string; production always does, so production never downgrades.
+ */
+export function withResolvedFileStrategy<T extends { fileStrategy?: FileSources }>(config: T): T {
+  if (config.fileStrategy !== FileSources.azure_blob) {
+    return config;
+  }
+  if (process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AZURE_STORAGE_ACCOUNT_NAME) {
+    return config;
+  }
+  logger.warn(
+    '[withResolvedFileStrategy] fileStrategy is azure_blob but neither AZURE_STORAGE_CONNECTION_STRING nor AZURE_STORAGE_ACCOUNT_NAME is set; using local disk',
+  );
+  return { ...config, fileStrategy: FileSources.local };
+}
+
 function initializeStrategy(strategy: FileSources, appConfig: AppConfig): void {
   if (strategy === FileSources.firebase) {
     initializeFirebase();

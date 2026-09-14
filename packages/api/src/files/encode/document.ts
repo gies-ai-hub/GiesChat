@@ -1,4 +1,5 @@
 import { Providers } from '@librechat/agents';
+import { logger } from '@librechat/data-schemas';
 import {
   isOpenAILikeProvider,
   isBedrockDocumentType,
@@ -148,9 +149,16 @@ export async function encodeAndFormatDocuments(
     ),
   );
 
-  for (const settledResult of results) {
+  const unreadable: string[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const settledResult = results[i];
     if (settledResult.status === 'rejected') {
-      console.error('Document processing failed:', settledResult.reason);
+      const filename = processableFiles[i]?.filename ?? 'attachment';
+      logger.error(
+        `[encodeAndFormatDocuments] Could not read attached file "${filename}":`,
+        settledResult.reason,
+      );
+      unreadable.push(filename);
       continue;
     }
 
@@ -242,6 +250,14 @@ export async function encodeAndFormatDocuments(
         result.files.push(metadata);
       }
     }
+  }
+
+  if (unreadable.length > 0) {
+    const names = unreadable.map((name) => `"${name}"`).join(', ');
+    const plural = unreadable.length > 1;
+    throw new Error(
+      `Could not read the attached file${plural ? 's' : ''} ${names}. ${plural ? 'They are' : 'It is'} no longer available on the server. Please upload ${plural ? 'them' : 'it'} again and resend your message.`,
+    );
   }
 
   return result;

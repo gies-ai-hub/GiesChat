@@ -1048,4 +1048,29 @@ describe('encodeAndFormatDocuments - fileConfig integration', () => {
       expect(result.files).toHaveLength(6);
     });
   });
+
+  describe('unreadable attachments', () => {
+    it('fails the turn naming the file instead of silently dropping it', async () => {
+      const req = createMockRequest(50) as ServerRequest;
+      const missing = createMockDocFile(1, 'application/pdf', 'Manojkumar_Resume.pdf');
+      const readable = createMockDocFile(1, 'text/plain', 'notes.txt');
+      mockedGetFileStream.mockImplementation(async (_req, file) => {
+        if (file.filename === missing.filename) {
+          throw new Error('ENOENT: no such file or directory');
+        }
+        return { file, content: Buffer.from('hi').toString('base64'), metadata: file };
+      });
+
+      await expect(
+        encodeAndFormatDocuments(
+          req,
+          [missing, readable],
+          { provider: Providers.OPENAI, useResponsesApi: true },
+          mockStrategyFunctions,
+        ),
+      ).rejects.toThrow(
+        'Could not read the attached file "Manojkumar_Resume.pdf". It is no longer available on the server. Please upload it again and resend your message.',
+      );
+    });
+  });
 });

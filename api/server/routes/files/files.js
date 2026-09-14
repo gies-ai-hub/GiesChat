@@ -4,6 +4,7 @@ const { logger, SystemCapabilities } = require('@librechat/data-schemas');
 const {
   logAxiosError,
   refreshS3FileUrls,
+  refreshAzureFileUrls,
   handleFilesUsageRequest,
   resolveUploadErrorMessage,
   verifyAgentUploadPermission,
@@ -51,8 +52,14 @@ const isAgentToolResourceKey = (toolResource) =>
 router.get('/', async (req, res) => {
   try {
     const appConfig = req.config;
-    const files = await db.getFiles({ user: req.user.id });
-    if (appConfig.fileStrategy === FileSources.s3) {
+    let files = await db.getFiles({ user: req.user.id });
+    if (appConfig.fileStrategy === FileSources.azure_blob) {
+      try {
+        files = await refreshAzureFileUrls(files, db.batchUpdateFiles);
+      } catch (error) {
+        logger.warn('[/files] Error refreshing Azure file URLs:', error);
+      }
+    } else if (appConfig.fileStrategy === FileSources.s3) {
       try {
         const cache = getLogStores(CacheKeys.S3_EXPIRY_INTERVAL);
         const alreadyChecked = await cache.get(req.user.id);
