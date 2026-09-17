@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { v4 } from 'uuid';
 import * as Ariakit from '@ariakit/react';
 import { Folder, Plus, Info, X } from 'lucide-react';
@@ -51,7 +51,7 @@ function FileContext({
    */
   const { pendingContextFiles: pendingFiles, setPendingContextFiles } = useAgentPanelContext();
 
-  const { handleFileChange, handleFiles } = useFileHandlingNoChatContext(
+  const { handleFileChange } = useFileHandlingNoChatContext(
     {
       additionalMetadata: { agent_id, tool_resource: EToolResources.context },
       endpointOverride,
@@ -107,15 +107,6 @@ function FileContext({
     },
     [setPendingContextFiles],
   );
-
-  useEffect(() => {
-    if (!agentExists || pendingFiles.length === 0) {
-      return;
-    }
-    setPendingContextFiles([]);
-    handleFiles(pendingFiles.map((pending) => pending.file));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentExists, pendingFiles]);
 
   const isUploadDisabled = endpointFileConfig?.disabled ?? false;
   const handleSharePointFilesSelected = async (sharePointFiles: any[]) => {

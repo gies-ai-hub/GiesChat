@@ -13,6 +13,10 @@ const mockEndpointsConfig: TEndpointsConfig = {
 
 let mockFileConfig = mergeFileConfig({ endpoints: { default: { fileLimit: 10 } } });
 
+jest.mock('~/Providers', () => ({
+  useAgentPanelContext: () => ({ pendingContextFiles: [], setPendingContextFiles: jest.fn() }),
+}));
+
 jest.mock('~/data-provider', () => ({
   useGetEndpointsQuery: () => ({ data: mockEndpointsConfig }),
   useGetFileConfig: ({ select }: { select?: (d: unknown) => unknown }) => ({
@@ -56,6 +60,7 @@ jest.mock('@ariakit/react', () => ({
 }));
 
 jest.mock('@librechat/client', () => ({
+  useToastContext: () => ({ showToast: jest.fn() }),
   SharePointIcon: () => <span />,
   DropdownPopup: () => null,
   TooltipAnchor: ({ render }: { render: React.ReactElement }) => render,

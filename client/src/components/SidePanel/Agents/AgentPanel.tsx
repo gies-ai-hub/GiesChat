@@ -9,15 +9,17 @@ import {
   SystemRoles,
   ResourceType,
   EModelEndpoint,
+  EToolResources,
   PermissionBits,
   getEndpointField,
+  resolveEndpointType,
   isAssistantsEndpoint,
   supportsNativeWebSearch,
 } from 'librechat-data-provider';
 import type { FieldNamesMarkedBoolean } from 'react-hook-form';
 import type { Agent } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks/useLocalize';
-import type { AgentForm, StringOption } from '~/common';
+import type { AgentForm, StringOption, ExtendedFile } from '~/common';
 import {
   useCreateAgentMutation,
   useUpdateAgentMutation,
@@ -28,6 +30,7 @@ import {
 import { createProviderOption, getDefaultAgentFormValues } from '~/utils';
 import { useResourcePermissions } from '~/hooks/useResourcePermissions';
 import { useSelectAgent, useLocalize, useAuthContext } from '~/hooks';
+import { useFileHandlingNoChatContext } from '~/hooks/Files/useFileHandling';
 import { useAgentPanelContext } from '~/Providers/AgentPanelContext';
 import AgentPanelSkeleton from './AgentPanelSkeleton';
 import AdvancedPanel from './Advanced/AdvancedPanel';
@@ -252,6 +255,8 @@ export default function AgentPanel({
     endpointsConfig,
     setCurrentAgentId,
     agent_id: current_agent_id,
+    pendingContextFiles,
+    setPendingContextFiles,
   } = useAgentPanelContext();
 
   const { onSelect: onSelectAgent } = useSelectAgent();
@@ -287,6 +292,46 @@ export default function AgentPanel({
     formState: { dirtyFields },
   } = methods;
   const [isAvatarUploadInFlight, setIsAvatarUploadInFlight] = useState(false);
+  const [isAttachingDocuments, setIsAttachingDocuments] = useState(false);
+  const [contextUploads, setContextUploads] = useState<Map<string, ExtendedFile>>(new Map());
+  /* Same provider → endpoint resolution as `useAgentFileConfig`, read from this form's
+   * control because the FormProvider is rendered below this hook. */
+  const providerOption = useWatch({ control, name: 'provider' });
+  const providerValue =
+    typeof providerOption === 'string' ? providerOption : (providerOption as StringOption)?.value;
+  const { handleFiles: uploadContextFiles } = useFileHandlingNoChatContext(
+    {
+      additionalMetadata: { tool_resource: EToolResources.context },
+      endpointOverride: providerValue || EModelEndpoint.agents,
+      endpointTypeOverride: resolveEndpointType(
+        endpointsConfig,
+        EModelEndpoint.agents,
+        providerValue,
+      ),
+      fileSetter: setContextUploads,
+    },
+    { files: contextUploads, setFiles: setContextUploads, conversation: null },
+  );
+  /**
+   * Documents staged in File Context before the agent existed are uploaded here,
+   * against the id the create call returned, before any host closes the panel.
+   */
+  const attachPendingDocuments = useCallback(
+    async (agentId: string) => {
+      if (pendingContextFiles.length === 0) {
+        return;
+      }
+      const staged = pendingContextFiles.map((pending) => pending.file);
+      setPendingContextFiles([]);
+      setIsAttachingDocuments(true);
+      try {
+        await uploadContextFiles(staged, EToolResources.context, { agent_id: agentId });
+      } finally {
+        setIsAttachingDocuments(false);
+      }
+    },
+    [pendingContextFiles, setPendingContextFiles, uploadContextFiles],
+  );
   const uploadAvatarMutation = useUploadAgentAvatarMutation({
     onSuccess: (updatedAgent) => {
       showToast({ message: localize('com_ui_upload_agent_avatar') });
@@ -425,6 +470,7 @@ export default function AgentPanel({
         });
       }
 
+      await attachPendingDocuments(data.id);
       onAgentCreated?.(data.id);
     },
     onError: (err) => {
@@ -626,7 +672,9 @@ export default function AgentPanel({
           <AgentFooter
             createMutation={create}
             updateMutation={update}
-            isAvatarUploading={isAvatarUploadInFlight || uploadAvatarMutation.isLoading}
+            isAvatarUploading={
+              isAvatarUploadInFlight || uploadAvatarMutation.isLoading || isAttachingDocuments
+            }
             activePanel={activePanel}
             setActivePanel={setActivePanel}
             setCurrentAgentId={setCurrentAgentId}

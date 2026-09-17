@@ -184,7 +184,14 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
     abortControllerRef.current?.signal,
   );
 
-  const startUpload = async (extendedFile: ExtendedFile) => {
+  /**
+   * `metadataOverride` lets a caller upload against an id that was not known when the
+   * hook was created, e.g. the agent id returned by a create mutation.
+   */
+  const startUpload = async (
+    extendedFile: ExtendedFile,
+    metadataOverride?: Record<string, string>,
+  ) => {
     const filename = extendedFile.file?.name ?? 'File';
     startUploadTimer(extendedFile.file_id, filename, extendedFile.size);
 
@@ -213,28 +220,28 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
       formData.append('height', height.toString());
     }
 
-    const metadata = params?.additionalMetadata ?? {};
-    if (params?.additionalMetadata) {
-      for (const [key, value = ''] of Object.entries(metadata)) {
-        if (value) {
-          formData.append(key, value);
-        }
+    const metadata = { ...(params?.additionalMetadata ?? {}), ...(metadataOverride ?? {}) };
+    for (const [key, value = ''] of Object.entries(metadata)) {
+      if (value) {
+        formData.append(key, value);
       }
     }
 
     if (!isAssistantsEndpoint(endpointType ?? endpoint)) {
-      if (!agent_id) {
+      if (!metadata.agent_id) {
         formData.append('message_file', 'true');
       }
       const tool_resource = extendedFile.tool_resource;
-      if (tool_resource != null) {
+      if (tool_resource != null && formData.get('tool_resource') == null) {
         formData.append('tool_resource', tool_resource);
       }
       if (conversation?.agent_id != null && formData.get('agent_id') == null) {
         formData.append('agent_id', conversation.agent_id);
       }
 
-      uploadFile.mutate(formData);
+      /* Awaited so `handleFiles` resolves once the upload has landed; errors are
+       * already surfaced by the mutation's onError. */
+      await uploadFile.mutateAsync(formData).catch(() => undefined);
       return;
     }
 
@@ -264,10 +271,14 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
       formData.append('model', convoModel);
     }
 
-    uploadFile.mutate(formData);
+    await uploadFile.mutateAsync(formData).catch(() => undefined);
   };
 
-  const loadImage = (extendedFile: ExtendedFile, preview: string) => {
+  const loadImage = (
+    extendedFile: ExtendedFile,
+    preview: string,
+    metadataOverride?: Record<string, string>,
+  ) => {
     const img = new Image();
     img.onload = async () => {
       extendedFile.width = img.width;
@@ -278,12 +289,16 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
       };
       replaceFile(extendedFile);
 
-      await startUpload(extendedFile);
+      await startUpload(extendedFile, metadataOverride);
     };
     img.src = preview;
   };
 
-  const handleFiles = async (_files: FileList | File[], _toolResource?: string) => {
+  const handleFiles = async (
+    _files: FileList | File[],
+    _toolResource?: string,
+    metadataOverride?: Record<string, string>,
+  ) => {
     abortControllerRef.current = new AbortController();
     const fileList = Array.from(_files);
     /* Validate files */
@@ -412,11 +427,11 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
 
           const isImage = finalProcessedFile.type.split('/')[0] === 'image';
           if (isImage) {
-            loadImage(updatedExtendedFile, newPreview);
+            loadImage(updatedExtendedFile, newPreview, metadataOverride);
             continue;
           }
 
-          await startUpload(updatedExtendedFile);
+          await startUpload(updatedExtendedFile, metadataOverride);
         } else {
           // File wasn't processed, proceed with original
           const isImage = originalFile.type.split('/')[0] === 'image';
@@ -429,11 +444,11 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
           replaceFile(readyExtendedFile);
 
           if (isImage) {
-            loadImage(readyExtendedFile, initialPreview);
+            loadImage(readyExtendedFile, initialPreview, metadataOverride);
             continue;
           }
 
-          await startUpload(readyExtendedFile);
+          await startUpload(readyExtendedFile, metadataOverride);
         }
       } catch (error) {
         deleteFileById(file_id);

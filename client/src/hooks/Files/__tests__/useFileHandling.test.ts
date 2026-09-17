@@ -67,6 +67,10 @@ jest.mock('~/data-provider', () => ({
   useGetFileConfig: jest.fn(() => ({ data: null })),
   useUploadFileMutation: jest.fn((_opts: Record<string, unknown>) => ({
     mutate: mockMutate,
+    mutateAsync: (...args: unknown[]) => {
+      mockMutate(...args);
+      return Promise.resolve();
+    },
   })),
 }));
 
@@ -218,6 +222,28 @@ describe('useFileHandling', () => {
         fileConfig: null,
       });
       expect(validateCall.endpointFileConfig).toEqual(anthropicConfig);
+    });
+
+    it('uploads against a per-call agent id and sends tool_resource once', async () => {
+      const useFileHandling = await loadHook();
+      const { result } = renderHook(() =>
+        useFileHandling({
+          endpointOverride: EModelEndpoint.agents,
+          additionalMetadata: { tool_resource: 'context' },
+        }),
+      );
+
+      const textFile = new File(['hello'], 'notes.txt', { type: 'text/plain' });
+
+      await act(async () => {
+        await result.current.handleFiles([textFile], 'context', { agent_id: 'agent-new' });
+      });
+
+      expect(mockMutate).toHaveBeenCalledTimes(1);
+      const formData: FormData = mockMutate.mock.calls[0][0];
+      expect(formData.get('agent_id')).toBe('agent-new');
+      expect(formData.getAll('tool_resource')).toEqual(['context']);
+      expect(formData.get('message_file')).toBeNull();
     });
 
     it('sends correct endpoint in upload form data when override is set', async () => {

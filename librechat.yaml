@@ -199,6 +199,9 @@ endpoints:
       addParams:
         web_search: true
         reasoning_effort: medium
+        # gpt-5.6 rejects function tools + reasoning_effort on chat completions; the
+        # responses API accepts both. Upstream only defaults this for api.openai.com.
+        useResponsesApi: true
 
 modelSpecs:
   enforce: false

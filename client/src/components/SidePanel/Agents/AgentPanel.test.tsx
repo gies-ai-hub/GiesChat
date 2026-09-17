@@ -100,6 +100,10 @@ jest.mock('~/hooks', () => ({
   useAuthContext: () => ({ user: { id: 'user-123', role: 'USER' } }),
 }));
 
+jest.mock('~/hooks/Files/useFileHandling', () => ({
+  useFileHandlingNoChatContext: () => ({ handleFiles: jest.fn() }),
+}));
+
 jest.mock('~/hooks/useResourcePermissions', () => ({
   useResourcePermissions: () => ({
     hasPermission: jest.fn(() => true),
@@ -115,6 +119,8 @@ jest.mock('~/Providers/AgentPanelContext', () => ({
     endpointsConfig: {},
     setCurrentAgentId: jest.fn(),
     agent_id: 'agent-123',
+    pendingContextFiles: [],
+    setPendingContextFiles: jest.fn(),
   }),
 }));
 
