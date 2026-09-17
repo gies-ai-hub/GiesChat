@@ -778,6 +778,7 @@ export async function initializeAgent(
     requestAttachments: primedRequestAttachments,
     agentContextAttachments: primedAgentContextAttachments,
     tool_resources,
+    documentSearch,
   } = await primeResources({
     req: req as never,
     getFiles: db.getFiles as never,
@@ -790,6 +791,10 @@ export async function initializeAgent(
     tool_resources: agent.tool_resources,
     requestFileSet: new Set(requestFiles?.map((file) => file.file_id)),
   });
+
+  if (documentSearch && !agent.tools?.includes(Tools.file_search)) {
+    agent.tools = [...(agent.tools ?? []), Tools.file_search];
+  }
 
   /**
    * Pre-resolve manually-invoked + always-apply skill primes so their

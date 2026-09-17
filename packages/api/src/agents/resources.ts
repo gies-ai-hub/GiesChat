@@ -136,6 +136,23 @@ const categorizeFileForToolResources = ({
 };
 
 /**
+ * Decides how an agent's own documents reach the model.
+ * A single document is inlined in full; with two or more, every document that was
+ * indexed at upload time (`embedded`) goes to `file_search` instead, and only the
+ * un-indexed leftovers stay inline.
+ */
+export const splitAgentDocuments = <T extends { embedded?: boolean }>(
+  files: T[],
+): { inline: T[]; searchable: T[] } => {
+  if (files.length < 2) {
+    return { inline: files, searchable: [] };
+  }
+  const searchable = files.filter((file) => file.embedded === true);
+  const inline = files.filter((file) => file.embedded !== true);
+  return { inline, searchable };
+};
+
+/**
  * Primes resources for agent execution by processing attachments and tool resources
  * This function:
  * 1. Fetches context/OCR files (filtered by agent access control when available)
@@ -177,9 +194,12 @@ export const primeResources = async ({
   requestAttachments: Array<TFile | undefined> | undefined;
   agentContextAttachments: Array<TFile | undefined> | undefined;
   tool_resources: AgentToolResources | undefined;
+  /** True when the agent's documents were routed to `file_search` instead of inlined */
+  documentSearch: boolean;
 }> => {
   const requestAttachments: Array<TFile> = [];
   const agentContextAttachments: Array<TFile> = [];
+  let documentSearch = false;
   try {
     /**
      * Array to collect all unique files that will be returned as attachments
@@ -263,11 +283,24 @@ export const primeResources = async ({
         });
       }
 
-      for (const file of context) {
-        if (!file?.file_id) {
-          continue;
-        }
+      const { inline, searchable } = splitAgentDocuments(
+        context.filter((file) => Boolean(file?.file_id)),
+      );
+      documentSearch = searchable.length > 0;
 
+      if (documentSearch) {
+        /* Listed under `file_ids`, not `files`: that is what marks them as the agent's
+         * own documents (`fromAgent`), so `file_search` queries the RAG API with the
+         * agent's entity id they were indexed under. */
+        const fileSearch = tool_resources[EToolResources.file_search] ?? {};
+        const fileIds = new Set([
+          ...(fileSearch.file_ids ?? []),
+          ...searchable.map((file) => file.file_id),
+        ]);
+        tool_resources[EToolResources.file_search] = { ...fileSearch, file_ids: [...fileIds] };
+      }
+
+      for (const file of inline) {
         // Clear from attachmentFileIds if it was pre-added
         attachmentFileIds.delete(file.file_id);
 
@@ -293,6 +326,7 @@ export const primeResources = async ({
         agentContextAttachments:
           agentContextAttachments.length > 0 ? agentContextAttachments : undefined,
         tool_resources,
+        documentSearch,
       };
     }
 
@@ -335,6 +369,7 @@ export const primeResources = async ({
       agentContextAttachments:
         agentContextAttachments.length > 0 ? agentContextAttachments : undefined,
       tool_resources,
+      documentSearch,
     };
   } catch (error) {
     logger.error('Error priming resources', error);
@@ -358,6 +393,7 @@ export const primeResources = async ({
       agentContextAttachments:
         agentContextAttachments.length > 0 ? agentContextAttachments : undefined,
       tool_resources: _tool_resources,
+      documentSearch: false,
     };
   }
 };

@@ -1,4 +1,4 @@
-import { primeResources } from './resources';
+import { primeResources, splitAgentDocuments } from './resources';
 import { logger } from '@librechat/data-schemas';
 import { EModelEndpoint, EToolResources, AgentCapabilities } from 'librechat-data-provider';
 import type { TAgentsEndpoint, TFile } from 'librechat-data-provider';
@@ -1178,10 +1178,16 @@ describe('primeResources', () => {
         'context-file-1',
       );
 
-      expect(result.tool_resources?.[EToolResources.file_search]?.files).toHaveLength(1);
-      expect(result.tool_resources?.[EToolResources.file_search]?.files?.[0]?.file_id).toBe(
+      /* Two documents: the indexed one is routed to file_search by id (as the agent's own
+       * document) and only the un-indexed one stays inline. */
+      expect(result.tool_resources?.[EToolResources.file_search]?.file_ids).toEqual([
         'context-file-2',
-      );
+      ]);
+      expect(result.tool_resources?.[EToolResources.file_search]?.files).toBeUndefined();
+      expect(result.documentSearch).toBe(true);
+      expect(result.agentContextAttachments?.map((file) => file?.file_id)).toEqual([
+        'context-file-1',
+      ]);
     });
 
     it('should preserve context field when context capability is disabled', async () => {
@@ -1560,5 +1566,27 @@ describe('primeResources', () => {
       expect(result.attachments).toEqual(mockFiles);
       expect(result.tool_resources?.[EToolResources.image_edit]).toBeUndefined();
     });
+  });
+});
+
+describe('splitAgentDocuments', () => {
+  const doc = (file_id: string, embedded?: boolean) => ({ file_id, embedded });
+
+  it('inlines a single document even when it is indexed', () => {
+    const one = [doc('a', true)];
+    expect(splitAgentDocuments(one)).toEqual({ inline: one, searchable: [] });
+    expect(splitAgentDocuments([])).toEqual({ inline: [], searchable: [] });
+  });
+
+  it('routes every indexed document to search once there are two or more', () => {
+    const a = doc('a', true);
+    const b = doc('b', true);
+    expect(splitAgentDocuments([a, b])).toEqual({ inline: [], searchable: [a, b] });
+  });
+
+  it('keeps un-indexed documents inline alongside the searchable ones', () => {
+    const a = doc('a', true);
+    const old = doc('b');
+    expect(splitAgentDocuments([a, old])).toEqual({ inline: [old], searchable: [a] });
   });
 });

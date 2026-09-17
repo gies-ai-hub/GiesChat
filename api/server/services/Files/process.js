@@ -765,6 +765,26 @@ const processAgentFileUpload = async ({ req, res, metadata }) => {
   } else if (tool_resource === EToolResources.context) {
     const { file_id, temp_file_id = null } = metadata;
 
+    /* Agent documents are also indexed for `file_search`, so the run can switch to
+     * search once the agent holds several of them (see `splitAgentDocuments`).
+     * ponytail: best-effort — a document that fails to index simply stays inline-only. */
+    const embedForSearch = async () => {
+      if (messageAttachment || !process.env.RAG_API_URL) {
+        return undefined;
+      }
+      try {
+        const { uploadVectors } = require('./VectorDB/crud');
+        const result = await uploadVectors({ req, file, file_id, entity_id });
+        return result.embedded;
+      } catch (err) {
+        logger.warn(
+          `[processAgentFileUpload] Could not index "${file.originalname}" for search; it stays inline-only:`,
+          err,
+        );
+        return undefined;
+      }
+    };
+
     /**
      * @param {object} params
      * @param {string} params.text
@@ -780,6 +800,7 @@ const processAgentFileUpload = async ({ req, res, metadata }) => {
           `Extracted text from "${file.originalname}" exceeds the 15MB storage limit (${Math.round(textBytes / megabyte)}MB). Try a shorter document.`,
         );
       }
+      const embedded = await embedForSearch();
       const retentionExpiry = await getAgentFileRetentionExpiry({
         req,
         messageAttachment,
@@ -795,6 +816,7 @@ const processAgentFileUpload = async ({ req, res, metadata }) => {
           type,
           filepath: filepath ?? file.path,
           source: FileSources.text,
+          embedded,
           filename: file.originalname,
           model: messageAttachment ? undefined : req.body.model,
           context: messageAttachment ? FileContext.message_attachment : FileContext.agents,
