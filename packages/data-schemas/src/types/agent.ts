@@ -22,6 +22,9 @@ export interface IAgentEmbed {
   greeting?: string;
 }
 
+/** The unversioned bookkeeping fields the dashboard's draft endpoints write. */
+export type IAgentMeta = Partial<Pick<IAgent, 'collaborators' | 'postedVersion'>>;
+
 export interface IAgent extends Omit<Document, 'model'> {
   id: string;
   name?: string;
@@ -60,6 +63,14 @@ export interface IAgent extends Omit<Document, 'model'> {
   createdVia?: string;
   /** Present only while the agent is embeddable without login; see `IAgentEmbed`. */
   embed?: IAgentEmbed;
+  /** Users who may clone this agent into a draft of their own. Author-managed. */
+  collaborators?: string[];
+  /** On a draft: the production agent id it was cloned from. */
+  draftOf?: string;
+  /** On a draft: production's version count at clone time. */
+  draftBase?: number;
+  /** On a draft: the production version it became when posted. */
+  postedVersion?: number;
   support_contact?: ISupportContact;
   is_promoted?: boolean;
   /** MCP server names extracted from tools for efficient querying */

@@ -8,7 +8,7 @@ import {
 } from 'librechat-data-provider';
 import type { AgentToolResources } from 'librechat-data-provider';
 import type { FilterQuery, Model, Types } from 'mongoose';
-import type { IAgent, IAgentEmbed, IAclEntry } from '~/types';
+import type { IAgent, IAgentEmbed, IAgentMeta, IAclEntry } from '~/types';
 import { filterExistingSkillIds } from './skill';
 import logger from '~/config/winston';
 
@@ -1070,10 +1070,21 @@ export function createAgentMethods(
       .lean<IAgent>();
   }
 
+  /** Deliberately not `updateAgent`: who may draft, and whether a draft was posted, are not versioned edits. */
+  async function setAgentMeta(agentId: string, meta: IAgentMeta): Promise<IAgent | null> {
+    const Agent = mongoose.models.Agent as Model<IAgent>;
+    return await Agent.findOneAndUpdate(
+      { id: agentId },
+      { $set: meta },
+      { new: true },
+    ).lean<IAgent>();
+  }
+
   return {
     getAgent,
     getAgentByEmbedKey,
     setAgentEmbed,
+    setAgentMeta,
     getAgentVersions,
     getAgentWithVersionCount,
     getAgents,

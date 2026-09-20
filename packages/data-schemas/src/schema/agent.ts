@@ -126,6 +126,25 @@ const agentSchema: Schema<IAgent> = new Schema<IAgent>(
       ),
       default: undefined,
     },
+    /** User ids allowed to make their own draft of this agent. Written only by the dashboard's collaborators endpoint. */
+    collaborators: {
+      type: [String],
+      default: undefined,
+      index: true,
+    },
+    /** Set on a draft: the id of the production agent it was cloned from. Its presence hides the agent from dashboard lists. */
+    draftOf: {
+      type: String,
+      index: true,
+    },
+    /** Production's saved-version count when this draft was cloned; a higher count on production means it moved on. */
+    draftBase: {
+      type: Number,
+    },
+    /** The production version this draft became when it was posted. */
+    postedVersion: {
+      type: Number,
+    },
     support_contact: {
       type: Schema.Types.Mixed,
       default: undefined,

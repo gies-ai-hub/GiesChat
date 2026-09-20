@@ -306,6 +306,12 @@ export type Agent = {
   course?: string;
   /** Which surface built this agent. A UI hint for filtering — never an access check. */
   createdVia?: string;
+  /** Users who may draft this agent; set from the class dashboard. */
+  collaborators?: string[];
+  /** On a draft: the production agent it was cloned from. */
+  draftOf?: string;
+  draftBase?: number;
+  postedVersion?: number;
   support_contact?: SupportContact;
   owner_contact?: AgentOwnerContact;
   /** Per-tool configuration options (deferred loading, allowed callers, etc.) */

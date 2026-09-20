@@ -3936,3 +3936,30 @@ function generateVersionTestCases() {
     },
   ];
 }
+
+describe('setAgentMeta', () => {
+  it('sets collaborators and postedVersion without adding a version', async () => {
+    const created = await methods.createAgent({
+      id: 'agent_meta_test',
+      name: 'Meta',
+      provider: 'openai',
+      model: 'gpt-4',
+      author: new mongoose.Types.ObjectId(),
+    });
+    expect(created.versions).toHaveLength(1);
+
+    const withCollaborators = await methods.setAgentMeta('agent_meta_test', {
+      collaborators: ['507f1f77bcf86cd799439011'],
+    });
+    expect(withCollaborators?.collaborators).toEqual(['507f1f77bcf86cd799439011']);
+    expect(withCollaborators?.versions).toHaveLength(1);
+
+    const posted = await methods.setAgentMeta('agent_meta_test', { postedVersion: 3 });
+    expect(posted?.postedVersion).toBe(3);
+    expect(posted?.collaborators).toEqual(['507f1f77bcf86cd799439011']);
+  });
+
+  it('returns null for an unknown agent', async () => {
+    expect(await methods.setAgentMeta('agent_nope', { postedVersion: 1 })).toBeNull();
+  });
+});
