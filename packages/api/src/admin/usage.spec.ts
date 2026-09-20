@@ -332,6 +332,8 @@ interface TestDeps extends AdminUsageDeps {
   resolveTopicsModel: jest.Mock;
   updateUser: jest.Mock;
   setAgentEmbed: jest.Mock;
+  getAgent: jest.Mock;
+  setAgentMeta: jest.Mock;
 }
 
 /** The shape the analytics pipeline returns when nothing happened in the window. */
@@ -381,6 +383,18 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
     resolveTopicsModel: jest.fn(async () => null),
     updateUser: jest.fn(async () => null),
     setAgentEmbed: jest.fn(async () => null),
+    getAgent: jest.fn(
+      async (filter: unknown) =>
+        agents.find((agent) => matchesFilter(readAgentField, agent, filter)) ?? null,
+    ),
+    setAgentMeta: jest.fn(async (agentId: string, meta: Record<string, unknown>) => {
+      const agent = agents.find((candidate) => candidate.id === agentId);
+      if (!agent) {
+        return null;
+      }
+      Object.assign(agent, meta);
+      return agent;
+    }),
     ...overrides,
   };
 
@@ -2295,6 +2309,152 @@ describe('createAdminUsageHandlers', () => {
       await handlers.updateDashboardLayout(req, res);
 
       expect(status).toHaveBeenCalledWith(500);
+    });
+  });
+
+  describe('collaborators and drafts endpoints', () => {
+    const prof = mockUser({
+      _id: callerId,
+      role: 'USER',
+      name: 'Prof',
+      email: 'prof@illinois.edu',
+    });
+    const ta = mockUser({ _id: bobId, role: 'USER', name: 'Bob TA', email: 'bob@illinois.edu' });
+
+    function world() {
+      const prod = mockAgent({
+        id: 'agent_prod',
+        name: 'Case Coach',
+        author: callerId,
+        collaborators: [bobId.toString()],
+        versions: [{}, {}] as IAgent['versions'],
+      });
+      const bobDraft = mockAgent({
+        id: 'agent_prod_bob',
+        name: 'Case Coach',
+        author: bobId,
+        draftOf: 'agent_prod',
+        draftBase: 2,
+        embed: { key: 'k1', audience: 'public' },
+      });
+      const anaDraft = mockAgent({
+        id: 'agent_prod_ana',
+        name: 'Case Coach',
+        author: anaId,
+        draftOf: 'agent_prod',
+        draftBase: 1,
+      });
+      return { prod, bobDraft, anaDraft };
+    }
+
+    describe('updateAgentCollaborators', () => {
+      it('lets the author replace the list with known users, never itself', async () => {
+        const { prod } = world();
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob, ana, zed] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: [anaId.toString(), callerId.toString(), 'not-an-object-id'] },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
+          collaborators: [anaId.toString()],
+        });
+        expect(json.mock.calls[0][0]).toEqual({
+          collaborators: [{ id: anaId.toString(), name: 'Ana Member', email: 'ana@illinois.edu' }],
+        });
+      });
+
+      it('refuses a collaborator or editor', async () => {
+        const { prod } = world();
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: [] },
+          user: ta,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(status).toHaveBeenCalledWith(403);
+        expect(deps.setAgentMeta).not.toHaveBeenCalled();
+      });
+
+      it('rejects a body without a userIds array', async () => {
+        const { prod } = world();
+        const handlers = createAdminUsageHandlers(createDeps(baseWorld({ agents: [prod] })));
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: 'bob' },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(status).toHaveBeenCalledWith(400);
+      });
+    });
+
+    describe('listAgentDrafts', () => {
+      it('gives the author every unposted draft with its owner and test key', async () => {
+        const { prod, bobDraft, anaDraft } = world();
+        const deps = createDeps(
+          baseWorld({ agents: [prod, bobDraft, anaDraft], users: [bob, ana] }),
+        );
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({ params: { agent_id: 'agent_prod' }, user: prof });
+        await handlers.listAgentDrafts(req, res);
+        const body = json.mock.calls[0][0] as {
+          version: number;
+          collaborators: { id: string }[];
+          drafts: {
+            draft_id: string;
+            mine: boolean;
+            embed: { key: string } | null;
+            owner: { name: string };
+          }[];
+        };
+        expect(body.version).toBe(2);
+        expect(body.collaborators.map((user) => user.id)).toEqual([bobId.toString()]);
+        expect(body.drafts.map((draft) => draft.draft_id).sort()).toEqual([
+          'agent_prod_ana',
+          'agent_prod_bob',
+        ]);
+        const bobs = body.drafts.find((draft) => draft.draft_id === 'agent_prod_bob');
+        expect(bobs).toMatchObject({
+          mine: false,
+          owner: { name: 'Bob Member' },
+          embed: { key: 'k1' },
+        });
+      });
+
+      it('gives a collaborator only their own draft and no collaborator list', async () => {
+        const { prod, bobDraft, anaDraft } = world();
+        const deps = createDeps(
+          baseWorld({ agents: [prod, bobDraft, anaDraft], users: [bob, ana] }),
+        );
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({ params: { agent_id: 'agent_prod' }, user: ta });
+        await handlers.listAgentDrafts(req, res);
+        const body = json.mock.calls[0][0] as {
+          collaborators: unknown[];
+          drafts: { draft_id: string; mine: boolean }[];
+        };
+        expect(body.collaborators).toEqual([]);
+        expect(body.drafts).toEqual([
+          expect.objectContaining({ draft_id: 'agent_prod_bob', mine: true }),
+        ]);
+      });
+
+      it('404s for an agent outside the caller scope', async () => {
+        const { prod } = world();
+        const handlers = createAdminUsageHandlers(createDeps(baseWorld({ agents: [prod] })));
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          user: zed,
+        });
+        await handlers.listAgentDrafts(req, res);
+        expect(status).toHaveBeenCalledWith(404);
+      });
     });
   });
 });

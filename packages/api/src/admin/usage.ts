@@ -6,6 +6,7 @@ import type {
   IUser,
   IAgent,
   IGroup,
+  IAgentMeta,
   IAgentEmbed,
   AgentEmbedAudience,
 } from '@librechat/data-schemas';
@@ -114,6 +115,9 @@ export interface AdminUsageDeps {
   resolveTopicsModel: () => Promise<TopicsModel | null>;
   updateUser: (userId: string, updateData: Partial<IUser>) => Promise<IUser | null>;
   setAgentEmbed: (agentId: string, embed: IAgentEmbed | null) => Promise<IAgent | null>;
+  /** The full document (tool_resources, versions), for cloning and posting. */
+  getAgent: (filter: FilterQuery<IAgent>) => Promise<IAgent | null>;
+  setAgentMeta: (agentId: string, meta: IAgentMeta) => Promise<IAgent | null>;
 }
 
 /** What the dashboard shows the professor; `key` is the only place it ever leaves the server. */
@@ -121,6 +125,44 @@ interface AgentEmbedItem {
   key: string;
   audience: AgentEmbedAudience;
   greeting: string | null;
+}
+
+/** A person named on a dashboard row: never an email-only identity, never a raw document. */
+export interface UserRef {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface AgentDraftItem {
+  draft_id: string;
+  owner: UserRef;
+  /** Production's version count when the draft was cloned. */
+  draftBase: number;
+  /** The production version this draft became, or `null` while it is still open. */
+  postedVersion: number | null;
+  updatedAt: string | null;
+  /** Whether the caller owns this draft. */
+  mine: boolean;
+  /** The draft's test link, minted through the embed endpoints on the draft id. */
+  embed: AgentEmbedItem | null;
+}
+
+const MAX_COLLABORATORS = 50;
+
+/** Untrusted body → deduplicated ObjectId strings, or `null` when malformed. */
+export function parseCollaboratorIds(body: unknown): string[] | null {
+  if (body == null || typeof body !== 'object') {
+    return null;
+  }
+  const raw = (body as { userIds?: unknown }).userIds;
+  if (!Array.isArray(raw) || raw.length > MAX_COLLABORATORS) {
+    return null;
+  }
+  const ids = raw.filter(
+    (value): value is string => typeof value === 'string' && isValidObjectIdString(value),
+  );
+  return [...new Set(ids)];
 }
 
 /** Untrusted body → validated settings, or `null` when the body is malformed. */
@@ -230,6 +272,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   updateDashboardLayout: (req: ServerRequest, res: Response) => Promise<Response>;
   updateAgentEmbed: (req: ServerRequest, res: Response) => Promise<Response>;
   revokeAgentEmbed: (req: ServerRequest, res: Response) => Promise<Response>;
+  updateAgentCollaborators: (req: ServerRequest, res: Response) => Promise<Response>;
+  listAgentDrafts: (req: ServerRequest, res: Response) => Promise<Response>;
 } {
   const {
     findAgents,
@@ -243,6 +287,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     resolveTopicsModel,
     updateUser,
     setAgentEmbed,
+    getAgent,
+    setAgentMeta,
   } = deps;
 
   /**
@@ -701,10 +747,107 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     }
   }
 
+  const toUserRef = (user: IUser): UserRef => ({
+    id: String(user._id),
+    name: user.name ?? '',
+    email: user.email ?? '',
+  });
+
+  async function findUserRefs(ids: string[]): Promise<Map<string, UserRef>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+    const users = await findUsers({ _id: { $in: ids } }, STUDENT_FIELDS);
+    return new Map(users.map((user) => [String(user._id), toUserRef(user)]));
+  }
+
+  /** Author only: the list of people who may draft this agent. Unknown ids and the author are dropped. */
+  async function updateAgentCollaborators(req: ServerRequest, res: Response): Promise<Response> {
+    const rawAgentId = (req.params as AgentUsageParams).agent_id;
+    if (typeof rawAgentId !== 'string') {
+      return res.status(400).json({ error: 'agent_id is required' });
+    }
+    const requested = parseCollaboratorIds(req.body);
+    if (requested == null) {
+      return res.status(400).json({ error: 'userIds must be an array of user ids' });
+    }
+    const caller = req.user;
+    if (caller == null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const [agent] = await findScopedAgents(caller, rawAgentId);
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      if (!isAuthor(caller, agent)) {
+        return res.status(403).json({ error: 'Only the author can set collaborators' });
+      }
+      const known = await findUserRefs(requested.filter((id) => id !== String(caller._id)));
+      const collaborators = [...known.keys()];
+      await setAgentMeta(agent.id, { collaborators });
+      return res.status(200).json({ collaborators: collaborators.map((id) => known.get(id)) });
+    } catch (error) {
+      logger.error('[adminUsage] updateAgentCollaborators error:', error);
+      return res.status(500).json({ error: 'Failed to update collaborators' });
+    }
+  }
+
+  const toDraftItem = (
+    draft: IAgent,
+    owners: Map<string, UserRef>,
+    caller: IUser,
+  ): AgentDraftItem => ({
+    draft_id: draft.id,
+    owner: owners.get(String(draft.author)) ?? { id: String(draft.author), name: '', email: '' },
+    draftBase: draft.draftBase ?? 0,
+    postedVersion: draft.postedVersion ?? null,
+    updatedAt: (draft as IAgent & { updatedAt?: Date }).updatedAt?.toISOString() ?? null,
+    mine: isAuthor(caller, draft),
+    embed: toEmbedItem(draft.embed),
+  });
+
+  /** The author sees every open draft and the collaborator list; a collaborator sees their own draft. */
+  async function listAgentDrafts(req: ServerRequest, res: Response): Promise<Response> {
+    const rawAgentId = (req.params as AgentUsageParams).agent_id;
+    if (typeof rawAgentId !== 'string') {
+      return res.status(400).json({ error: 'agent_id is required' });
+    }
+    const caller = req.user;
+    if (caller == null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const [agent] = await findScopedAgents(caller, rawAgentId, AGENT_LIST_FIELDS);
+      if (!agent || agent.draftOf != null) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      const author = isAuthor(caller, agent);
+      const drafts = visibleDrafts(caller, agent, await findDraftsOf([agent.id]));
+      const people = await findUserRefs([
+        ...drafts.map((draft) => String(draft.author)),
+        ...(author ? (agent.collaborators ?? []) : []),
+      ]);
+      return res.status(200).json({
+        agent_id: agent.id,
+        version: agent.versions?.length ?? 0,
+        collaborators: author
+          ? (agent.collaborators ?? []).flatMap((id) => people.get(id) ?? [])
+          : [],
+        drafts: drafts.map((draft) => toDraftItem(draft, people, caller)),
+      });
+    } catch (error) {
+      logger.error('[adminUsage] listAgentDrafts error:', error);
+      return res.status(500).json({ error: 'Failed to list drafts' });
+    }
+  }
+
   return {
     listAgentUsage: listAgentUsageHandler,
     updateAgentEmbed,
     revokeAgentEmbed,
+    updateAgentCollaborators,
+    listAgentDrafts,
     listAgentStudentUsage: listAgentStudentUsageHandler,
     listAgentAnalytics: listAgentAnalyticsHandler,
     listAgentTopics: listAgentTopicsHandler,

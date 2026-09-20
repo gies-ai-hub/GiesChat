@@ -31,6 +31,8 @@ const handlers = createAdminUsageHandlers({
   resolveTopicsModel: async () => topicsModelFromConfig(await getAppConfig()),
   updateUser: db.updateUser,
   setAgentEmbed: db.setAgentEmbed,
+  getAgent: db.getAgent,
+  setAgentMeta: db.setAgentMeta,
 });
 
 router.use(requireJwtAuth, requireAdminAccess);
@@ -67,6 +69,13 @@ router.get(
  */
 router.put('/agents/:agent_id/embed', handlers.updateAgentEmbed);
 router.delete('/agents/:agent_id/embed', handlers.revokeAgentEmbed);
+
+/**
+ * Draft collaboration. All four resolve the agent through the usage scope; the
+ * handlers themselves narrow "author only" where the design says so.
+ */
+router.put('/agents/:agent_id/collaborators', handlers.updateAgentCollaborators);
+router.get('/agents/:agent_id/drafts', handlers.listAgentDrafts);
 
 router.get('/layout', handlers.getDashboardLayout);
 router.put('/layout', handlers.updateDashboardLayout);
