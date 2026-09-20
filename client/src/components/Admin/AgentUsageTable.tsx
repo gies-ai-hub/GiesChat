@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { Code, Pencil } from 'lucide-react';
+import { Code, Pencil, MessageSquare } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
 import {
@@ -25,6 +25,7 @@ interface AgentUsageTableProps {
   onSelectAgent: (agent: AdminAgentUsage) => void;
   onEditAgent: (agent: AdminAgentUsage) => void;
   onEmbedAgent: (agent: AdminAgentUsage) => void;
+  onOpenAgent: (agent: AdminAgentUsage) => void;
 }
 
 export default function AgentUsageTable({
@@ -33,6 +34,7 @@ export default function AgentUsageTable({
   onSelectAgent,
   onEditAgent,
   onEmbedAgent,
+  onOpenAgent,
 }: AgentUsageTableProps) {
   const localize = useLocalize();
   const queryClient = useQueryClient();
@@ -126,6 +128,15 @@ export default function AgentUsageTable({
                 {/* Every listed row is author-or-EDIT scoped by the server, so the pencil
                     needs no per-row flag. DELETE is a narrower bit, hence canDelete. */}
                 <span className="flex justify-end gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    onClick={() => onOpenAgent(agent)}
+                    aria-label={localize('com_ui_admin_open_agent', { name: agent.name })}
+                  >
+                    <MessageSquare className="size-4" aria-hidden="true" />
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"

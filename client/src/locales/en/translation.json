@@ -799,6 +799,8 @@
   "com_ui_admin_edit_agent": "Edit {{name}}",
   "com_ui_admin_edit_agent_title": "Edit agent · {{name}}",
   "com_ui_admin_embed_agent": "Embed {{name}}",
+  "com_ui_admin_open_agent": "Open {{name}} in chat",
+  "com_ui_admin_open_in_chat": "Open in chat",
   "com_ui_admin_embed_title": "Embed “{{name}}”",
   "com_ui_admin_embed_intro": "Visitors chat with this agent inside your page. Each visitor gets private conversations and can only use this agent — no uploads, no other models.",
   "com_ui_admin_embed_audience": "Who can use it",

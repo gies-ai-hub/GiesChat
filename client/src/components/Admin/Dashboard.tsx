@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { ArrowLeft, Bot } from 'lucide-react';
+import { ArrowLeft, Bot, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Dropdown, OGDialog, OGDialogContent, OGDialogTitle } from '@librechat/client';
@@ -94,12 +94,22 @@ export default function AdminDashboard() {
    * instructions never apply. `agent_id` is an honoured deep-link param, which avoids
    * depending on the chat providers this route sits outside of.
    */
+  const openAgentChat = useCallback(
+    (agentId: string) => navigate(`/c/new?agent_id=${encodeURIComponent(agentId)}`),
+    [navigate],
+  );
+
   const handleAgentCreated = useCallback(
     (agentId: string) => {
       handleBuilderOpenChange(false);
-      navigate(`/c/new?agent_id=${encodeURIComponent(agentId)}`);
+      openAgentChat(agentId);
     },
-    [handleBuilderOpenChange, navigate],
+    [handleBuilderOpenChange, openAgentChat],
+  );
+
+  const handleOpenAgent = useCallback(
+    (agent: AdminAgentUsage) => openAgentChat(agent.agent_id),
+    [openAgentChat],
   );
 
   /**
@@ -185,6 +195,12 @@ export default function AdminDashboard() {
           />
           <div className="ml-auto flex items-center gap-2">
             {selectedAgent != null && (
+              <Button variant="outline" onClick={() => handleOpenAgent(selectedAgent)}>
+                <MessageSquare className="mr-2 size-4" aria-hidden="true" />
+                {localize('com_ui_admin_open_in_chat')}
+              </Button>
+            )}
+            {selectedAgent != null && (
               <ShareWithClass
                 agentId={selectedAgent.agent_id}
                 agentName={selectedAgent.name}
@@ -235,6 +251,7 @@ export default function AdminDashboard() {
               onSelectAgent={setSelectedAgent}
               onEditAgent={setEditingAgent}
               onEmbedAgent={setEmbeddingAgent}
+              onOpenAgent={handleOpenAgent}
             />
           )}
         </section>

@@ -1,6 +1,6 @@
 import React from 'react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
@@ -178,6 +178,11 @@ const emptyAnalytics: AdminAnalyticsResponse = {
   errorRate: 0,
 };
 
+const ChatLocation = () => {
+  const location = useLocation();
+  return <div data-testid="chat-location">{location.pathname + location.search}</div>;
+};
+
 const renderDashboard = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -187,6 +192,7 @@ const renderDashboard = () => {
       <MemoryRouter initialEntries={['/admin']}>
         <Routes>
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/c/new" element={<ChatLocation />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -265,6 +271,15 @@ describe('AdminDashboard', () => {
     await waitFor(() =>
       expect(mockGetAdminAgentUsage.mock.calls.length).toBeGreaterThan(callsBefore),
     );
+  });
+
+  it('opens a chat with the agent from its row and from the selected-agent toolbar', async () => {
+    renderDashboard();
+    const rowButton = await screen.findByRole('button', {
+      name: /open case study coach in chat/i,
+    });
+    await userEvent.click(rowButton);
+    expect(await screen.findByTestId('chat-location')).toHaveTextContent('/c/new?agent_id=agent_1');
   });
 
   it('hides the build button from a professor without create permission', async () => {
