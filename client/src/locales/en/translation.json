@@ -2440,5 +2440,13 @@
   "com_ui_admin_start_draft": "Start a draft",
   "com_ui_admin_start_draft_hint": "You are a collaborator on this agent. Start a draft to make your own copy to edit and test.",
   "com_ui_admin_edit_draft": "Edit draft",
-  "com_ui_admin_discard_draft_confirm": "Discard your draft of {{name}}? Production is not affected."
+  "com_ui_admin_discard_draft_confirm": "Discard your draft of {{name}}? Production is not affected.",
+  "com_ui_admin_collaborators_title": "Collaborators · {{name}}",
+  "com_ui_admin_collaborators_intro": "People who can make their own draft of this agent and share a test link. Only you can post a draft to production.",
+  "com_ui_admin_collaborators_search": "Search by name or NetID",
+  "com_ui_admin_collaborators_empty": "No collaborators yet.",
+  "com_ui_admin_collaborators_remove": "Remove {{name}}",
+  "com_ui_admin_collaborators_saved": "Collaborators saved.",
+  "com_ui_admin_collaborators_error": "Could not save collaborators.",
+  "com_ui_admin_collaborators_needs_account": "{{name}} has not signed in to GiesChat yet and cannot be added."
 }
