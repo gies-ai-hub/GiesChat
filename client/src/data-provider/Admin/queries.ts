@@ -9,6 +9,7 @@ import type {
   AdminTopicsResponse,
   AdminAnalyticsResponse,
   AdminAgentUsageResponse,
+  AdminAgentDraftsResponse,
   AdminGroupListResponse,
   AdminDashboardLayoutResponse,
   AdminAgentStudentUsageResponse,
@@ -142,6 +143,22 @@ export const useAdminDashboardLayoutQuery = (
     [QueryKeys.adminDashboardLayout],
     () => dataService.getAdminDashboardLayout(),
     { ...adminQueryConfig, retry: false, ...config },
+  );
+
+/** Drafts of one production agent, fetched only while its row is expanded. */
+export const useAdminAgentDraftsQuery = (
+  agentId: string | null,
+  config?: UseQueryOptions<AdminAgentDraftsResponse>,
+): QueryObserverResult<AdminAgentDraftsResponse> =>
+  useQuery<AdminAgentDraftsResponse>(
+    [QueryKeys.adminAgentDrafts, agentId ?? ''],
+    () => dataService.getAdminAgentDrafts(agentId as string),
+    {
+      ...adminQueryConfig,
+      retry: false,
+      ...config,
+      enabled: !!agentId && (config?.enabled ?? true),
+    },
   );
 
 export const useAdminAgentStudentUsageQuery = (

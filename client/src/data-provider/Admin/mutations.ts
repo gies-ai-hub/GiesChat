@@ -4,7 +4,10 @@ import type { UseMutationResult } from '@tanstack/react-query';
 import type {
   AgentEmbedSettings,
   AdminDashboardPanel,
+  AdminOpenDraftResponse,
+  AdminPostDraftResponse,
   AdminAgentEmbedResponse,
+  AdminCollaboratorsResponse,
   AdminDashboardLayoutResponse,
 } from 'librechat-data-provider';
 
@@ -45,7 +48,10 @@ export const useUpdateAdminAgentEmbedMutation = (): UseMutationResult<
     ({ agentId, settings }) => dataService.updateAdminAgentEmbed(agentId, settings),
     {
       mutationKey: [MutationKeys.updateAdminAgentEmbed],
-      onSuccess: () => queryClient.invalidateQueries([QueryKeys.adminAgentUsage]),
+      onSuccess: () => {
+        queryClient.invalidateQueries([QueryKeys.adminAgentUsage]);
+        queryClient.invalidateQueries([QueryKeys.adminAgentDrafts]);
+      },
     },
   );
 };
@@ -58,6 +64,57 @@ export const useRevokeAdminAgentEmbedMutation = (): UseMutationResult<
   const queryClient = useQueryClient();
   return useMutation((agentId: string) => dataService.revokeAdminAgentEmbed(agentId), {
     mutationKey: [MutationKeys.updateAdminAgentEmbed],
-    onSuccess: () => queryClient.invalidateQueries([QueryKeys.adminAgentUsage]),
+    onSuccess: () => {
+      queryClient.invalidateQueries([QueryKeys.adminAgentUsage]);
+      queryClient.invalidateQueries([QueryKeys.adminAgentDrafts]);
+    },
+  });
+};
+
+export const useUpdateAdminAgentCollaboratorsMutation = (): UseMutationResult<
+  AdminCollaboratorsResponse,
+  unknown,
+  { agentId: string; userIds: string[] }
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    ({ agentId, userIds }) => dataService.updateAdminAgentCollaborators(agentId, userIds),
+    {
+      mutationKey: [MutationKeys.updateAdminAgentCollaborators],
+      onSuccess: (_data, { agentId }) => {
+        queryClient.invalidateQueries([QueryKeys.adminAgentDrafts, agentId]);
+      },
+    },
+  );
+};
+
+export const useOpenAdminAgentDraftMutation = (): UseMutationResult<
+  AdminOpenDraftResponse,
+  unknown,
+  string
+> => {
+  const queryClient = useQueryClient();
+  return useMutation((agentId: string) => dataService.openAdminAgentDraft(agentId), {
+    mutationKey: [MutationKeys.openAdminAgentDraft],
+    onSuccess: (_data, agentId) => {
+      queryClient.invalidateQueries([QueryKeys.adminAgentDrafts, agentId]);
+      queryClient.invalidateQueries([QueryKeys.adminAgentUsage]);
+    },
+  });
+};
+
+/** Posting changes production's version and the draft's state, so both lists refresh. */
+export const usePostAdminAgentDraftMutation = (): UseMutationResult<
+  AdminPostDraftResponse,
+  unknown,
+  { agentId: string; draftId: string }
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(({ agentId, draftId }) => dataService.postAdminAgentDraft(agentId, draftId), {
+    mutationKey: [MutationKeys.postAdminAgentDraft],
+    onSuccess: (_data, { agentId }) => {
+      queryClient.invalidateQueries([QueryKeys.adminAgentDrafts, agentId]);
+      queryClient.invalidateQueries([QueryKeys.adminAgentUsage]);
+    },
   });
 };

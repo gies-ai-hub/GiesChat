@@ -97,6 +97,8 @@ export enum QueryKeys {
   adminAgentTopics = 'adminAgentTopics',
   /* The caller's own analytics panel layout */
   adminDashboardLayout = 'adminDashboardLayout',
+  /* Drafts of one production agent */
+  adminAgentDrafts = 'adminAgentDrafts',
 }
 
 // Dynamic query keys that require parameters
@@ -132,6 +134,9 @@ export enum MutationKeys {
   updateMemoryPreferences = 'updateMemoryPreferences',
   updateAdminDashboardLayout = 'updateAdminDashboardLayout',
   updateAdminAgentEmbed = 'updateAdminAgentEmbed',
+  updateAdminAgentCollaborators = 'updateAdminAgentCollaborators',
+  openAdminAgentDraft = 'openAdminAgentDraft',
+  postAdminAgentDraft = 'postAdminAgentDraft',
   createProject = 'createProject',
   updateProject = 'updateProject',
   deleteProject = 'deleteProject',

@@ -510,6 +510,15 @@ export const adminDashboardLayout = () => `${BASE_URL}/api/admin/usage/layout`;
 export const adminAgentEmbed = (agentId: string) =>
   `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/embed`;
 
+export const adminAgentCollaborators = (agentId: string) =>
+  `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/collaborators`;
+
+export const adminAgentDrafts = (agentId: string) =>
+  `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/drafts`;
+
+export const adminAgentDraftPost = (agentId: string, draftId: string) =>
+  `${adminAgentDrafts(agentId)}/${encodeURIComponent(draftId)}/post`;
+
 /** Public: the key in the path is the credential. */
 export const embedSession = (key: string) => `${BASE_URL}/api/embed/${encodeURIComponent(key)}`;
 

@@ -290,6 +290,33 @@ export type AdminAgentEmbedResponse = {
   embed: AgentEmbed | null;
 };
 
+export type AdminUserRef = { id: string; name: string; email: string };
+
+export type AdminAgentDraft = {
+  draft_id: string;
+  owner: AdminUserRef;
+  /** Production's version count when the draft was cloned. */
+  draftBase: number;
+  /** The production version it became, or `null` while open. */
+  postedVersion: number | null;
+  updatedAt: string | null;
+  mine: boolean;
+  /** The draft's test link settings, minted through the embed endpoints on the draft id. */
+  embed: AgentEmbed | null;
+};
+
+export type AdminAgentDraftsResponse = {
+  agent_id: string;
+  version: number;
+  /** Empty unless the caller is the author. */
+  collaborators: AdminUserRef[];
+  drafts: AdminAgentDraft[];
+};
+
+export type AdminCollaboratorsResponse = { collaborators: AdminUserRef[] };
+export type AdminOpenDraftResponse = { draft_id: string; created: boolean };
+export type AdminPostDraftResponse = { agent_id: string; version: number };
+
 export type EmbedSessionAgent = {
   id: string;
   name: string;

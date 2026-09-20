@@ -1313,6 +1313,28 @@ export function revokeAdminAgentEmbed(agentId: string): Promise<q.AdminAgentEmbe
   return request.delete(endpoints.adminAgentEmbed(agentId));
 }
 
+export function getAdminAgentDrafts(agentId: string): Promise<q.AdminAgentDraftsResponse> {
+  return request.get(endpoints.adminAgentDrafts(agentId));
+}
+
+export function updateAdminAgentCollaborators(
+  agentId: string,
+  userIds: string[],
+): Promise<q.AdminCollaboratorsResponse> {
+  return request.put(endpoints.adminAgentCollaborators(agentId), { userIds });
+}
+
+export function openAdminAgentDraft(agentId: string): Promise<q.AdminOpenDraftResponse> {
+  return request.post(endpoints.adminAgentDrafts(agentId), {});
+}
+
+export function postAdminAgentDraft(
+  agentId: string,
+  draftId: string,
+): Promise<q.AdminPostDraftResponse> {
+  return request.post(endpoints.adminAgentDraftPost(agentId, draftId), {});
+}
+
 /* Embedded chat (public) */
 export function startEmbedSession(key: string): Promise<q.EmbedSessionResponse> {
   return request.post(endpoints.embedSession(key));
