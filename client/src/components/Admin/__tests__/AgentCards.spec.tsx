@@ -36,6 +36,10 @@ const usage: AdminAgentUsageResponse = {
       lastActivity: '2026-07-30T10:00:00.000Z',
       canDelete: true,
       embed: null,
+      version: 7,
+      isAuthor: true,
+      isCollaborator: false,
+      draftCount: 0,
     },
     {
       agent_id: 'agent_2',
@@ -50,6 +54,10 @@ const usage: AdminAgentUsageResponse = {
       lastActivity: null,
       canDelete: false,
       embed: null,
+      version: 7,
+      isAuthor: true,
+      isCollaborator: false,
+      draftCount: 0,
     },
   ],
 };
