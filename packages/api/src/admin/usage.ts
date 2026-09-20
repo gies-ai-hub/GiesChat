@@ -118,6 +118,14 @@ export interface AdminUsageDeps {
   /** The full document (tool_resources, versions), for cloning and posting. */
   getAgent: (filter: FilterQuery<IAgent>) => Promise<IAgent | null>;
   setAgentMeta: (agentId: string, meta: IAgentMeta) => Promise<IAgent | null>;
+  createAgent: (data: Partial<IAgent> & { id: string; author: string }) => Promise<IAgent>;
+  createAgentId: () => string;
+  /** ACL grant on a draft: `owner` for the collaborator, `viewer` so the author can open it in chat. */
+  grantAgentAccess: (params: {
+    userId: string;
+    agentDbId: Types.ObjectId | string;
+    role: 'owner' | 'viewer';
+  }) => Promise<void>;
 }
 
 /** What the dashboard shows the professor; `key` is the only place it ever leaves the server. */
@@ -149,6 +157,46 @@ export interface AgentDraftItem {
 }
 
 const MAX_COLLABORATORS = 50;
+
+/**
+ * What a draft copies from production and what posting copies back. Identity,
+ * sharing and bookkeeping (`id`, `author`, `embed`, `collaborators`, `versions`,
+ * `draftOf`, `createdVia`) are deliberately absent: they belong to one document.
+ */
+export const DRAFT_FIELDS_TO_COPY = [
+  'name',
+  'description',
+  'instructions',
+  'avatar',
+  'provider',
+  'model',
+  'model_parameters',
+  'artifacts',
+  'recursion_limit',
+  'tools',
+  'skills',
+  'skills_enabled',
+  'conversation_starters',
+  'tool_resources',
+  'category',
+  'course',
+  'tool_options',
+  'memory_scope',
+  'end_after_tools',
+  'hide_sequential_outputs',
+] as const;
+
+type DraftField = (typeof DRAFT_FIELDS_TO_COPY)[number];
+export type DraftFields = Pick<IAgent, DraftField>;
+
+export function pickDraftFields(agent: IAgent): Partial<DraftFields> {
+  return Object.fromEntries(
+    DRAFT_FIELDS_TO_COPY.filter((field) => agent[field] !== undefined).map((field) => [
+      field,
+      agent[field],
+    ]),
+  ) as Partial<DraftFields>;
+}
 
 /** Untrusted body → deduplicated ObjectId strings, or `null` when malformed. */
 export function parseCollaboratorIds(body: unknown): string[] | null {
@@ -274,6 +322,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   revokeAgentEmbed: (req: ServerRequest, res: Response) => Promise<Response>;
   updateAgentCollaborators: (req: ServerRequest, res: Response) => Promise<Response>;
   listAgentDrafts: (req: ServerRequest, res: Response) => Promise<Response>;
+  openAgentDraft: (req: ServerRequest, res: Response) => Promise<Response>;
 } {
   const {
     findAgents,
@@ -289,6 +338,9 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     setAgentEmbed,
     getAgent,
     setAgentMeta,
+    createAgent,
+    createAgentId,
+    grantAgentAccess,
   } = deps;
 
   /**
@@ -842,12 +894,70 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     }
   }
 
+  /**
+   * Find-or-create the caller's draft. The clone is a real agent the caller owns, so
+   * the builder, chat, documents and embed links work on it unchanged. The author is
+   * granted a view so the draft shows up in their chat agent list too.
+   */
+  async function openAgentDraft(req: ServerRequest, res: Response): Promise<Response> {
+    const rawAgentId = (req.params as AgentUsageParams).agent_id;
+    if (typeof rawAgentId !== 'string') {
+      return res.status(400).json({ error: 'agent_id is required' });
+    }
+    const caller = req.user;
+    if (caller == null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const [scoped] = await findScopedAgents(caller, rawAgentId);
+      if (!scoped || scoped.draftOf != null) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      const mine = visibleDrafts(caller, scoped, await findDraftsOf([scoped.id])).find((draft) =>
+        isAuthor(caller, draft),
+      );
+      if (mine) {
+        return res.status(200).json({ draft_id: mine.id, created: false });
+      }
+      const production = await getAgent({ id: scoped.id });
+      if (!production) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      const callerId = String(caller._id);
+      const draft = await createAgent({
+        ...pickDraftFields(production),
+        id: createAgentId(),
+        author: callerId,
+        createdVia: DASHBOARD_ORIGIN,
+        draftOf: production.id,
+        draftBase: production.versions?.length ?? 0,
+      });
+      await Promise.all([
+        grantAgentAccess({
+          userId: callerId,
+          agentDbId: draft._id as Types.ObjectId,
+          role: 'owner',
+        }),
+        grantAgentAccess({
+          userId: String(production.author),
+          agentDbId: draft._id as Types.ObjectId,
+          role: 'viewer',
+        }),
+      ]);
+      return res.status(200).json({ draft_id: draft.id, created: true });
+    } catch (error) {
+      logger.error('[adminUsage] openAgentDraft error:', error);
+      return res.status(500).json({ error: 'Failed to open draft' });
+    }
+  }
+
   return {
     listAgentUsage: listAgentUsageHandler,
     updateAgentEmbed,
     revokeAgentEmbed,
     updateAgentCollaborators,
     listAgentDrafts,
+    openAgentDraft,
     listAgentStudentUsage: listAgentStudentUsageHandler,
     listAgentAnalytics: listAgentAnalyticsHandler,
     listAgentTopics: listAgentTopicsHandler,

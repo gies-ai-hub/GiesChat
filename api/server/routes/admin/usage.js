@@ -1,8 +1,10 @@
 const express = require('express');
+const { nanoid } = require('nanoid');
+const { PrincipalType, ResourceType, AccessRoleIds } = require('librechat-data-provider');
 const { createAdminUsageHandlers, topicsModelFromConfig } = require('@librechat/api');
 const { SystemCapabilities } = require('@librechat/data-schemas');
 const { requireCapability } = require('~/server/middleware/roles/capabilities');
-const { findAccessibleResources } = require('~/server/services/PermissionService');
+const { findAccessibleResources, grantPermission } = require('~/server/services/PermissionService');
 const { requireJwtAuth } = require('~/server/middleware');
 const { getAppConfig } = require('~/server/services/Config');
 const db = require('~/models');
@@ -33,6 +35,30 @@ const handlers = createAdminUsageHandlers({
   setAgentEmbed: db.setAgentEmbed,
   getAgent: db.getAgent,
   setAgentMeta: db.setAgentMeta,
+  createAgent: db.createAgent,
+  createAgentId: () => `agent_${nanoid()}`,
+  /** Same two grants `createAgentHandler` makes for a normal agent, plus a viewer variant for the author. */
+  grantAgentAccess: async ({ userId, agentDbId, role }) => {
+    const roles =
+      role === 'owner'
+        ? [
+            [ResourceType.AGENT, AccessRoleIds.AGENT_OWNER],
+            [ResourceType.REMOTE_AGENT, AccessRoleIds.REMOTE_AGENT_OWNER],
+          ]
+        : [[ResourceType.AGENT, AccessRoleIds.AGENT_VIEWER]];
+    await Promise.all(
+      roles.map(([resourceType, accessRoleId]) =>
+        grantPermission({
+          principalType: PrincipalType.USER,
+          principalId: userId,
+          resourceType,
+          resourceId: agentDbId,
+          accessRoleId,
+          grantedBy: userId,
+        }),
+      ),
+    );
+  },
 });
 
 router.use(requireJwtAuth, requireAdminAccess);
@@ -76,6 +102,7 @@ router.delete('/agents/:agent_id/embed', handlers.revokeAgentEmbed);
  */
 router.put('/agents/:agent_id/collaborators', handlers.updateAgentCollaborators);
 router.get('/agents/:agent_id/drafts', handlers.listAgentDrafts);
+router.post('/agents/:agent_id/drafts', handlers.openAgentDraft);
 
 router.get('/layout', handlers.getDashboardLayout);
 router.put('/layout', handlers.updateDashboardLayout);

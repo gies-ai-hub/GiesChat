@@ -334,6 +334,9 @@ interface TestDeps extends AdminUsageDeps {
   setAgentEmbed: jest.Mock;
   getAgent: jest.Mock;
   setAgentMeta: jest.Mock;
+  createAgent: jest.Mock;
+  createAgentId: jest.Mock;
+  grantAgentAccess: jest.Mock;
 }
 
 /** The shape the analytics pipeline returns when nothing happened in the window. */
@@ -395,6 +398,13 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
       Object.assign(agent, meta);
       return agent;
     }),
+    createAgent: jest.fn(async (data: Partial<IAgent>) => {
+      const created = mockAgent({ ...data, _id: new Types.ObjectId() } as Partial<IAgent>);
+      agents.push(created);
+      return created;
+    }),
+    createAgentId: jest.fn(() => 'agent_new_draft'),
+    grantAgentAccess: jest.fn(async () => undefined),
     ...overrides,
   };
 
@@ -2454,6 +2464,66 @@ describe('createAdminUsageHandlers', () => {
         });
         await handlers.listAgentDrafts(req, res);
         expect(status).toHaveBeenCalledWith(404);
+      });
+    });
+
+    describe('openAgentDraft', () => {
+      it('clones production into a draft the collaborator owns, and grants the author a view', async () => {
+        const { prod } = world();
+        prod.instructions = 'Be Socratic.';
+        prod.tool_resources = { context: { file_ids: ['file_1'] } };
+        prod.embed = { key: 'prodkey', audience: 'public' };
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          user: ta,
+        });
+        await handlers.openAgentDraft(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        expect(json.mock.calls[0][0]).toEqual({ draft_id: 'agent_new_draft', created: true });
+        const [data] = deps.createAgent.mock.calls[0] as [Partial<IAgent>];
+        expect(data).toMatchObject({
+          id: 'agent_new_draft',
+          author: bobId.toString(),
+          draftOf: 'agent_prod',
+          draftBase: 2,
+          createdVia: 'dashboard',
+          instructions: 'Be Socratic.',
+          tool_resources: { context: { file_ids: ['file_1'] } },
+        });
+        expect(data).not.toHaveProperty('embed');
+        expect(data).not.toHaveProperty('collaborators');
+        expect(data).not.toHaveProperty('versions');
+        expect(deps.grantAgentAccess).toHaveBeenCalledWith(
+          expect.objectContaining({ userId: bobId.toString(), role: 'owner' }),
+        );
+        expect(deps.grantAgentAccess).toHaveBeenCalledWith(
+          expect.objectContaining({ userId: callerId.toString(), role: 'viewer' }),
+        );
+      });
+
+      it('returns the existing open draft instead of cloning again', async () => {
+        const { prod, bobDraft } = world();
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({ params: { agent_id: 'agent_prod' }, user: ta });
+        await handlers.openAgentDraft(req, res);
+        expect(json.mock.calls[0][0]).toEqual({ draft_id: 'agent_prod_bob', created: false });
+        expect(deps.createAgent).not.toHaveBeenCalled();
+      });
+
+      it('refuses someone outside the scope', async () => {
+        const { prod } = world();
+        const deps = createDeps(baseWorld({ agents: [prod] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          user: zed,
+        });
+        await handlers.openAgentDraft(req, res);
+        expect(status).toHaveBeenCalledWith(404);
+        expect(deps.createAgent).not.toHaveBeenCalled();
       });
     });
   });
