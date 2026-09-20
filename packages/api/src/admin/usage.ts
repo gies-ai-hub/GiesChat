@@ -6,6 +6,7 @@ import type {
   IUser,
   IAgent,
   IGroup,
+  IMongoFile,
   IAgentMeta,
   IAgentEmbed,
   AgentEmbedAudience,
@@ -125,6 +126,22 @@ export interface AdminUsageDeps {
     userId: string;
     agentDbId: Types.ObjectId | string;
     role: 'owner' | 'viewer';
+  }) => Promise<void>;
+  updateAgent: (
+    filter: FilterQuery<IAgent>,
+    data: Partial<IAgent>,
+    options: { updatingUserId: string; forceVersion?: boolean },
+  ) => Promise<IAgent | null>;
+  getFiles: (
+    filter: FilterQuery<IMongoFile>,
+    sort: null,
+    select: Record<string, 0 | 1>,
+  ) => Promise<IMongoFile[] | null>;
+  /** Best effort: index the draft's searched documents under production's id so `file_search` finds them there. */
+  reindexDocuments: (params: {
+    req: ServerRequest;
+    files: IMongoFile[];
+    entityId: string;
   }) => Promise<void>;
 }
 
@@ -295,6 +312,10 @@ interface AgentUsageParams {
   agent_id?: unknown;
 }
 
+interface DraftParams extends AgentUsageParams {
+  draft_id?: unknown;
+}
+
 /** Untrusted query values are anything `qs` can produce, so only plain strings are honoured. */
 function resolveSince(raw: unknown): Date {
   const days = typeof raw === 'string' ? parseInt(raw, 10) : Number.NaN;
@@ -323,6 +344,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   updateAgentCollaborators: (req: ServerRequest, res: Response) => Promise<Response>;
   listAgentDrafts: (req: ServerRequest, res: Response) => Promise<Response>;
   openAgentDraft: (req: ServerRequest, res: Response) => Promise<Response>;
+  postAgentDraft: (req: ServerRequest, res: Response) => Promise<Response>;
 } {
   const {
     findAgents,
@@ -341,6 +363,9 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     createAgent,
     createAgentId,
     grantAgentAccess,
+    updateAgent,
+    getFiles,
+    reindexDocuments,
   } = deps;
 
   /**
@@ -951,6 +976,76 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     }
   }
 
+  const contextFileIds = (agent: IAgent): string[] => agent.tool_resources?.context?.file_ids ?? [];
+
+  /**
+   * Author only. Posting replaces production's copyable fields with the draft's and
+   * records a version through the normal update path, so version history keeps the
+   * old production. Documents the draft had indexed for search were indexed under
+   * the draft's id; they are re-indexed under production's, best effort — a failure
+   * is logged and the post still succeeds (the documents remain readable inline).
+   */
+  async function postAgentDraft(req: ServerRequest, res: Response): Promise<Response> {
+    const { agent_id: rawAgentId, draft_id: rawDraftId } = req.params as DraftParams;
+    if (typeof rawAgentId !== 'string' || typeof rawDraftId !== 'string') {
+      return res.status(400).json({ error: 'agent_id and draft_id are required' });
+    }
+    const caller = req.user;
+    if (caller == null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const [scoped] = await findScopedAgents(caller, rawAgentId);
+      if (!scoped || scoped.draftOf != null) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      if (!isAuthor(caller, scoped)) {
+        return res.status(403).json({ error: 'Only the author can post a draft to production' });
+      }
+      const draft = await getAgent({ id: rawDraftId, draftOf: scoped.id });
+      if (!draft) {
+        return res.status(404).json({ error: 'Draft not found' });
+      }
+      if (draft.postedVersion != null) {
+        return res.status(409).json({ error: 'Draft already posted' });
+      }
+      const updated = await updateAgent({ id: scoped.id }, pickDraftFields(draft), {
+        updatingUserId: String(caller._id),
+      });
+      if (!updated) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      const version = updated.versions?.length ?? 0;
+      await setAgentMeta(draft.id, { postedVersion: version });
+
+      const fileIds = contextFileIds(draft);
+      if (fileIds.length > 0) {
+        const files =
+          (await getFiles({ file_id: { $in: fileIds } }, null, {
+            file_id: 1,
+            filename: 1,
+            text: 1,
+            embedded: 1,
+          })) ?? [];
+        const searched = files.filter((file) => file.embedded === true);
+        if (searched.length > 0) {
+          try {
+            await reindexDocuments({ req, files: searched, entityId: scoped.id });
+          } catch (error) {
+            logger.warn(
+              `[adminUsage] postAgentDraft: could not re-index ${searched.length} document(s) under ${scoped.id}; they stay inline-only`,
+              error,
+            );
+          }
+        }
+      }
+      return res.status(200).json({ agent_id: scoped.id, version });
+    } catch (error) {
+      logger.error('[adminUsage] postAgentDraft error:', error);
+      return res.status(500).json({ error: 'Failed to post draft' });
+    }
+  }
+
   return {
     listAgentUsage: listAgentUsageHandler,
     updateAgentEmbed,
@@ -958,6 +1053,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     updateAgentCollaborators,
     listAgentDrafts,
     openAgentDraft,
+    postAgentDraft,
     listAgentStudentUsage: listAgentStudentUsageHandler,
     listAgentAnalytics: listAgentAnalyticsHandler,
     listAgentTopics: listAgentTopicsHandler,

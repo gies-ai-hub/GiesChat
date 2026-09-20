@@ -337,6 +337,9 @@ interface TestDeps extends AdminUsageDeps {
   createAgent: jest.Mock;
   createAgentId: jest.Mock;
   grantAgentAccess: jest.Mock;
+  updateAgent: jest.Mock;
+  getFiles: jest.Mock;
+  reindexDocuments: jest.Mock;
 }
 
 /** The shape the analytics pipeline returns when nothing happened in the window. */
@@ -405,6 +408,17 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
     }),
     createAgentId: jest.fn(() => 'agent_new_draft'),
     grantAgentAccess: jest.fn(async () => undefined),
+    updateAgent: jest.fn(async (filter: { id: string }, data: Partial<IAgent>) => {
+      const agent = agents.find((candidate) => candidate.id === filter.id);
+      if (!agent) {
+        return null;
+      }
+      Object.assign(agent, data);
+      agent.versions = [...(agent.versions ?? []), {}] as IAgent['versions'];
+      return agent;
+    }),
+    getFiles: jest.fn(async () => []),
+    reindexDocuments: jest.fn(async () => undefined),
     ...overrides,
   };
 
@@ -2524,6 +2538,107 @@ describe('createAdminUsageHandlers', () => {
         await handlers.openAgentDraft(req, res);
         expect(status).toHaveBeenCalledWith(404);
         expect(deps.createAgent).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('postAgentDraft', () => {
+      it('copies the draft onto production as a new version and marks the draft posted', async () => {
+        const { prod, bobDraft } = world();
+        bobDraft.instructions = 'Shorter answers.';
+        bobDraft.model = 'gpt-5.5';
+        bobDraft.tool_resources = { context: { file_ids: ['file_a', 'file_b'] } };
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob] }), {
+          getFiles: jest.fn(async () => [
+            { file_id: 'file_a', filename: 'rubric.pdf', text: 'rubric text', embedded: true },
+            { file_id: 'file_b', filename: 'notes.txt', text: 'notes', embedded: false },
+          ]),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status, json } = createReqRes({
+          params: { agent_id: 'agent_prod', draft_id: 'agent_prod_bob' },
+          user: prof,
+        });
+        await handlers.postAgentDraft(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        expect(json.mock.calls[0][0]).toEqual({ agent_id: 'agent_prod', version: 3 });
+        const [filter, data, options] = deps.updateAgent.mock.calls[0] as [
+          { id: string },
+          Partial<IAgent>,
+          { updatingUserId: string },
+        ];
+        expect(filter).toEqual({ id: 'agent_prod' });
+        expect(data).toMatchObject({ instructions: 'Shorter answers.', model: 'gpt-5.5' });
+        expect(data).not.toHaveProperty('author');
+        expect(data).not.toHaveProperty('embed');
+        expect(options.updatingUserId).toBe(callerId.toString());
+        expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod_bob', { postedVersion: 3 });
+        expect(deps.reindexDocuments).toHaveBeenCalledWith(
+          expect.objectContaining({
+            entityId: 'agent_prod',
+            files: [expect.objectContaining({ file_id: 'file_a' })],
+          }),
+        );
+      });
+
+      it('only the author may post', async () => {
+        const { prod, bobDraft } = world();
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod', draft_id: 'agent_prod_bob' },
+          user: ta,
+        });
+        await handlers.postAgentDraft(req, res);
+        expect(status).toHaveBeenCalledWith(403);
+        expect(deps.updateAgent).not.toHaveBeenCalled();
+      });
+
+      it('refuses a draft of a different agent and an already-posted draft', async () => {
+        const { prod, bobDraft } = world();
+        const other = mockAgent({ id: 'agent_other', author: callerId });
+        const posted = mockAgent({
+          id: 'agent_prod_done',
+          author: anaId,
+          draftOf: 'agent_prod',
+          postedVersion: 2,
+        });
+        const deps = createDeps(baseWorld({ agents: [prod, other, bobDraft, posted] }));
+        const handlers = createAdminUsageHandlers(deps);
+
+        const wrong = createReqRes({
+          params: { agent_id: 'agent_other', draft_id: 'agent_prod_bob' },
+          user: prof,
+        });
+        await handlers.postAgentDraft(wrong.req, wrong.res);
+        expect(wrong.status).toHaveBeenCalledWith(404);
+
+        const done = createReqRes({
+          params: { agent_id: 'agent_prod', draft_id: 'agent_prod_done' },
+          user: prof,
+        });
+        await handlers.postAgentDraft(done.req, done.res);
+        expect(done.status).toHaveBeenCalledWith(409);
+        expect(deps.updateAgent).not.toHaveBeenCalled();
+      });
+
+      it('still posts when re-indexing fails', async () => {
+        const { prod, bobDraft } = world();
+        bobDraft.tool_resources = { context: { file_ids: ['file_a'] } };
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob] }), {
+          getFiles: jest.fn(async () => [
+            { file_id: 'file_a', filename: 'a.pdf', text: 'x', embedded: true },
+          ]),
+          reindexDocuments: jest.fn(async () => {
+            throw new Error('RAG down');
+          }),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod', draft_id: 'agent_prod_bob' },
+          user: prof,
+        });
+        await handlers.postAgentDraft(req, res);
+        expect(status).toHaveBeenCalledWith(200);
       });
     });
   });

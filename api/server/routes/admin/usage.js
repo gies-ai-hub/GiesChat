@@ -5,6 +5,7 @@ const { createAdminUsageHandlers, topicsModelFromConfig } = require('@librechat/
 const { SystemCapabilities } = require('@librechat/data-schemas');
 const { requireCapability } = require('~/server/middleware/roles/capabilities');
 const { findAccessibleResources, grantPermission } = require('~/server/services/PermissionService');
+const { reindexAgentDocuments } = require('~/server/services/Files/reindex');
 const { requireJwtAuth } = require('~/server/middleware');
 const { getAppConfig } = require('~/server/services/Config');
 const db = require('~/models');
@@ -36,6 +37,9 @@ const handlers = createAdminUsageHandlers({
   getAgent: db.getAgent,
   setAgentMeta: db.setAgentMeta,
   createAgent: db.createAgent,
+  updateAgent: db.updateAgent,
+  getFiles: db.getFiles,
+  reindexDocuments: reindexAgentDocuments,
   createAgentId: () => `agent_${nanoid()}`,
   /** Same two grants `createAgentHandler` makes for a normal agent, plus a viewer variant for the author. */
   grantAgentAccess: async ({ userId, agentDbId, role }) => {
@@ -103,6 +107,7 @@ router.delete('/agents/:agent_id/embed', handlers.revokeAgentEmbed);
 router.put('/agents/:agent_id/collaborators', handlers.updateAgentCollaborators);
 router.get('/agents/:agent_id/drafts', handlers.listAgentDrafts);
 router.post('/agents/:agent_id/drafts', handlers.openAgentDraft);
+router.post('/agents/:agent_id/drafts/:draft_id/post', handlers.postAgentDraft);
 
 router.get('/layout', handlers.getDashboardLayout);
 router.put('/layout', handlers.updateDashboardLayout);
