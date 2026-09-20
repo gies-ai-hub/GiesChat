@@ -339,7 +339,7 @@ interface TestDeps extends AdminUsageDeps {
   grantAgentAccess: jest.Mock;
   updateAgent: jest.Mock;
   getFiles: jest.Mock;
-  reindexDocuments: jest.Mock;
+  copyDocuments: jest.Mock;
 }
 
 /** The shape the analytics pipeline returns when nothing happened in the window. */
@@ -418,7 +418,10 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
       return agent;
     }),
     getFiles: jest.fn(async () => []),
-    reindexDocuments: jest.fn(async () => undefined),
+    copyDocuments: jest.fn(
+      async ({ files }: { files: { file_id: string }[] }) =>
+        new Map(files.map((file) => [file.file_id, `${file.file_id}_copy`])),
+    ),
     ...overrides,
   };
 
@@ -2517,6 +2520,25 @@ describe('createAdminUsageHandlers', () => {
         );
       });
 
+      it('gives the draft its own copies of searched documents', async () => {
+        const { prod } = world();
+        prod.tool_resources = { context: { file_ids: ['file_1', 'file_2'] } };
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob] }), {
+          getFiles: jest.fn(async () => [
+            { file_id: 'file_1', filename: 'rubric.pdf', text: 'r', embedded: true },
+            { file_id: 'file_2', filename: 'notes.txt', text: 'n', embedded: false },
+          ]),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res } = createReqRes({ params: { agent_id: 'agent_prod' }, user: ta });
+        await handlers.openAgentDraft(req, res);
+        expect(deps.copyDocuments).toHaveBeenCalledWith(
+          expect.objectContaining({ agentId: 'agent_new_draft' }),
+        );
+        const [data] = deps.createAgent.mock.calls[0] as [Partial<IAgent>];
+        expect(data.tool_resources).toEqual({ context: { file_ids: ['file_1_copy', 'file_2'] } });
+      });
+
       it('returns the existing open draft instead of cloning again', async () => {
         const { prod, bobDraft } = world();
         const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob] }));
@@ -2572,12 +2594,13 @@ describe('createAdminUsageHandlers', () => {
         expect(data).not.toHaveProperty('embed');
         expect(options.updatingUserId).toBe(callerId.toString());
         expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod_bob', { postedVersion: 3 });
-        expect(deps.reindexDocuments).toHaveBeenCalledWith(
+        expect(deps.copyDocuments).toHaveBeenCalledWith(
           expect.objectContaining({
-            entityId: 'agent_prod',
+            agentId: 'agent_prod',
             files: [expect.objectContaining({ file_id: 'file_a' })],
           }),
         );
+        expect(data.tool_resources).toEqual({ context: { file_ids: ['file_a_copy', 'file_b'] } });
       });
 
       it('only the author may post', async () => {
@@ -2621,14 +2644,14 @@ describe('createAdminUsageHandlers', () => {
         expect(deps.updateAgent).not.toHaveBeenCalled();
       });
 
-      it('still posts when re-indexing fails', async () => {
+      it('still posts, with the ids shared, when copying documents fails', async () => {
         const { prod, bobDraft } = world();
         bobDraft.tool_resources = { context: { file_ids: ['file_a'] } };
         const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob] }), {
           getFiles: jest.fn(async () => [
             { file_id: 'file_a', filename: 'a.pdf', text: 'x', embedded: true },
           ]),
-          reindexDocuments: jest.fn(async () => {
+          copyDocuments: jest.fn(async () => {
             throw new Error('RAG down');
           }),
         });
@@ -2639,6 +2662,8 @@ describe('createAdminUsageHandlers', () => {
         });
         await handlers.postAgentDraft(req, res);
         expect(status).toHaveBeenCalledWith(200);
+        const [, data] = deps.updateAgent.mock.calls[0] as [unknown, Partial<IAgent>];
+        expect(data.tool_resources).toEqual({ context: { file_ids: ['file_a'] } });
       });
     });
   });

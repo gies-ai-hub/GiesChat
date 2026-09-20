@@ -137,12 +137,15 @@ export interface AdminUsageDeps {
     sort: null,
     select: Record<string, 0 | 1>,
   ) => Promise<IMongoFile[] | null>;
-  /** Best effort: index the draft's searched documents under production's id so `file_search` finds them there. */
-  reindexDocuments: (params: {
+  /**
+   * Copies search-indexed documents so `agentId` owns and can search them; returns
+   * source file_id → copy file_id. The RAG API ignores a second embed of one file_id.
+   */
+  copyDocuments: (params: {
     req: ServerRequest;
     files: IMongoFile[];
-    entityId: string;
-  }) => Promise<void>;
+    agentId: string;
+  }) => Promise<Map<string, string>>;
 }
 
 /** What the dashboard shows the professor; `key` is the only place it ever leaves the server. */
@@ -365,7 +368,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     grantAgentAccess,
     updateAgent,
     getFiles,
-    reindexDocuments,
+    copyDocuments,
   } = deps;
 
   /**
@@ -919,6 +922,62 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     }
   }
 
+  const DOCUMENT_FIELDS = {
+    file_id: 1,
+    user: 1,
+    filename: 1,
+    filepath: 1,
+    type: 1,
+    bytes: 1,
+    text: 1,
+    source: 1,
+    context: 1,
+    embedded: 1,
+  } as const;
+
+  /**
+   * Documents indexed for search are bound to the agent they were uploaded to, so an
+   * agent built from another's fields gets its own copies of those; inline-only
+   * documents stay shared. Best effort: when copying fails the ids stay shared and
+   * the documents remain readable inline.
+   */
+  async function withOwnDocuments(
+    req: ServerRequest,
+    fields: Partial<DraftFields>,
+    agentId: string,
+  ): Promise<Partial<DraftFields>> {
+    const context = fields.tool_resources?.context;
+    const fileIds = context?.file_ids ?? [];
+    if (fileIds.length === 0) {
+      return fields;
+    }
+    const files = (await getFiles({ file_id: { $in: fileIds } }, null, DOCUMENT_FIELDS)) ?? [];
+    const searched = files.filter((file) => file.embedded === true);
+    if (searched.length === 0) {
+      return fields;
+    }
+    let copies: Map<string, string>;
+    try {
+      copies = await copyDocuments({ req, files: searched, agentId });
+    } catch (error) {
+      logger.warn(
+        `[adminUsage] could not copy ${searched.length} document(s) to ${agentId}; they stay shared and inline-only`,
+        error,
+      );
+      return fields;
+    }
+    const remap = (ids: string[] | undefined) => ids?.map((id) => copies.get(id) ?? id);
+    const search = fields.tool_resources?.file_search;
+    return {
+      ...fields,
+      tool_resources: {
+        ...fields.tool_resources,
+        context: { ...context, file_ids: remap(fileIds) },
+        ...(search ? { file_search: { ...search, file_ids: remap(search.file_ids) } } : {}),
+      },
+    };
+  }
+
   /**
    * Find-or-create the caller's draft. The clone is a real agent the caller owns, so
    * the builder, chat, documents and embed links work on it unchanged. The author is
@@ -949,9 +1008,10 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
         return res.status(404).json({ error: 'Agent not found' });
       }
       const callerId = String(caller._id);
+      const draftId = createAgentId();
       const draft = await createAgent({
-        ...pickDraftFields(production),
-        id: createAgentId(),
+        ...(await withOwnDocuments(req, pickDraftFields(production), draftId)),
+        id: draftId,
         author: callerId,
         createdVia: DASHBOARD_ORIGIN,
         draftOf: production.id,
@@ -976,14 +1036,11 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     }
   }
 
-  const contextFileIds = (agent: IAgent): string[] => agent.tool_resources?.context?.file_ids ?? [];
-
   /**
    * Author only. Posting replaces production's copyable fields with the draft's and
    * records a version through the normal update path, so version history keeps the
-   * old production. Documents the draft had indexed for search were indexed under
-   * the draft's id; they are re-indexed under production's, best effort — a failure
-   * is logged and the post still succeeds (the documents remain readable inline).
+   * old production. Search-indexed documents are copied to production first, since
+   * their index is bound to the draft's id.
    */
   async function postAgentDraft(req: ServerRequest, res: Response): Promise<Response> {
     const { agent_id: rawAgentId, draft_id: rawDraftId } = req.params as DraftParams;
@@ -1009,7 +1066,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       if (draft.postedVersion != null) {
         return res.status(409).json({ error: 'Draft already posted' });
       }
-      const updated = await updateAgent({ id: scoped.id }, pickDraftFields(draft), {
+      const fields = await withOwnDocuments(req, pickDraftFields(draft), scoped.id);
+      const updated = await updateAgent({ id: scoped.id }, fields, {
         updatingUserId: String(caller._id),
       });
       if (!updated) {
@@ -1017,28 +1075,6 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       }
       const version = updated.versions?.length ?? 0;
       await setAgentMeta(draft.id, { postedVersion: version });
-
-      const fileIds = contextFileIds(draft);
-      if (fileIds.length > 0) {
-        const files =
-          (await getFiles({ file_id: { $in: fileIds } }, null, {
-            file_id: 1,
-            filename: 1,
-            text: 1,
-            embedded: 1,
-          })) ?? [];
-        const searched = files.filter((file) => file.embedded === true);
-        if (searched.length > 0) {
-          try {
-            await reindexDocuments({ req, files: searched, entityId: scoped.id });
-          } catch (error) {
-            logger.warn(
-              `[adminUsage] postAgentDraft: could not re-index ${searched.length} document(s) under ${scoped.id}; they stay inline-only`,
-              error,
-            );
-          }
-        }
-      }
       return res.status(200).json({ agent_id: scoped.id, version });
     } catch (error) {
       logger.error('[adminUsage] postAgentDraft error:', error);

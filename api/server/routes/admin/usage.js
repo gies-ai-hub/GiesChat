@@ -5,7 +5,7 @@ const { createAdminUsageHandlers, topicsModelFromConfig } = require('@librechat/
 const { SystemCapabilities } = require('@librechat/data-schemas');
 const { requireCapability } = require('~/server/middleware/roles/capabilities');
 const { findAccessibleResources, grantPermission } = require('~/server/services/PermissionService');
-const { reindexAgentDocuments } = require('~/server/services/Files/reindex');
+const { copyAgentDocuments } = require('~/server/services/Files/copy');
 const { requireJwtAuth } = require('~/server/middleware');
 const { getAppConfig } = require('~/server/services/Config');
 const db = require('~/models');
@@ -39,7 +39,7 @@ const handlers = createAdminUsageHandlers({
   createAgent: db.createAgent,
   updateAgent: db.updateAgent,
   getFiles: db.getFiles,
-  reindexDocuments: reindexAgentDocuments,
+  copyDocuments: copyAgentDocuments,
   createAgentId: () => `agent_${nanoid()}`,
   /** Same two grants `createAgentHandler` makes for a normal agent, plus a viewer variant for the author. */
   grantAgentAccess: async ({ userId, agentDbId, role }) => {
