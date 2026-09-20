@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { Code, Pencil, MessageSquare } from 'lucide-react';
+import React, { Fragment, useState, useCallback } from 'react';
+import { Code, Pencil, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
 import {
@@ -12,10 +12,11 @@ import {
   TableHeader,
   TableCaption,
 } from '@librechat/client';
-import type { AdminAgentUsage } from 'librechat-data-provider';
+import type { AdminUserRef, AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
 import DeleteAgentButton from '~/components/Agents/DeleteAgentButton';
 import { useAdminAgentUsageQuery } from '~/data-provider';
 import { formatLastActivity } from './activity';
+import { DraftsPanel } from './Drafts';
 import { useLocalize } from '~/hooks';
 import QueryState from './QueryState';
 
@@ -26,6 +27,10 @@ interface AgentUsageTableProps {
   onEditAgent: (agent: AdminAgentUsage) => void;
   onEmbedAgent: (agent: AdminAgentUsage) => void;
   onOpenAgent: (agent: AdminAgentUsage) => void;
+  onEditDraft: (draftId: string, agent: AdminAgentUsage) => void;
+  onTestLink: (draft: AdminAgentDraft, agent: AdminAgentUsage) => void;
+  onOpenDraft: (draftId: string) => void;
+  onManageCollaborators: (agent: AdminAgentUsage, collaborators: AdminUserRef[]) => void;
 }
 
 export default function AgentUsageTable({
@@ -35,9 +40,14 @@ export default function AgentUsageTable({
   onEditAgent,
   onEmbedAgent,
   onOpenAgent,
+  onEditDraft,
+  onTestLink,
+  onOpenDraft,
+  onManageCollaborators,
 }: AgentUsageTableProps) {
   const localize = useLocalize();
   const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState<string | null>(null);
   const params = { days, ...(groupId ? { groupId } : {}) };
   const { data, isLoading, error, refetch } = useAdminAgentUsageQuery(params);
 
@@ -69,6 +79,7 @@ export default function AgentUsageTable({
           <TableRow>
             <TableHead scope="col">{localize('com_ui_admin_col_agent')}</TableHead>
             <TableHead scope="col">{localize('com_ui_admin_col_course')}</TableHead>
+            <TableHead scope="col">{localize('com_ui_admin_col_status')}</TableHead>
             <TableHead scope="col" className="text-right">
               {localize('com_ui_admin_col_conversations')}
             </TableHead>
@@ -86,89 +97,149 @@ export default function AgentUsageTable({
         </TableHeader>
         <TableBody>
           {agents.map((agent) => (
-            <TableRow key={agent.agent_id}>
-              <TableCell>
-                <button
-                  type="button"
-                  className="rounded text-left font-medium text-text-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-heavy"
-                  aria-label={localize('com_ui_admin_view_progress', { name: agent.name })}
-                  onClick={() => onSelectAgent(agent)}
-                >
-                  {agent.name}
-                </button>
-              </TableCell>
-              <TableCell className="whitespace-nowrap text-text-secondary">
-                {agent.course != null && agent.course !== ''
-                  ? agent.course
-                  : localize('com_ui_none')}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                <span className="flex items-center justify-end gap-2">
-                  <span
-                    className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-secondary"
-                    aria-hidden="true"
+            <Fragment key={agent.agent_id}>
+              <TableRow>
+                <TableCell>
+                  <button
+                    type="button"
+                    className="rounded text-left font-medium text-text-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-heavy"
+                    aria-label={localize('com_ui_admin_view_progress', { name: agent.name })}
+                    onClick={() => onSelectAgent(agent)}
                   >
-                    <span
-                      data-usage-bar
-                      className="block h-full rounded-full bg-[#2a78d6] dark:bg-[#3987e5]"
-                      style={{
-                        width: `${(agent.conversationCount / maxConversations) * 100}%`,
-                      }}
-                    />
+                    {agent.name}
+                  </button>
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-text-secondary">
+                  {agent.course != null && agent.course !== ''
+                    ? agent.course
+                    : localize('com_ui_none')}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <span className="flex flex-wrap items-center gap-1">
+                    <span className="rounded-full border border-green-200 bg-green-50 px-2 text-[11px] font-semibold text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-200">
+                      {localize('com_ui_admin_status_production', { version: agent.version })}
+                    </span>
+                    {agent.draftCount > 0 && (
+                      <span className="rounded-full border border-orange-200 bg-orange-50 px-2 text-[11px] font-semibold text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300">
+                        {localize(
+                          agent.draftCount === 1
+                            ? 'com_ui_admin_status_drafts_one'
+                            : 'com_ui_admin_status_drafts_other',
+                          { count: agent.draftCount },
+                        )}
+                      </span>
+                    )}
+                    {agent.isCollaborator && (
+                      <span className="rounded-full border border-border-light bg-surface-tertiary px-2 text-[11px] font-semibold text-text-primary">
+                        {localize('com_ui_admin_status_collaborator')}
+                      </span>
+                    )}
                   </span>
-                  {agent.conversationCount}
-                </span>
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{agent.userCount}</TableCell>
-              <TableCell className="text-right tabular-nums">{agent.messageCount}</TableCell>
-              <TableCell className="whitespace-nowrap text-text-secondary">
-                {formatLastActivity(agent.lastActivity) ?? localize('com_ui_none')}
-              </TableCell>
-              <TableCell className="text-right">
-                {/* Every listed row is author-or-EDIT scoped by the server, so the pencil
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  <span className="flex items-center justify-end gap-2">
+                    <span
+                      className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-secondary"
+                      aria-hidden="true"
+                    >
+                      <span
+                        data-usage-bar
+                        className="block h-full rounded-full bg-[#2a78d6] dark:bg-[#3987e5]"
+                        style={{
+                          width: `${(agent.conversationCount / maxConversations) * 100}%`,
+                        }}
+                      />
+                    </span>
+                    {agent.conversationCount}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{agent.userCount}</TableCell>
+                <TableCell className="text-right tabular-nums">{agent.messageCount}</TableCell>
+                <TableCell className="whitespace-nowrap text-text-secondary">
+                  {formatLastActivity(agent.lastActivity) ?? localize('com_ui_none')}
+                </TableCell>
+                <TableCell className="text-right">
+                  {/* Every listed row is author-or-EDIT scoped by the server, so the pencil
                     needs no per-row flag. DELETE is a narrower bit, hence canDelete. */}
-                <span className="flex justify-end gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    type="button"
-                    onClick={() => onOpenAgent(agent)}
-                    aria-label={localize('com_ui_admin_open_agent', { name: agent.name })}
-                  >
-                    <MessageSquare className="size-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    type="button"
-                    onClick={() => onEditAgent(agent)}
-                    aria-label={localize('com_ui_admin_edit_agent', { name: agent.name })}
-                  >
-                    <Pencil className="size-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    type="button"
-                    onClick={() => onEmbedAgent(agent)}
-                    aria-label={localize('com_ui_admin_embed_agent', { name: agent.name })}
-                    className={agent.embed ? 'text-[#d94f04] dark:text-[#ff5f05]' : undefined}
-                  >
-                    <Code className="size-4" aria-hidden="true" />
-                  </Button>
-                  {agent.canDelete && (
-                    <DeleteAgentButton
-                      agentId={agent.agent_id}
-                      agentName={agent.name}
-                      confirmText={localize('com_ui_admin_delete_agent_confirm', {
-                        name: agent.name,
-                      })}
-                      onDeleted={handleDeleted}
+                  <span className="flex justify-end gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      onClick={() => onOpenAgent(agent)}
+                      aria-label={localize('com_ui_admin_open_agent', { name: agent.name })}
+                    >
+                      <MessageSquare className="size-4" aria-hidden="true" />
+                    </Button>
+                    {!agent.isCollaborator && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        type="button"
+                        onClick={() => onEditAgent(agent)}
+                        aria-label={localize('com_ui_admin_edit_agent', { name: agent.name })}
+                      >
+                        <Pencil className="size-4" aria-hidden="true" />
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      onClick={() => onEmbedAgent(agent)}
+                      aria-label={localize('com_ui_admin_embed_agent', { name: agent.name })}
+                      className={agent.embed ? 'text-[#d94f04] dark:text-[#ff5f05]' : undefined}
+                    >
+                      <Code className="size-4" aria-hidden="true" />
+                    </Button>
+                    {(agent.isAuthor || agent.isCollaborator) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        type="button"
+                        aria-expanded={expanded === agent.agent_id}
+                        aria-controls={`drafts-${agent.agent_id}`}
+                        aria-label={localize('com_ui_admin_drafts_toggle', { name: agent.name })}
+                        onClick={() =>
+                          setExpanded((current) =>
+                            current === agent.agent_id ? null : agent.agent_id,
+                          )
+                        }
+                      >
+                        {expanded === agent.agent_id ? (
+                          <ChevronDown className="size-4" aria-hidden="true" />
+                        ) : (
+                          <ChevronRight className="size-4" aria-hidden="true" />
+                        )}
+                      </Button>
+                    )}
+                    {agent.canDelete && (
+                      <DeleteAgentButton
+                        agentId={agent.agent_id}
+                        agentName={agent.name}
+                        confirmText={localize('com_ui_admin_delete_agent_confirm', {
+                          name: agent.name,
+                        })}
+                        onDeleted={handleDeleted}
+                      />
+                    )}
+                  </span>
+                </TableCell>
+              </TableRow>
+              {expanded === agent.agent_id && (
+                <TableRow id={`drafts-${agent.agent_id}`}>
+                  <TableCell colSpan={8} className="bg-surface-secondary p-2">
+                    <DraftsPanel
+                      agent={agent}
+                      onEditDraft={(draftId) => onEditDraft(draftId, agent)}
+                      onTestLink={(draft) => onTestLink(draft, agent)}
+                      onOpenInChat={onOpenDraft}
+                      onManageCollaborators={onManageCollaborators}
                     />
-                  )}
-                </span>
-              </TableCell>
-            </TableRow>
+                  </TableCell>
+                </TableRow>
+              )}
+            </Fragment>
           ))}
         </TableBody>
       </Table>

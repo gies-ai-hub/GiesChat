@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Dropdown, OGDialog, OGDialogContent, OGDialogTitle } from '@librechat/client';
 import { QueryKeys, Permissions, PermissionTypes } from 'librechat-data-provider';
-import type { AdminAgentUsage } from 'librechat-data-provider';
+import type { AdminUserRef, AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
 import type { Option } from '@librechat/client';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
+import { CollaboratorsDialog } from './Drafts';
 import { useAdminAccess, useAdminGroupsQuery } from '~/data-provider';
 import { useHasAccess, useLocalize } from '~/hooks';
 import StudentProgressTable from './StudentProgressTable';
@@ -41,6 +42,10 @@ export default function AdminDashboard() {
   const [editingAgent, setEditingAgent] = useState<AdminAgentUsage | null>(null);
   const [embeddingAgent, setEmbeddingAgent] = useState<AdminAgentUsage | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
+  const [collaboratorsFor, setCollaboratorsFor] = useState<{
+    agent: AdminAgentUsage;
+    collaborators: AdminUserRef[];
+  } | null>(null);
 
   const { data: groupData, error: groupsError } = useAdminGroupsQuery(
     { limit: GROUP_PAGE_SIZE },
@@ -114,6 +119,25 @@ export default function AdminDashboard() {
     [openAgentChat],
   );
 
+  /** A draft is an ordinary agent, so the existing edit dialog opens on its id; only the title changes. */
+  const handleEditDraft = useCallback(
+    (draftId: string, agent: AdminAgentUsage) => setEditingAgent({ ...agent, agent_id: draftId }),
+    [],
+  );
+
+  /** The embed dialog only reads id, name, description and the live embed settings. */
+  const handleTestLink = useCallback(
+    (draft: AdminAgentDraft, agent: AdminAgentUsage) =>
+      setEmbeddingAgent({ ...agent, agent_id: draft.draft_id, embed: draft.embed }),
+    [],
+  );
+
+  const handleManageCollaborators = useCallback(
+    (agent: AdminAgentUsage, collaborators: AdminUserRef[]) =>
+      setCollaboratorsFor({ agent, collaborators }),
+    [],
+  );
+
   /**
    * Reuses the builder's invalidation so a renamed or re-described agent refreshes in the
    * table on close. Unlike the create path, this must not navigate — the professor stays
@@ -126,6 +150,7 @@ export default function AdminDashboard() {
       }
       setEditingAgent(null);
       queryClient.invalidateQueries([QueryKeys.adminAgentUsage]);
+      queryClient.invalidateQueries([QueryKeys.adminAgentDrafts]);
     },
     [queryClient],
   );
@@ -254,6 +279,10 @@ export default function AdminDashboard() {
               onEditAgent={setEditingAgent}
               onEmbedAgent={setEmbeddingAgent}
               onOpenAgent={handleOpenAgent}
+              onEditDraft={handleEditDraft}
+              onTestLink={handleTestLink}
+              onOpenDraft={openAgentChat}
+              onManageCollaborators={handleManageCollaborators}
             />
           )}
         </section>
@@ -295,6 +324,16 @@ export default function AdminDashboard() {
           onOpenChange={(open) => {
             if (!open) {
               setEmbeddingAgent(null);
+            }
+          }}
+        />
+
+        <CollaboratorsDialog
+          agent={collaboratorsFor?.agent ?? null}
+          collaborators={collaboratorsFor?.collaborators ?? []}
+          onOpenChange={(open) => {
+            if (!open) {
+              setCollaboratorsFor(null);
             }
           }}
         />

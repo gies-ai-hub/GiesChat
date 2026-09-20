@@ -19,6 +19,8 @@ const mockGetAdminAgentStudentUsage = jest.fn();
 const mockGetAdminAgentAnalytics = jest.fn();
 const mockGetAgentById = jest.fn();
 const mockDeleteAgent = jest.fn();
+const mockGetAdminAgentDrafts = jest.fn();
+const mockOpenAdminAgentDraft = jest.fn();
 
 jest.mock('librechat-data-provider', () => {
   const actual = jest.requireActual('librechat-data-provider');
@@ -34,6 +36,8 @@ jest.mock('librechat-data-provider', () => {
       getAgentCategories: () => Promise.resolve([{ value: 'course', label: 'Course' }]),
       getAgentById: () => mockGetAgentById(),
       deleteAgent: (body: unknown) => mockDeleteAgent(body),
+      getAdminAgentDrafts: (id: string) => mockGetAdminAgentDrafts(id),
+      openAdminAgentDraft: (id: string) => mockOpenAdminAgentDraft(id),
     },
   };
 });
@@ -651,6 +655,44 @@ describe('AdminDashboard', () => {
       expect(
         screen.queryByRole('button', { name: /Delete Case Study Coach/ }),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('drafts and collaborators', () => {
+    const emptyDrafts = { agent_id: 'agent_1', version: 7, collaborators: [], drafts: [] };
+
+    it('shows the production version and lets the author expand the drafts panel', async () => {
+      mockGetAdminAgentDrafts.mockResolvedValue(emptyDrafts);
+      renderDashboard();
+      expect(await screen.findByText('v7 in production')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Drafts of Case Study Coach' }));
+      expect(
+        await screen.findByText(
+          'No open drafts. Collaborators start one from their own dashboard.',
+        ),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(mockGetAdminAgentDrafts).toHaveBeenCalledWith('agent_1'));
+    });
+
+    it('hides the pencil for a collaborator and opens their draft in the edit dialog', async () => {
+      mockGetAdminAgentUsage.mockResolvedValue({
+        agents: [{ ...agentUsage.agents[0], isAuthor: false, isCollaborator: true, draftCount: 0 }],
+      });
+      mockGetAdminAgentDrafts.mockResolvedValue(emptyDrafts);
+      mockOpenAdminAgentDraft.mockResolvedValue({ draft_id: 'agent_1_me', created: true });
+      renderDashboard();
+      await screen.findByText('Case Study Coach');
+      expect(
+        screen.queryByRole('button', { name: 'Edit Case Study Coach' }),
+      ).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Drafts of Case Study Coach' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Start a draft' }));
+      await waitFor(() =>
+        expect(screen.getByTestId('agent-panel-switch')).toHaveAttribute(
+          'data-initial-agent-id',
+          'agent_1_me',
+        ),
+      );
     });
   });
 });
