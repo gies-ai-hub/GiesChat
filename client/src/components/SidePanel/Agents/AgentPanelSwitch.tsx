@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useRecoilValue } from 'recoil';
 import { AgentPanelProvider, useAgentPanelContext } from '~/Providers/AgentPanelContext';
+import type { AgentModelDefault } from '~/utils';
 import { Panel, isEphemeralAgent } from '~/common';
 import VersionPanel from './Version/VersionPanel';
 import AgentPanel from './AgentPanel';
@@ -15,6 +16,10 @@ interface AgentPanelSwitchProps {
   initialAgentId?: string;
   /** Hides the agent switcher and the chat-navigation buttons. */
   hideAgentSelect?: boolean;
+  /** Provider and model a blank form starts on, instead of the last used pair. */
+  defaultModel?: AgentModelDefault;
+  /** Shows the model picker as described cards instead of a dropdown. */
+  modelCards?: boolean;
 }
 
 export default function AgentPanelSwitch({
@@ -22,6 +27,8 @@ export default function AgentPanelSwitch({
   createdVia,
   initialAgentId,
   hideAgentSelect,
+  defaultModel,
+  modelCards,
 }: AgentPanelSwitchProps = {}) {
   return (
     <AgentPanelProvider>
@@ -30,6 +37,8 @@ export default function AgentPanelSwitch({
         createdVia={createdVia}
         initialAgentId={initialAgentId}
         hideAgentSelect={hideAgentSelect}
+        defaultModel={defaultModel}
+        modelCards={modelCards}
       />
     </AgentPanelProvider>
   );
@@ -40,6 +49,8 @@ function AgentPanelSwitchWithContext({
   createdVia,
   initialAgentId,
   hideAgentSelect,
+  defaultModel,
+  modelCards,
 }: AgentPanelSwitchProps) {
   const { activePanel, setCurrentAgentId } = useAgentPanelContext();
   const agentId = useRecoilValue(store.conversationAgentIdByIndex(0));
@@ -65,6 +76,8 @@ function AgentPanelSwitchWithContext({
       onAgentCreated={onAgentCreated}
       createdVia={createdVia}
       hideAgentSelect={hideAgentSelect}
+      defaultModel={defaultModel}
+      modelCards={modelCards}
     />
   );
 }

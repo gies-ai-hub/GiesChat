@@ -22,6 +22,8 @@ const ALL_CLASSES = 'all';
 const GROUP_PAGE_SIZE = 200;
 /** Stamped on agents built here; the usage endpoint lists only these. Must match the server. */
 const DASHBOARD_ORIGIN = 'dashboard';
+/** Class agents start on this deployment; it is listed under the endpoint in librechat.yaml. */
+const DASHBOARD_MODEL = { provider: 'Azure OpenAI', model: 'gpt-5.6-terra' };
 
 export default function AdminDashboard() {
   const localize = useLocalize();
@@ -278,7 +280,12 @@ export default function AdminDashboard() {
           <OGDialog open={isBuilding} onOpenChange={handleBuilderOpenChange}>
             <OGDialogContent className="max-h-[90vh] w-11/12 max-w-lg overflow-y-auto">
               <OGDialogTitle>{localize('com_agents_create')}</OGDialogTitle>
-              <AgentPanelSwitch createdVia={DASHBOARD_ORIGIN} onAgentCreated={handleAgentCreated} />
+              <AgentPanelSwitch
+                createdVia={DASHBOARD_ORIGIN}
+                defaultModel={DASHBOARD_MODEL}
+                modelCards
+                onAgentCreated={handleAgentCreated}
+              />
             </OGDialogContent>
           </OGDialog>
         )}
@@ -304,6 +311,8 @@ export default function AdminDashboard() {
                 key={editingAgent.agent_id}
                 initialAgentId={editingAgent.agent_id}
                 hideAgentSelect
+                defaultModel={DASHBOARD_MODEL}
+                modelCards
               />
             )}
           </OGDialogContent>

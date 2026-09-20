@@ -44,14 +44,18 @@ export const createProviderOption = (provider: string) => ({
   value: provider,
 });
 
+export type AgentModelDefault = { provider: string; model: string };
+
 /**
- * Gets default agent form values with localStorage values for model and provider.
- * This is used to initialize agent forms with the last used model and provider.
+ * Gets default agent form values for model and provider: a host-supplied default wins,
+ * otherwise the last used pair from localStorage.
  **/
-export const getDefaultAgentFormValues = () => ({
+export const getDefaultAgentFormValues = (defaultModel?: AgentModelDefault) => ({
   ...defaultAgentFormValues,
-  model: localStorage.getItem(LocalStorageKeys.LAST_AGENT_MODEL) ?? '',
-  provider: createProviderOption(localStorage.getItem(LocalStorageKeys.LAST_AGENT_PROVIDER) ?? ''),
+  model: defaultModel?.model ?? localStorage.getItem(LocalStorageKeys.LAST_AGENT_MODEL) ?? '',
+  provider: createProviderOption(
+    defaultModel?.provider ?? localStorage.getItem(LocalStorageKeys.LAST_AGENT_PROVIDER) ?? '',
+  ),
   avatar_file: null,
   avatar_preview: '',
   avatar_action: null,

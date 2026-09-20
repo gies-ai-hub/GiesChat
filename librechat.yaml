@@ -192,6 +192,9 @@ endpoints:
           - gpt-5.4-mini
           - gpt-5.4
           - gpt-5.5
+          # Class-dashboard agents default to this one (client/src/components/Admin/Dashboard.tsx);
+          # kept last so chat-side builders still fall back to the first entry.
+          - gpt-5.6-terra
         fetch: false
       titleConvo: true
       titleModel: 'gpt-5.4-mini'

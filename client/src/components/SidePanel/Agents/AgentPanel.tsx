@@ -20,6 +20,7 @@ import type { FieldNamesMarkedBoolean } from 'react-hook-form';
 import type { Agent } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks/useLocalize';
 import type { AgentForm, StringOption, ExtendedFile } from '~/common';
+import type { AgentModelDefault } from '~/utils';
 import {
   useCreateAgentMutation,
   useUpdateAgentMutation,
@@ -238,12 +239,18 @@ interface AgentPanelProps {
   createdVia?: string;
   /** Hides the agent switcher and the chat-navigation buttons, for hosts editing one agent. */
   hideAgentSelect?: boolean;
+  /** Provider and model a blank form starts on, instead of the last used pair. */
+  defaultModel?: AgentModelDefault;
+  /** Shows the model picker as described cards instead of a dropdown. */
+  modelCards?: boolean;
 }
 
 export default function AgentPanel({
   onAgentCreated,
   createdVia,
   hideAgentSelect,
+  defaultModel,
+  modelCards,
 }: AgentPanelProps = {}) {
   const localize = useLocalize();
   const { user } = useAuthContext();
@@ -279,7 +286,7 @@ export default function AgentPanel({
 
   const models = useMemo(() => modelsQuery.data ?? {}, [modelsQuery.data]);
   const methods = useForm<AgentForm>({
-    defaultValues: getDefaultAgentFormValues(),
+    defaultValues: getDefaultAgentFormValues(defaultModel),
     mode: 'onChange',
   });
 
@@ -624,7 +631,7 @@ export default function AgentPanel({
                   variant="outline"
                   className="w-full justify-center"
                   onClick={() => {
-                    reset(getDefaultAgentFormValues());
+                    reset(getDefaultAgentFormValues(defaultModel));
                     setCurrentAgentId(undefined);
                   }}
                   disabled={agentQuery.isInitialLoading}
@@ -659,7 +666,13 @@ export default function AgentPanel({
             </div>
           )}
           {canEditAgent && !agentQuery.isInitialLoading && activePanel === Panel.model && (
-            <ModelPanel models={models} providers={providers} setActivePanel={setActivePanel} />
+            <ModelPanel
+              models={models}
+              providers={providers}
+              setActivePanel={setActivePanel}
+              modelCards={modelCards}
+              defaultModel={defaultModel}
+            />
           )}
           {canEditAgent && !agentQuery.isInitialLoading && activePanel === Panel.builder && (
             <AgentConfig />

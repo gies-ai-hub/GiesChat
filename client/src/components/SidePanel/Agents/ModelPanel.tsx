@@ -14,19 +14,31 @@ import {
 } from 'librechat-data-provider';
 import type * as t from 'librechat-data-provider';
 import type { AgentForm, AgentModelPanelProps, StringOption } from '~/common';
+import type { AgentModelDefault } from '~/utils';
 import { componentMapping } from '~/components/SidePanel/Parameters/components';
-import { useGetEndpointsQuery } from '~/data-provider';
+import { useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
+import ModelCards from './ModelCards';
 import { useLiveAnnouncer } from '~/Providers';
 import { useLocalize } from '~/hooks';
 import { Panel } from '~/common';
 import { cn } from '~/utils';
 
+type ModelPanelProps = Pick<AgentModelPanelProps, 'models' | 'providers' | 'setActivePanel'> & {
+  /** Lists models as described cards instead of a dropdown of ids. */
+  modelCards?: boolean;
+  /** Marks this provider + model with a "Default" badge on the cards. */
+  defaultModel?: AgentModelDefault;
+};
+
 export default function ModelPanel({
   providers,
   setActivePanel,
   models: modelsData,
-}: Pick<AgentModelPanelProps, 'models' | 'providers' | 'setActivePanel'>) {
+  modelCards = false,
+  defaultModel,
+}: ModelPanelProps) {
   const localize = useLocalize();
+  const { data: startupConfig } = useGetStartupConfig();
   const { announcePolite } = useLiveAnnouncer();
 
   const { control, setValue } = useFormContext<AgentForm>();
@@ -186,6 +198,26 @@ export default function ModelPanel({
             control={control}
             rules={{ required: true, minLength: 1 }}
             render={({ field, fieldState: { error } }) => {
+              if (modelCards && provider) {
+                return (
+                  <>
+                    <ModelCards
+                      provider={provider}
+                      models={models}
+                      specs={startupConfig?.modelSpecs?.list}
+                      value={field.value || ''}
+                      onChange={field.onChange}
+                      defaultModel={defaultModel}
+                      invalid={error != null}
+                    />
+                    {error && (
+                      <span className="mt-1 text-xs text-red-500" role="alert">
+                        {localize('com_ui_field_required')}
+                      </span>
+                    )}
+                  </>
+                );
+              }
               return (
                 <>
                   <ControlCombobox

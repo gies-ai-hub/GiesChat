@@ -2410,5 +2410,8 @@
   "com_ui_zoom_in": "Zoom in",
   "com_ui_zoom_level": "Zoom level",
   "com_ui_zoom_out": "Zoom out",
-  "com_user_message": "You"
+  "com_user_message": "You",
+  "com_ui_model_cards_hint": "Pick the one that fits how students will use this agent. You can change it later.",
+  "com_ui_model_default_badge": "Default",
+  "com_ui_model_guide_gpt_5_6_terra": "Recommended for class agents — balanced speed and reasoning for course Q&A and feedback on student work."
 }
