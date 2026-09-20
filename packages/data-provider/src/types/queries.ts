@@ -261,6 +261,14 @@ export type AdminAgentUsage = AdminUsageCounts & {
   canDelete: boolean;
   /** Live embed settings, or `null` when the agent is not embeddable without login. */
   embed: AgentEmbed | null;
+  /** Production version students run — the count of saved versions. */
+  version: number;
+  /** The caller authored this agent and may set collaborators and post drafts. */
+  isAuthor: boolean;
+  /** The caller is a named collaborator: drafts and tests, never edits production. */
+  isCollaborator: boolean;
+  /** Unposted drafts visible to the caller. */
+  draftCount: number;
 };
 
 export type AgentEmbedAudience = 'public' | 'illinois';

@@ -28,7 +28,11 @@ const MIN_DAYS = 1;
 const MAX_DAYS = 365;
 
 const AGENT_SCOPE_FIELDS =
-  '_id id name author description avatar category course embed.audience embed.greeting +embed.key';
+  '_id id name author description avatar category course collaborators draftOf draftBase postedVersion embed.audience embed.greeting +embed.key';
+/** ponytail: `versions` is loaded whole to count it; switch to a `$size` aggregation if agents ever carry hundreds of versions. */
+const AGENT_LIST_FIELDS = `${AGENT_SCOPE_FIELDS} versions`;
+const DRAFT_FIELDS =
+  '_id id name author draftOf draftBase postedVersion updatedAt embed.audience embed.greeting +embed.key';
 const EMBED_AUDIENCES: AgentEmbedAudience[] = ['public', 'illinois'];
 const EMBED_GREETING_MAX = 1000;
 /** Only agents built from the class dashboard are listed there. Must match the client. */
@@ -170,6 +174,14 @@ interface AgentUsageItem {
   canDelete: boolean;
   /** Live embed settings, or `null` when the agent is not embeddable. */
   embed: AgentEmbedItem | null;
+  /** Production version students run — the count of saved versions. */
+  version: number;
+  /** The caller authored this agent: they alone may set collaborators and post drafts. */
+  isAuthor: boolean;
+  /** The caller is listed as a collaborator: they draft and test, never edit production. */
+  isCollaborator: boolean;
+  /** Drafts of this agent not yet posted (all of them for the author, the caller's own otherwise). */
+  draftCount: number;
 }
 
 interface StudentUsageItem {
@@ -234,14 +246,21 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   } = deps;
 
   /**
-   * The security boundary: an agent is in scope only when the caller authored it
-   * or holds an EDIT grant on it. Narrowing by `agentId` keeps the same boundary.
+   * The security boundary: an agent is in scope when the caller authored it, holds an
+   * EDIT grant on it, or is named in its `collaborators`. Narrowing by `agentId` keeps
+   * the same boundary. A list call (no `agentId`) also drops drafts, so production
+   * agents are the only rows; a lookup by id still finds a draft, which is how its
+   * owner reaches the embed endpoints for the test link.
    *
    * `createdVia` narrows the list to agents built from the dashboard itself. It is a
    * presentation filter, not a permission — a client can set it freely, so it must
    * never be relied on for access. The `$or` below remains the only boundary.
    */
-  async function findScopedAgents(user: IUser, agentId?: string): Promise<IAgent[]> {
+  async function findScopedAgents(
+    user: IUser,
+    agentId?: string,
+    fields: string = AGENT_SCOPE_FIELDS,
+  ): Promise<IAgent[]> {
     const callerId = String(user._id);
     const editableIds = await findAccessibleResources({
       userId: callerId,
@@ -251,16 +270,34 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     });
     const scope: FilterQuery<IAgent> = {
       createdVia: DASHBOARD_ORIGIN,
-      $or: [{ author: callerId }, { _id: { $in: editableIds } }],
+      ...(agentId === undefined ? { draftOf: { $exists: false } } : { id: agentId }),
+      $or: [{ author: callerId }, { _id: { $in: editableIds } }, { collaborators: callerId }],
     };
-    return findAgents(
-      agentId === undefined ? scope : { id: agentId, ...scope },
-      AGENT_SCOPE_FIELDS,
-    );
+    return findAgents(scope, fields);
   }
 
   function isAuthor(user: IUser, agent: IAgent): boolean {
     return String(agent.author) === String(user._id);
+  }
+
+  function isCollaborator(user: IUser, agent: IAgent): boolean {
+    return !isAuthor(user, agent) && (agent.collaborators ?? []).includes(String(user._id));
+  }
+
+  /** Every draft of the given production agents; callers narrow to the ones the caller may see. */
+  async function findDraftsOf(agentIds: string[]): Promise<IAgent[]> {
+    if (agentIds.length === 0) {
+      return [];
+    }
+    return findAgents({ draftOf: { $in: agentIds } }, DRAFT_FIELDS);
+  }
+
+  /** The author sees every unposted draft; anyone else only their own. */
+  function visibleDrafts(user: IUser, agent: IAgent, drafts: IAgent[]): IAgent[] {
+    const unposted = drafts.filter(
+      (draft) => draft.draftOf === agent.id && draft.postedVersion == null,
+    );
+    return isAuthor(user, agent) ? unposted : unposted.filter((draft) => isAuthor(user, draft));
   }
 
   /**
@@ -366,14 +403,15 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
         return res.status(404).json({ error: 'Group not found' });
       }
 
-      const agents = await findScopedAgents(caller);
-      const [usage, deletableIds] = await Promise.all([
+      const agents = await findScopedAgents(caller, undefined, AGENT_LIST_FIELDS);
+      const [usage, deletableIds, drafts] = await Promise.all([
         aggregateAgentUsage({
           agentIds: agents.map((agent) => agent.id),
           userIds: scope.userIds,
           since,
         }),
         findDeletableAgentIds(caller),
+        findDraftsOf(agents.map((agent) => agent.id)),
       ]);
       const usageByAgent = new Map(usage.map((row) => [row.agentId, row]));
 
@@ -392,6 +430,10 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
           lastActivity: row?.lastActivity?.toISOString() ?? null,
           canDelete: isAuthor(caller, agent) || deletableIds.has(String(agent._id)),
           embed: toEmbedItem(agent.embed),
+          version: agent.versions?.length ?? 0,
+          isAuthor: isAuthor(caller, agent),
+          isCollaborator: isCollaborator(caller, agent),
+          draftCount: visibleDrafts(caller, agent, drafts).length,
         };
       });
       items.sort(byUsageThenName);

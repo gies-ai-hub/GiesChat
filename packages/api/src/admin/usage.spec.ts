@@ -105,7 +105,11 @@ function convo(
  * anything else is treated as an operator injection and blows up loudly.
  * ------------------------------------------------------------------ */
 
-type FieldReader<T> = (doc: T, key: string) => string | undefined;
+type FieldReader<T> = (doc: T, key: string) => string | string[] | undefined;
+
+function fieldMatches(actual: string | string[] | undefined, expected: string): boolean {
+  return Array.isArray(actual) ? actual.includes(expected) : actual === expected;
+}
 
 function assertPlainStringLike(key: string, value: unknown): string {
   if (typeof value === 'string' || typeof value === 'number' || value instanceof Types.ObjectId) {
@@ -150,6 +154,10 @@ function matchesFilter<T>(read: FieldReader<T>, doc: T, filter: unknown): boolea
       !(condition instanceof Types.ObjectId)
     ) {
       const ops = Object.keys(condition as Record<string, unknown>);
+      if (ops.length === 1 && ops[0] === '$exists') {
+        const shouldExist = Boolean((condition as { $exists: unknown }).$exists);
+        return (actual !== undefined) === shouldExist;
+      }
       if (ops.length !== 1 || ops[0] !== '$in') {
         throw new Error(
           `Unsupported query operator reached the database layer for "${key}": ${JSON.stringify(condition)}`,
@@ -159,10 +167,10 @@ function matchesFilter<T>(read: FieldReader<T>, doc: T, filter: unknown): boolea
       if (!Array.isArray(values)) {
         throw new Error(`$in for "${key}" must be an array`);
       }
-      return values.some((value) => assertPlainStringLike(key, value) === actual);
+      return values.some((value) => fieldMatches(actual, assertPlainStringLike(key, value)));
     }
 
-    return assertPlainStringLike(key, condition) === actual;
+    return fieldMatches(actual, assertPlainStringLike(key, condition));
   });
 }
 
@@ -181,6 +189,12 @@ const readAgentField: FieldReader<IAgent> = (doc, key) => {
   }
   if (key === 'createdVia') {
     return doc.createdVia;
+  }
+  if (key === 'collaborators') {
+    return doc.collaborators;
+  }
+  if (key === 'draftOf') {
+    return doc.draftOf;
   }
   throw new Error(`Unknown agent field used in filter: ${key}`);
 };
@@ -404,6 +418,10 @@ interface AgentUsageResponseItem {
   messageCount: number;
   lastActivity: string | null;
   canDelete: boolean;
+  version: number;
+  isAuthor: boolean;
+  isCollaborator: boolean;
+  draftCount: number;
 }
 
 interface StudentUsageResponseItem {
@@ -702,6 +720,70 @@ describe('createAdminUsageHandlers', () => {
      * if the projection asks for it. An agent with no avatar or description is the
      * normal case, not an error — it must arrive as an explicit null.
      */
+    describe('collaborators and drafts', () => {
+      const collabAgent = mockAgent({
+        id: 'agent_collab',
+        name: 'Collab',
+        author: otherAuthorId,
+        collaborators: [callerId.toString()],
+      });
+      const draftOfAlpha = mockAgent({
+        id: 'agent_alpha_draft',
+        name: 'Alpha',
+        author: callerId,
+        draftOf: 'agent_alpha',
+        draftBase: 1,
+      });
+      const postedDraft = mockAgent({
+        id: 'agent_alpha_draft_old',
+        name: 'Alpha',
+        author: otherAuthorId,
+        draftOf: 'agent_alpha',
+        draftBase: 1,
+        postedVersion: 2,
+      });
+
+      it('lists an agent the caller collaborates on, flagged as such', async () => {
+        const deps = createDeps(baseWorld({ agents: [alpha, collabAgent] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes();
+        await handlers.listAgentUsage(req, res);
+        const rows = agentBody(json).agents;
+        const collab = rows.find((row) => row.agent_id === 'agent_collab');
+        expect(collab).toMatchObject({ isAuthor: false, isCollaborator: true });
+        expect(rows.find((row) => row.agent_id === 'agent_alpha')).toMatchObject({
+          isAuthor: true,
+          isCollaborator: false,
+        });
+      });
+
+      it('never lists a draft, even one the caller authored', async () => {
+        const deps = createDeps(baseWorld({ agents: [alpha, draftOfAlpha] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes();
+        await handlers.listAgentUsage(req, res);
+        expect(agentBody(json).agents.map((row) => row.agent_id)).toEqual(['agent_alpha']);
+      });
+
+      it('reports the production version and the count of unposted drafts', async () => {
+        const versioned = mockAgent({
+          id: 'agent_alpha',
+          name: 'Alpha',
+          author: callerId,
+          versions: [{}, {}, {}] as IAgent['versions'],
+        });
+        const deps = createDeps(baseWorld({ agents: [versioned, draftOfAlpha, postedDraft] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes();
+        await handlers.listAgentUsage(req, res);
+        expect(agentBody(json).agents[0]).toMatchObject({
+          agent_id: 'agent_alpha',
+          version: 3,
+          draftCount: 1,
+        });
+      });
+    });
+
     describe('identity fields', () => {
       it('projects description, avatar, and category from the agent document', async () => {
         const deps = createDeps(
@@ -1150,11 +1232,15 @@ describe('createAdminUsageHandlers', () => {
           'conversationCount',
           'course',
           'description',
+          'draftCount',
           'embed',
+          'isAuthor',
+          'isCollaborator',
           'lastActivity',
           'messageCount',
           'name',
           'userCount',
+          'version',
         ]);
         expect(row.agent_id).toBe('agent_alpha');
         expect(row.name).toBe('Alpha');
