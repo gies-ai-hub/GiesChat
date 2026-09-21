@@ -2,12 +2,7 @@ import { useMemo } from 'react';
 import { useRecoilValue } from 'recoil';
 import { Bot, GraduationCap, Lightbulb, MessagesSquare } from 'lucide-react';
 import { useUserKeyQuery } from 'librechat-data-provider/react-query';
-import {
-  SystemRoles,
-  EModelEndpoint,
-  getConfigDefaults,
-  getEndpointField,
-} from 'librechat-data-provider';
+import { EModelEndpoint, getConfigDefaults, getEndpointField } from 'librechat-data-provider';
 import type { TEndpointsConfig } from 'librechat-data-provider';
 import type { NavLink } from '~/common';
 import BrainstormPanel from '~/components/Brainstorm/BrainstormPanel';
@@ -59,12 +54,12 @@ export default function useUnifiedSidebarLinks() {
   const brainstormEnabled = startupConfig?.brainstormRoomsEnabled === true;
   const showAgentMarketplace = useShowMarketplace();
   /**
-   * The sidebar mounts for everyone, so asking the server about admin capabilities
-   * unconditionally costs every student a 403 on first page load. Users left on the
-   * default role hold none of them; anyone on ADMIN or a custom role still asks.
+   * Asked for every signed-in user: dashboard access is granted per user with the
+   * role left at USER, so the role alone cannot predict the answer. The endpoint is
+   * self-scoped and returns an empty capability list for a student.
    */
   const { user } = useAuthContext();
-  const { hasAdminAccess } = useAdminAccess(user != null && user.role !== SystemRoles.USER);
+  const { hasAdminAccess } = useAdminAccess(user != null);
 
   const links = useMemo(() => {
     const conversationLink: NavLink = {

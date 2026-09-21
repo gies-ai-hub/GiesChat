@@ -26,10 +26,16 @@ const handlers = createAdminGrantsHandlers({
   auditFailClosed: process.env.AUDIT_LOG_FAIL_CLOSED === 'true',
 });
 
+/**
+ * Self-scoped: it reports only the caller's own capabilities, and an empty list
+ * for anyone holding none. Gating it on ACCESS_ADMIN is circular — the sidebar
+ * has to ask this to learn whether a user-level grant exists at all.
+ */
+router.get('/effective', requireJwtAuth, handlers.getEffectiveCapabilities);
+
 router.use(requireJwtAuth, requireAdminAccess);
 
 router.get('/', handlers.listGrants);
-router.get('/effective', handlers.getEffectiveCapabilities);
 router.get('/:principalType/:principalId', handlers.getPrincipalGrants);
 router.post('/', handlers.assignGrant);
 /** Callers should encodeURIComponent the capability for client compatibility (e.g. manage%3Aconfigs%3Aendpoints). */

@@ -64,9 +64,9 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The sidebar mounts for every signed-in user, so an ungated admin capability
- * check costs every student a 403 on first page load — a request whose answer
- * the client can already predict from the role it holds.
+ * Dashboard access is granted per user with the role left at USER, so the role a
+ * client holds cannot predict the answer — the sidebar has to ask the server for
+ * every signed-in user, and the self-scoped endpoint answers with an empty list.
  */
 describe('useUnifiedSidebarLinks — admin capability gate', () => {
   beforeEach(() => {
@@ -76,13 +76,24 @@ describe('useUnifiedSidebarLinks — admin capability gate', () => {
     });
   });
 
-  it('never asks the server about admin capabilities for a default-role user', async () => {
+  it('shows the dashboard link for a default-role user holding the grants', async () => {
     mockUser.mockReturnValue({ id: 'u1', role: SystemRoles.USER });
 
     const { result } = renderHook(() => useUnifiedSidebarLinks(), { wrapper });
 
+    await waitFor(() => expect(mockGetAdminEffectiveCapabilities).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(result.current.some((link) => link.id === 'admin-dashboard')).toBe(true),
+    );
+  });
+
+  it('hides the dashboard link when the user holds no capabilities', async () => {
+    mockUser.mockReturnValue({ id: 'u1', role: SystemRoles.USER });
+    mockGetAdminEffectiveCapabilities.mockResolvedValue({ capabilities: [] });
+
+    const { result } = renderHook(() => useUnifiedSidebarLinks(), { wrapper });
+
     await waitFor(() => expect(result.current.length).toBeGreaterThan(0));
-    expect(mockGetAdminEffectiveCapabilities).not.toHaveBeenCalled();
     expect(result.current.some((link) => link.id === 'admin-dashboard')).toBe(false);
   });
 
@@ -103,13 +114,5 @@ describe('useUnifiedSidebarLinks — admin capability gate', () => {
     await waitFor(() =>
       expect(result.current.some((link) => link.id === 'admin-dashboard')).toBe(true),
     );
-  });
-
-  it('asks for a non-default custom role, which may still hold a grant', async () => {
-    mockUser.mockReturnValue({ id: 'u3', role: 'INSTRUCTOR' });
-
-    renderHook(() => useUnifiedSidebarLinks(), { wrapper });
-
-    await waitFor(() => expect(mockGetAdminEffectiveCapabilities).toHaveBeenCalled());
   });
 });
