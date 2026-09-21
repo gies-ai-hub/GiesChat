@@ -3963,3 +3963,45 @@ describe('setAgentMeta', () => {
     expect(await methods.setAgentMeta('agent_nope', { postedVersion: 1 })).toBeNull();
   });
 });
+
+describe('claimPendingCollaborations', () => {
+  it('turns every pending invite for the email into a collaborator, once', async () => {
+    const userId = new mongoose.Types.ObjectId().toString();
+    for (const id of ['agent_claim_a', 'agent_claim_b']) {
+      await methods.createAgent({
+        id,
+        name: id,
+        provider: 'openai',
+        model: 'gpt-4',
+        author: new mongoose.Types.ObjectId(),
+      });
+      await methods.setAgentMeta(id, { pendingCollaborators: ['ta@illinois.edu'] });
+    }
+    await methods.createAgent({
+      id: 'agent_claim_other',
+      name: 'other',
+      provider: 'openai',
+      model: 'gpt-4',
+      author: new mongoose.Types.ObjectId(),
+    });
+    await methods.setAgentMeta('agent_claim_other', {
+      pendingCollaborators: ['someone@illinois.edu'],
+    });
+
+    expect(await methods.claimPendingCollaborations('TA@illinois.edu', userId)).toBe(2);
+
+    const claimed = await methods.getAgent({ id: 'agent_claim_a' });
+    expect(claimed?.collaborators).toEqual([userId]);
+    expect(claimed?.pendingCollaborators).toEqual([]);
+    const untouched = await methods.getAgent({ id: 'agent_claim_other' });
+    expect(untouched?.collaborators ?? []).toEqual([]);
+    expect(untouched?.pendingCollaborators).toEqual(['someone@illinois.edu']);
+
+    expect(await methods.claimPendingCollaborations('ta@illinois.edu', userId)).toBe(0);
+  });
+
+  it('does nothing without an email or a user id', async () => {
+    expect(await methods.claimPendingCollaborations('', 'user')).toBe(0);
+    expect(await methods.claimPendingCollaborations('ta@illinois.edu', '')).toBe(0);
+  });
+});

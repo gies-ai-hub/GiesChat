@@ -30,7 +30,7 @@ const MIN_DAYS = 1;
 const MAX_DAYS = 365;
 
 const AGENT_SCOPE_FIELDS =
-  '_id id name author description avatar category course collaborators draftOf draftBase postedVersion embed.audience embed.greeting +embed.key';
+  '_id id name author description avatar category course collaborators pendingCollaborators draftOf draftBase postedVersion embed.audience embed.greeting +embed.key';
 /** ponytail: `versions` is loaded whole to count it; switch to a `$size` aggregation if agents ever carry hundreds of versions. */
 const AGENT_LIST_FIELDS = `${AGENT_SCOPE_FIELDS} versions`;
 const DRAFT_FIELDS =
@@ -40,6 +40,8 @@ const EMBED_GREETING_MAX = 1000;
 /** Only agents built from the class dashboard are listed there. Must match the client. */
 const DASHBOARD_ORIGIN = 'dashboard';
 const STUDENT_FIELDS = '_id name email';
+/** Same projection, used where the people are colleagues rather than students. */
+const USER_FIELDS = STUDENT_FIELDS;
 
 /** Per-agent activity totals for the entities that actually have activity. */
 export interface AgentUsageRow {
@@ -146,6 +148,12 @@ export interface AdminUsageDeps {
     files: IMongoFile[];
     agentId: string;
   }) => Promise<Map<string, string>>;
+  /** One invite email per newly invited address. Failures are logged, never surfaced. */
+  sendCollaboratorInvite: (params: {
+    email: string;
+    agentName: string;
+    inviterName: string;
+  }) => Promise<void>;
 }
 
 /** What the dashboard shows the professor; `key` is the only place it ever leaves the server. */
@@ -177,6 +185,28 @@ export interface AgentDraftItem {
 }
 
 const MAX_COLLABORATORS = 50;
+/** Sign-in is Illinois SSO, so no other domain could ever claim an invite. */
+const INVITE_DOMAIN = '@illinois.edu';
+const EMAIL_PATTERN = /^[a-z0-9][a-z0-9._%+-]*@illinois\.edu$/;
+
+/** Untrusted body → lowercased Illinois addresses, or `null` when malformed. */
+export function parseInviteEmails(body: unknown): string[] | null {
+  if (body == null || typeof body !== 'object') {
+    return null;
+  }
+  const raw = (body as { emails?: unknown }).emails;
+  if (raw === undefined) {
+    return [];
+  }
+  if (!Array.isArray(raw) || raw.length > MAX_COLLABORATORS) {
+    return null;
+  }
+  const emails = raw
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => EMAIL_PATTERN.test(value) && value.endsWith(INVITE_DOMAIN));
+  return [...new Set(emails)];
+}
 
 /**
  * What a draft copies from production and what posting copies back. Identity,
@@ -369,6 +399,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     updateAgent,
     getFiles,
     copyDocuments,
+    sendCollaboratorInvite,
   } = deps;
 
   /**
@@ -841,15 +872,20 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     return new Map(users.map((user) => [String(user._id), toUserRef(user)]));
   }
 
-  /** Author only: the list of people who may draft this agent. Unknown ids and the author are dropped. */
+  /**
+   * Author only: who may draft this agent. Ids without a user and the author itself are
+   * dropped. An invited address that already has an account is added straight away;
+   * the rest are kept as pending and emailed once, the first time they are invited.
+   */
   async function updateAgentCollaborators(req: ServerRequest, res: Response): Promise<Response> {
     const rawAgentId = (req.params as AgentUsageParams).agent_id;
     if (typeof rawAgentId !== 'string') {
       return res.status(400).json({ error: 'agent_id is required' });
     }
     const requested = parseCollaboratorIds(req.body);
-    if (requested == null) {
-      return res.status(400).json({ error: 'userIds must be an array of user ids' });
+    const invited = parseInviteEmails(req.body);
+    if (requested == null || invited == null) {
+      return res.status(400).json({ error: 'userIds and emails must be arrays' });
     }
     const caller = req.user;
     if (caller == null) {
@@ -863,10 +899,38 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       if (!isAuthor(caller, agent)) {
         return res.status(403).json({ error: 'Only the author can set collaborators' });
       }
+      const callerEmail = caller.email?.trim().toLowerCase();
+      const wanted = invited.filter((email) => email !== callerEmail);
+      const existing =
+        wanted.length > 0 ? await findUsers({ email: { $in: wanted } }, USER_FIELDS) : [];
+      const byEmail = new Map(existing.map((user) => [user.email?.toLowerCase(), user]));
       const known = await findUserRefs(requested.filter((id) => id !== String(caller._id)));
+      for (const user of existing) {
+        known.set(String(user._id), toUserRef(user));
+      }
       const collaborators = [...known.keys()];
-      await setAgentMeta(agent.id, { collaborators });
-      return res.status(200).json({ collaborators: collaborators.map((id) => known.get(id)) });
+      const pendingCollaborators = wanted.filter((email) => !byEmail.has(email));
+      /** Read before the write: only an address that was not already pending is emailed. */
+      const alreadyPending = new Set(agent.pendingCollaborators ?? []);
+      const fresh = pendingCollaborators.filter((email) => !alreadyPending.has(email));
+      await setAgentMeta(agent.id, { collaborators, pendingCollaborators });
+      await Promise.all(
+        fresh.map((email) =>
+          sendCollaboratorInvite({
+            email,
+            agentName: agent.name ?? '',
+            inviterName: caller.name ?? caller.email ?? '',
+          }).catch((error) =>
+            logger.warn(`[adminUsage] could not send the invite to ${email}`, error),
+          ),
+        ),
+      );
+
+      return res.status(200).json({
+        collaborators: collaborators.flatMap((id) => known.get(id) ?? []),
+        pending: pendingCollaborators,
+        invited: fresh,
+      });
     } catch (error) {
       logger.error('[adminUsage] updateAgentCollaborators error:', error);
       return res.status(500).json({ error: 'Failed to update collaborators' });
@@ -914,6 +978,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
         collaborators: author
           ? (agent.collaborators ?? []).flatMap((id) => people.get(id) ?? [])
           : [],
+        pending: author ? (agent.pendingCollaborators ?? []) : [],
         drafts: drafts.map((draft) => toDraftItem(draft, people, caller)),
       });
     } catch (error) {

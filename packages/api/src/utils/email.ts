@@ -2,9 +2,11 @@ import { logger } from '@librechat/data-schemas';
 
 /**
  * Check if email configuration is set
- * @returns Returns `true` if either Mailgun or SMTP is properly configured
+ * @returns Returns `true` if Azure Communication Services, Mailgun or SMTP is configured
  */
 export function checkEmailConfig(): boolean {
+  const hasACSConfig = !!process.env.ACS_EMAIL_CONNECTION_STRING && !!process.env.EMAIL_FROM;
+
   const hasMailgunConfig =
     !!process.env.MAILGUN_API_KEY && !!process.env.MAILGUN_DOMAIN && !!process.env.EMAIL_FROM;
 
@@ -21,5 +23,5 @@ export function checkEmailConfig(): boolean {
     }
   }
 
-  return hasMailgunConfig || hasSMTPConfig;
+  return hasACSConfig || hasMailgunConfig || hasSMTPConfig;
 }

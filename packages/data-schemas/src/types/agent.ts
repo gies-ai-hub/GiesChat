@@ -23,7 +23,9 @@ export interface IAgentEmbed {
 }
 
 /** The unversioned bookkeeping fields the dashboard's draft endpoints write. */
-export type IAgentMeta = Partial<Pick<IAgent, 'collaborators' | 'postedVersion'>>;
+export type IAgentMeta = Partial<
+  Pick<IAgent, 'collaborators' | 'pendingCollaborators' | 'postedVersion'>
+>;
 
 export interface IAgent extends Omit<Document, 'model'> {
   id: string;
@@ -65,6 +67,8 @@ export interface IAgent extends Omit<Document, 'model'> {
   embed?: IAgentEmbed;
   /** Users who may clone this agent into a draft of their own. Author-managed. */
   collaborators?: string[];
+  /** Invited emails, lowercased, with no account yet; claimed on first sign-in. */
+  pendingCollaborators?: string[];
   /** On a draft: the production agent id it was cloned from. */
   draftOf?: string;
   /** On a draft: production's version count at clone time. */

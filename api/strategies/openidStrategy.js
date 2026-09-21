@@ -26,7 +26,13 @@ const {
 } = require('@librechat/api');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
 const { resizeAvatar } = require('~/server/services/Files/images/avatar');
-const { findUser, createUser, updateUser, findRolesByNames } = require('~/models');
+const {
+  findUser,
+  createUser,
+  updateUser,
+  findRolesByNames,
+  claimPendingCollaborations,
+} = require('~/models');
 const { getAppConfig } = require('~/server/services/Config');
 const getLogStores = require('~/cache/getLogStores');
 
@@ -820,6 +826,17 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
   }
 
   user = await updateUser(user._id, user);
+
+  /* An agent can invite someone who has never signed in; this is where that invite
+   * becomes real. Never allowed to block a login. */
+  try {
+    const claimed = await claimPendingCollaborations(user.email, user._id);
+    if (claimed > 0) {
+      logger.info(`[openidStrategy] ${user.email} claimed ${claimed} agent invitation(s)`);
+    }
+  } catch (error) {
+    logger.error('[openidStrategy] Could not claim pending agent invitations', error);
+  }
 
   logger.info(
     `[openidStrategy] login success openidId: ${user.openidId} | email: ${user.email} | username: ${user.username} `,

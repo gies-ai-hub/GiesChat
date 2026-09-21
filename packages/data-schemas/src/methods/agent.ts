@@ -1070,6 +1070,29 @@ export function createAgentMethods(
       .lean<IAgent>();
   }
 
+  /**
+   * Turns every pending invite for this email into a real collaborator. Called after
+   * a sign-in, so it must stay cheap and idempotent: one indexed update, no-op when
+   * nothing is pending.
+   *
+   * @returns the number of agents the user was added to.
+   */
+  async function claimPendingCollaborations(email: string, userId: string): Promise<number> {
+    const Agent = mongoose.models.Agent as Model<IAgent>;
+    const address = email?.trim().toLowerCase();
+    if (!address || !userId) {
+      return 0;
+    }
+    const result = await Agent.updateMany(
+      { pendingCollaborators: address },
+      {
+        $addToSet: { collaborators: String(userId) },
+        $pull: { pendingCollaborators: address },
+      },
+    );
+    return result.modifiedCount ?? 0;
+  }
+
   /** Deliberately not `updateAgent`: who may draft, and whether a draft was posted, are not versioned edits. */
   async function setAgentMeta(agentId: string, meta: IAgentMeta): Promise<IAgent | null> {
     const Agent = mongoose.models.Agent as Model<IAgent>;
@@ -1085,6 +1108,7 @@ export function createAgentMethods(
     getAgentByEmbedKey,
     setAgentEmbed,
     setAgentMeta,
+    claimPendingCollaborations,
     getAgentVersions,
     getAgentWithVersionCount,
     getAgents,

@@ -132,6 +132,12 @@ const agentSchema: Schema<IAgent> = new Schema<IAgent>(
       default: undefined,
       index: true,
     },
+    /** Invited emails with no GiesChat account yet; claimed into `collaborators` on first sign-in. */
+    pendingCollaborators: {
+      type: [String],
+      default: undefined,
+      index: true,
+    },
     /** Set on a draft: the id of the production agent it was cloned from. Its presence hides the agent from dashboard lists. */
     draftOf: {
       type: String,

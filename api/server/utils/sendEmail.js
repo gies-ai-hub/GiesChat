@@ -58,6 +58,25 @@ const sendEmailViaMailgun = async ({ to, from, subject, html }) => {
  * @param {Object} params.mailOptions - The email options.
  * @returns {Promise<Object>} - A promise that resolves to the info object of the sent email.
  */
+/**
+ * Azure Communication Services. Preferred when configured: GiesChat's own mail
+ * resource in the lab subscription, so no external provider account is needed.
+ */
+const sendEmailViaACS = async ({ from, to, subject, html }) => {
+  const connectionString = process.env.ACS_EMAIL_CONNECTION_STRING;
+  if (!connectionString) {
+    throw new Error('ACS_EMAIL_CONNECTION_STRING is required');
+  }
+  const { EmailClient } = require('@azure/communication-email');
+  const client = new EmailClient(connectionString);
+  const poller = await client.beginSend({
+    senderAddress: from,
+    content: { subject, html },
+    recipients: { to: [{ address: to }] },
+  });
+  return await poller.pollUntilDone();
+};
+
 const sendEmailViaSMTP = async ({ transporterOptions, mailOptions }) => {
   const transporter = nodemailer.createTransport(transporterOptions);
   return await transporter.sendMail(mailOptions);
@@ -101,6 +120,17 @@ const sendEmail = async ({ email, subject, payload, template, throwError = true 
     const fromEmail = process.env.EMAIL_FROM;
     const fromAddress = `"${fromName}" <${fromEmail}>`;
     const toAddress = `"${payload.name}" <${email}>`;
+
+    // Azure Communication Services takes precedence when configured
+    if (process.env.ACS_EMAIL_CONNECTION_STRING) {
+      logger.debug('[sendEmail] Using Azure Communication Services provider');
+      return await sendEmailViaACS({
+        from: fromEmail,
+        to: email,
+        subject: subject,
+        html: html,
+      });
+    }
 
     // Check if Mailgun is configured
     if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {

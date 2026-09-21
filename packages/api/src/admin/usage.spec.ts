@@ -340,6 +340,7 @@ interface TestDeps extends AdminUsageDeps {
   updateAgent: jest.Mock;
   getFiles: jest.Mock;
   copyDocuments: jest.Mock;
+  sendCollaboratorInvite: jest.Mock;
 }
 
 /** The shape the analytics pipeline returns when nothing happened in the window. */
@@ -422,6 +423,7 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
       async ({ files }: { files: { file_id: string }[] }) =>
         new Map(files.map((file) => [file.file_id, `${file.file_id}_copy`])),
     ),
+    sendCollaboratorInvite: jest.fn(async () => undefined),
     ...overrides,
   };
 
@@ -2354,6 +2356,7 @@ describe('createAdminUsageHandlers', () => {
         name: 'Case Coach',
         author: callerId,
         collaborators: [bobId.toString()],
+        pendingCollaborators: ['invited@illinois.edu'],
         versions: [{}, {}] as IAgent['versions'],
       });
       const bobDraft = mockAgent({
@@ -2388,9 +2391,12 @@ describe('createAdminUsageHandlers', () => {
         expect(status).toHaveBeenCalledWith(200);
         expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
           collaborators: [anaId.toString()],
+          pendingCollaborators: [],
         });
         expect(json.mock.calls[0][0]).toEqual({
           collaborators: [{ id: anaId.toString(), name: 'Ana Member', email: 'ana@illinois.edu' }],
+          pending: [],
+          invited: [],
         });
       });
 
@@ -2406,6 +2412,96 @@ describe('createAdminUsageHandlers', () => {
         await handlers.updateAgentCollaborators(req, res);
         expect(status).toHaveBeenCalledWith(403);
         expect(deps.setAgentMeta).not.toHaveBeenCalled();
+      });
+
+      it('invites an unknown Illinois address, emails it once, and keeps it pending', async () => {
+        const { prod } = world();
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob, ana] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: [], emails: ['  JOkafor@illinois.edu ', 'jokafor@illinois.edu'] },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
+          collaborators: [],
+          pendingCollaborators: ['jokafor@illinois.edu'],
+        });
+        expect(deps.sendCollaboratorInvite).toHaveBeenCalledTimes(1);
+        expect(deps.sendCollaboratorInvite).toHaveBeenCalledWith({
+          email: 'jokafor@illinois.edu',
+          agentName: 'Case Coach',
+          inviterName: 'Prof',
+        });
+        expect(json.mock.calls[0][0]).toMatchObject({
+          pending: ['jokafor@illinois.edu'],
+          invited: ['jokafor@illinois.edu'],
+        });
+      });
+
+      it('adds an invited address that already has an account instead of inviting it', async () => {
+        const { prod } = world();
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob, ana] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: [], emails: ['ANA@illinois.edu'] },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
+          collaborators: [anaId.toString()],
+          pendingCollaborators: [],
+        });
+        expect(deps.sendCollaboratorInvite).not.toHaveBeenCalled();
+        expect(json.mock.calls[0][0]).toMatchObject({
+          collaborators: [{ id: anaId.toString(), name: 'Ana Member' }],
+          pending: [],
+        });
+      });
+
+      it('drops non-Illinois addresses and does not re-email an address already pending', async () => {
+        const { prod } = world();
+        prod.pendingCollaborators = ['jokafor@illinois.edu'];
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: {
+            userIds: [],
+            emails: ['jokafor@illinois.edu', 'someone@gmail.com', 'not-an-email'],
+          },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
+          collaborators: [],
+          pendingCollaborators: ['jokafor@illinois.edu'],
+        });
+        expect(deps.sendCollaboratorInvite).not.toHaveBeenCalled();
+        expect(json.mock.calls[0][0]).toMatchObject({ invited: [] });
+      });
+
+      it('still saves when the invite email fails', async () => {
+        const { prod } = world();
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob] }), {
+          sendCollaboratorInvite: jest.fn(async () => {
+            throw new Error('no mail provider');
+          }),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: [], emails: ['jokafor@illinois.edu'] },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
+          collaborators: [],
+          pendingCollaborators: ['jokafor@illinois.edu'],
+        });
       });
 
       it('rejects a body without a userIds array', async () => {
@@ -2433,6 +2529,7 @@ describe('createAdminUsageHandlers', () => {
         const body = json.mock.calls[0][0] as {
           version: number;
           collaborators: { id: string }[];
+          pending: string[];
           drafts: {
             draft_id: string;
             mine: boolean;
@@ -2442,6 +2539,7 @@ describe('createAdminUsageHandlers', () => {
         };
         expect(body.version).toBe(2);
         expect(body.collaborators.map((user) => user.id)).toEqual([bobId.toString()]);
+        expect(body.pending).toEqual(['invited@illinois.edu']);
         expect(body.drafts.map((draft) => draft.draft_id).sort()).toEqual([
           'agent_prod_ana',
           'agent_prod_bob',
@@ -2464,9 +2562,11 @@ describe('createAdminUsageHandlers', () => {
         await handlers.listAgentDrafts(req, res);
         const body = json.mock.calls[0][0] as {
           collaborators: unknown[];
+          pending: string[];
           drafts: { draft_id: string; mine: boolean }[];
         };
         expect(body.collaborators).toEqual([]);
+        expect(body.pending).toEqual([]);
         expect(body.drafts).toEqual([
           expect.objectContaining({ draft_id: 'agent_prod_bob', mine: true }),
         ]);

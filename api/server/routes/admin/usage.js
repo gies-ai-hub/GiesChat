@@ -6,6 +6,7 @@ const { SystemCapabilities } = require('@librechat/data-schemas');
 const { requireCapability } = require('~/server/middleware/roles/capabilities');
 const { findAccessibleResources, grantPermission } = require('~/server/services/PermissionService');
 const { copyAgentDocuments } = require('~/server/services/Files/copy');
+const { sendCollaboratorInvite } = require('~/server/services/AgentInvites');
 const { requireJwtAuth } = require('~/server/middleware');
 const { getAppConfig } = require('~/server/services/Config');
 const db = require('~/models');
@@ -40,6 +41,7 @@ const handlers = createAdminUsageHandlers({
   updateAgent: db.updateAgent,
   getFiles: db.getFiles,
   copyDocuments: copyAgentDocuments,
+  sendCollaboratorInvite,
   createAgentId: () => `agent_${nanoid()}`,
   /** Same two grants `createAgentHandler` makes for a normal agent, plus a viewer variant for the author. */
   grantAgentAccess: async ({ userId, agentDbId, role }) => {

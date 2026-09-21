@@ -308,6 +308,8 @@ export type Agent = {
   createdVia?: string;
   /** Users who may draft this agent; set from the class dashboard. */
   collaborators?: string[];
+  /** Invited emails with no account yet. */
+  pendingCollaborators?: string[];
   /** On a draft: the production agent it was cloned from. */
   draftOf?: string;
   draftBase?: number;
