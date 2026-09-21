@@ -15,7 +15,11 @@ interface DraftsPanelProps {
   onEditDraft: (draftId: string) => void;
   onTestLink: (draft: AdminAgentDraft) => void;
   onOpenInChat: (draftId: string) => void;
-  onManageCollaborators: (agent: AdminAgentUsage, collaborators: AdminUserRef[]) => void;
+  onManageCollaborators: (
+    agent: AdminAgentUsage,
+    collaborators: AdminUserRef[],
+    pending: string[],
+  ) => void;
 }
 
 const initials = (name: string) =>
@@ -59,11 +63,13 @@ export default function DraftsPanel({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onManageCollaborators(agent, data?.collaborators ?? [])}
+            onClick={() =>
+              onManageCollaborators(agent, data?.collaborators ?? [], data?.pending ?? [])
+            }
           >
             <Users className="mr-1 size-4" aria-hidden="true" />
             {localize('com_ui_admin_collaborators_count', {
-              count: data?.collaborators.length ?? 0,
+              count: (data?.collaborators?.length ?? 0) + (data?.pending?.length ?? 0),
             })}
           </Button>
         )}

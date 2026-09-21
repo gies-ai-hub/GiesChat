@@ -74,11 +74,12 @@ export const useRevokeAdminAgentEmbedMutation = (): UseMutationResult<
 export const useUpdateAdminAgentCollaboratorsMutation = (): UseMutationResult<
   AdminCollaboratorsResponse,
   unknown,
-  { agentId: string; userIds: string[] }
+  { agentId: string; userIds: string[]; emails?: string[] }
 > => {
   const queryClient = useQueryClient();
   return useMutation(
-    ({ agentId, userIds }) => dataService.updateAdminAgentCollaborators(agentId, userIds),
+    ({ agentId, userIds, emails }) =>
+      dataService.updateAdminAgentCollaborators(agentId, userIds, emails ?? []),
     {
       mutationKey: [MutationKeys.updateAdminAgentCollaborators],
       onSuccess: (_data, { agentId }) => {

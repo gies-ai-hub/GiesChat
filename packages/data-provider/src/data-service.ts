@@ -1320,8 +1320,9 @@ export function getAdminAgentDrafts(agentId: string): Promise<q.AdminAgentDrafts
 export function updateAdminAgentCollaborators(
   agentId: string,
   userIds: string[],
+  emails: string[] = [],
 ): Promise<q.AdminCollaboratorsResponse> {
-  return request.put(endpoints.adminAgentCollaborators(agentId), { userIds });
+  return request.put(endpoints.adminAgentCollaborators(agentId), { userIds, emails });
 }
 
 export function openAdminAgentDraft(agentId: string): Promise<q.AdminOpenDraftResponse> {

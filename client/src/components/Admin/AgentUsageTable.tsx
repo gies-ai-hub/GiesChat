@@ -30,7 +30,11 @@ interface AgentUsageTableProps {
   onEditDraft: (draftId: string, agent: AdminAgentUsage) => void;
   onTestLink: (draft: AdminAgentDraft, agent: AdminAgentUsage) => void;
   onOpenDraft: (draftId: string) => void;
-  onManageCollaborators: (agent: AdminAgentUsage, collaborators: AdminUserRef[]) => void;
+  onManageCollaborators: (
+    agent: AdminAgentUsage,
+    collaborators: AdminUserRef[],
+    pending: string[],
+  ) => void;
 }
 
 export default function AgentUsageTable({

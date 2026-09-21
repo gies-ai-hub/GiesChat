@@ -57,6 +57,7 @@ const drafts: AdminAgentDraftsResponse = {
   agent_id: 'agent_prod',
   version: 7,
   collaborators: [{ id: 'u1', name: 'Priya Natarajan', email: 'p@illinois.edu' }],
+  pending: [],
   drafts: [
     {
       draft_id: 'agent_prod_priya',
@@ -125,6 +126,7 @@ describe('DraftsPanel (author)', () => {
     expect(handlers.onManageCollaborators).toHaveBeenCalledWith(
       expect.objectContaining({ agent_id: 'agent_prod' }),
       drafts.collaborators,
+      drafts.pending,
     );
   });
 

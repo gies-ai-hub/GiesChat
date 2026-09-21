@@ -2448,5 +2448,15 @@
   "com_ui_admin_collaborators_remove": "Remove {{name}}",
   "com_ui_admin_collaborators_saved": "Collaborators saved.",
   "com_ui_admin_collaborators_error": "Could not save collaborators.",
-  "com_ui_admin_collaborators_needs_account": "{{name}} has not signed in to GiesChat yet and cannot be added."
+  "com_ui_admin_collaborators_needs_account": "{{name}} has not signed in to GiesChat yet and cannot be added.",
+  "com_ui_admin_collaborators_invite_label": "Invite by Illinois email",
+  "com_ui_admin_collaborators_invite_placeholder": "netid@illinois.edu",
+  "com_ui_admin_collaborators_invite_add": "Add",
+  "com_ui_admin_collaborators_invite_hint": "They get an email now and join as a collaborator the first time they sign in to GiesChat.",
+  "com_ui_admin_collaborators_invite_domain": "Only @illinois.edu addresses can be invited — GiesChat sign-in is Illinois SSO.",
+  "com_ui_admin_collaborators_invited_chip": "Invited",
+  "com_ui_admin_collaborators_invited_pending": "Joins when they sign in",
+  "com_ui_admin_collaborators_invited_new": "Will be invited when you save",
+  "com_ui_admin_collaborators_invited_sent": "Invitation sent to {{count}} person.",
+  "com_ui_admin_collaborators_invited_sent_other": "Invitations sent to {{count}} people."
 }

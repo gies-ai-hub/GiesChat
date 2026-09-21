@@ -45,6 +45,7 @@ export default function AdminDashboard() {
   const [collaboratorsFor, setCollaboratorsFor] = useState<{
     agent: AdminAgentUsage;
     collaborators: AdminUserRef[];
+    pending: string[];
   } | null>(null);
 
   const { data: groupData, error: groupsError } = useAdminGroupsQuery(
@@ -133,8 +134,8 @@ export default function AdminDashboard() {
   );
 
   const handleManageCollaborators = useCallback(
-    (agent: AdminAgentUsage, collaborators: AdminUserRef[]) =>
-      setCollaboratorsFor({ agent, collaborators }),
+    (agent: AdminAgentUsage, collaborators: AdminUserRef[], pending: string[]) =>
+      setCollaboratorsFor({ agent, collaborators, pending }),
     [],
   );
 
@@ -331,6 +332,7 @@ export default function AdminDashboard() {
         <CollaboratorsDialog
           agent={collaboratorsFor?.agent ?? null}
           collaborators={collaboratorsFor?.collaborators ?? []}
+          pending={collaboratorsFor?.pending ?? []}
           onOpenChange={(open) => {
             if (!open) {
               setCollaboratorsFor(null);

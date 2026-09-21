@@ -310,10 +310,18 @@ export type AdminAgentDraftsResponse = {
   version: number;
   /** Empty unless the caller is the author. */
   collaborators: AdminUserRef[];
+  /** Invited addresses with no account yet; empty unless the caller is the author. */
+  pending: string[];
   drafts: AdminAgentDraft[];
 };
 
-export type AdminCollaboratorsResponse = { collaborators: AdminUserRef[] };
+export type AdminCollaboratorsResponse = {
+  collaborators: AdminUserRef[];
+  /** Invited addresses still waiting for a first sign-in. */
+  pending: string[];
+  /** The subset that was emailed by this request. */
+  invited: string[];
+};
 export type AdminOpenDraftResponse = { draft_id: string; created: boolean };
 export type AdminPostDraftResponse = { agent_id: string; version: number };
 
