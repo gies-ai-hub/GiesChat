@@ -19,7 +19,7 @@ describe('panel registry', () => {
 
   it('reproduces the dashboard’s original layout widths', () => {
     expect(columnsFor('kpi')).toBe(PANEL_COLUMNS.full);
-    expect(columnsFor('activity')).toBe(PANEL_COLUMNS.wide);
+    expect(columnsFor('activity')).toBe(PANEL_COLUMNS.full);
     expect(columnsFor('reach')).toBe(PANEL_COLUMNS.narrow);
     expect(columnsFor('depth')).toBe(PANEL_COLUMNS.wide);
     expect(columnsFor('signals')).toBe(PANEL_COLUMNS.narrow);

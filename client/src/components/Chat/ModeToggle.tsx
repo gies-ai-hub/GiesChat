@@ -5,10 +5,17 @@ import { cn } from '~/utils';
 const pill =
   'rounded-full px-6 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--illini-orange)]';
 
+// ponytail: switched off in place, flip to true to bring the pills back
+const MODE_TOGGLE_ENABLED = false;
+
 /** Chat / Work mode pills. Work is the deck builder, which is absent from the model menu. */
 export default function ModeToggle({ className }: { className?: string }) {
   const localize = useLocalize();
   const { isWork, selectWork, selectChat } = useWorkMode();
+
+  if (!MODE_TOGGLE_ENABLED) {
+    return null;
+  }
 
   return (
     <div

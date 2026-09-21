@@ -25,7 +25,7 @@ export const PANEL_REGISTRY: PanelDefinition[] = [
   {
     id: 'activity',
     labelKey: 'com_ui_admin_panel_activity',
-    span: 'wide',
+    span: 'full',
     Component: ActivityPanel,
   },
   { id: 'topics', labelKey: 'com_ui_admin_panel_topics', span: 'narrow', Component: TopicsPanel },
