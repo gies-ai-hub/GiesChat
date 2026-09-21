@@ -921,6 +921,9 @@ export function createAgentMethods(
       category: 1,
       support_contact: 1,
       is_promoted: 1,
+      provider: 1,
+      model: 1,
+      createdVia: 1,
     };
 
     if (includeSkillConfig) {

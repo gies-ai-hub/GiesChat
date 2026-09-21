@@ -15,9 +15,9 @@ import type { BadgeItem } from '~/common';
 import ModelSelector from '../Menus/Endpoints/ModelSelector';
 import { useGetStartupConfig } from '~/data-provider';
 import CodeInterpreter from './CodeInterpreter';
-import { BadgeRowProvider } from '~/Providers';
+import { BadgeRowProvider, useChatContext } from '~/Providers';
 import ToolsDropdown from './ToolsDropdown';
-import { useChatBadges } from '~/hooks';
+import { useChatBadges, useAgentModelLock, useLocalize } from '~/hooks';
 import ToolDialogs from './ToolDialogs';
 import FileSearch from './FileSearch';
 import Artifacts from './Artifacts';
@@ -171,6 +171,9 @@ function BadgeRow({
   const isEditing = useRecoilValue(store.isEditingBadges);
   const embed = useRecoilValue(store.embed);
   const { data: startupConfig } = useGetStartupConfig();
+  const localize = useLocalize();
+  const { conversation } = useChatContext();
+  const lockedModel = useAgentModelLock(conversation);
 
   const badges = useMemo(
     () => allBadges.filter((badge) => badge.isAvailable !== false),
@@ -336,7 +339,14 @@ function BadgeRow({
       <div ref={containerRef} className="relative flex flex-wrap items-center gap-2">
         {embed == null && (
           <div className="flex items-center" data-tour="model-picker">
-            <ModelSelector startupConfig={startupConfig} />
+            {lockedModel == null ? (
+              <ModelSelector startupConfig={startupConfig} />
+            ) : (
+              <div className="my-1 flex h-9 items-center rounded-xl border border-border-light bg-surface-secondary px-3 py-2 text-sm text-text-secondary">
+                {lockedModel}
+                <span className="sr-only">, {localize('com_ui_model_locked')}</span>
+              </div>
+            )}
           </div>
         )}
         {showEphemeralBadges === true && <ToolsDropdown />}

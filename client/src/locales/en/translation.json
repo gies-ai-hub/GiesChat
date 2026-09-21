@@ -2414,6 +2414,7 @@
   "com_ui_model_cards_hint": "Pick the one that fits how students will use this agent. You can change it later.",
   "com_ui_model_default_badge": "Default",
   "com_ui_model_guide_gpt_5_6_terra": "Recommended for class agents — balanced speed and reasoning for course Q&A and feedback on student work.",
+  "com_ui_model_locked": "chosen by the professor who built this agent and cannot be changed",
   "com_ui_admin_col_status": "Status",
   "com_ui_admin_status_production": "v{{version}} in production",
   "com_ui_admin_status_drafts_one": "1 draft",

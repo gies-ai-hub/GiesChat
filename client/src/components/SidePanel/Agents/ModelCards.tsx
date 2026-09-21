@@ -21,6 +21,16 @@ export function getModelGuide(
   return { label: spec?.label ?? model, description: spec?.description };
 }
 
+/** What the model is called on screen: its chat spec's label, else the fallback guide, else the id. */
+export function getModelLabel(
+  specs: TModelSpec[] | undefined,
+  provider: string,
+  model: string,
+): string {
+  const guide = getModelGuide(specs, provider, model);
+  return guide.description != null ? guide.label : (FALLBACK_GUIDE[model]?.label ?? guide.label);
+}
+
 /** The default model leads the list; the rest keep the endpoint's order. */
 export function orderModels(models: string[], defaultModel?: string): string[] {
   if (defaultModel == null || !models.includes(defaultModel)) {
@@ -62,7 +72,7 @@ export default function ModelCards({
       {orderModels(models, isDefaultProvider ? defaultModel?.model : undefined).map((model) => {
         const guide = getModelGuide(specs, provider, model);
         const fallback = FALLBACK_GUIDE[model];
-        const label = guide.description != null ? guide.label : (fallback?.label ?? guide.label);
+        const label = getModelLabel(specs, provider, model);
         const description =
           guide.description ?? (fallback ? localize(fallback.description) : undefined);
         const checked = model === value;
