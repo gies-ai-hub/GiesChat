@@ -17,7 +17,7 @@ import { getTimestampedValue } from './timestamps';
  * Still in `librechat.yaml`'s model list so agents pinned to them keep validating,
  * but never offered in a picker. Remove an id here once nothing uses it.
  */
-export const RETIRED_MODELS = new Set(['gpt-5.4', 'gpt-5.4-mini']);
+export const RETIRED_MODELS = new Set(['gpt-5.6-luna', 'gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini']);
 
 /**
  * Clears model for non-ephemeral agent conversations.

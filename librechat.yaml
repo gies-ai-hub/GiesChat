@@ -188,17 +188,17 @@ endpoints:
       baseURL: 'https://ashleyn4-7611-resource.openai.azure.com/openai/v1'
       models:
         default:
-          - gpt-5.6-luna
           - gpt-6-luna
           - gpt-6-sol
-          - gpt-5.5
           # Class-dashboard agents default to this one (client/src/components/Admin/Dashboard.tsx);
           # kept off the top so chat-side builders still fall back to the first entry.
           - gpt-5.6-terra
-          # Retired 2026-09-29: hidden from every picker by RETIRED_MODELS
+          # Retired 2026-09-29 (5.6 Luna and 5.5 later that day): hidden from every picker by RETIRED_MODELS
           # (client/src/utils/endpoints.ts). Kept here only because agents are validated
           # against this list, so anything still pinned to them would fail and log an
           # illegal-model violation.
+          - gpt-5.6-luna
+          - gpt-5.5
           - gpt-5.4
           - gpt-5.4-mini
         fetch: false
@@ -217,14 +217,14 @@ modelSpecs:
   enforce: false
   prioritize: true
   list:
-    - name: gieschat-general-56
-      label: GPT-5.6 Luna
+    - name: gieschat-general-6-luna
+      label: GPT-6 Luna
       default: true
       iconURL: openAI
-      description: Fast all-rounder — quick answers, summaries, and everyday questions.
+      description: Fast all-rounder — quick answers, summaries, and everyday coursework.
       preset:
         endpoint: 'Azure OpenAI'
-        model: 'gpt-5.6-luna'
+        model: 'gpt-6-luna'
         promptPrefix: &gieschat_baseline |
           You are GiesChat, a helpful assistant for students and staff at the Gies College of Business, University of Illinois Urbana-Champaign.
 
@@ -233,29 +233,13 @@ modelSpecs:
           Formatting: never use emojis. When you structure a reply with headings or subheadings, bold only the heading line itself; write the text beneath it as plain prose — never bold whole sentences or paragraphs.
 
           Support learning and academic integrity: help students understand and think through problems; do not complete graded assignments, quizzes, or exams for them. If you don't know something or lack context, say so briefly rather than guessing.
-    - name: gieschat-general-6-luna
-      label: GPT-6 Luna
-      iconURL: openAI
-      description: Newest fast model — quick, capable answers for everyday coursework.
-      preset:
-        endpoint: 'Azure OpenAI'
-        model: 'gpt-6-luna'
-        promptPrefix: *gieschat_baseline
     - name: gieschat-general-6-sol
       label: GPT-6 Sol
       iconURL: openAI
-      description: Newest and most capable — hard problems, long documents, careful analysis.
+      description: Most capable — tough problem sets, math, long documents, and careful analysis.
       preset:
         endpoint: 'Azure OpenAI'
         model: 'gpt-6-sol'
-        promptPrefix: *gieschat_baseline
-    - name: gieschat-general-55
-      label: GPT-5.5
-      iconURL: openAI
-      description: Deeper reasoning — tougher problem sets, math, and multi-step analysis.
-      preset:
-        endpoint: 'Azure OpenAI'
-        model: 'gpt-5.5'
         promptPrefix: *gieschat_baseline
     - name: gieschat-claude-sonnet-5
       label: Claude Sonnet 5
@@ -283,7 +267,7 @@ modelSpecs:
           - agent_gies_slide_writer
       preset:
         endpoint: 'Azure OpenAI'
-        model: 'gpt-5.5'
+        model: 'gpt-6-sol'
         promptPrefix: |
           You build PowerPoint decks for Gies College of Business.
 

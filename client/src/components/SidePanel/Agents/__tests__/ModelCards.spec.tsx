@@ -11,9 +11,9 @@ jest.mock('~/hooks', () => ({
 const specs = [
   {
     name: 'gieschat-general-56',
-    label: 'GPT-5.6 Luna',
+    label: 'GPT-6 Luna',
     description: 'Fast all-rounder — quick answers.',
-    preset: { endpoint: 'Azure OpenAI', model: 'gpt-5.6-luna' },
+    preset: { endpoint: 'Azure OpenAI', model: 'gpt-6-luna' },
   },
   {
     name: 'gieschat-claude-sonnet-5',
@@ -23,13 +23,13 @@ const specs = [
   },
 ] as TModelSpec[];
 
-const models = ['gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5'];
+const models = ['gpt-5.6-terra', 'gpt-6-luna', 'gpt-6-sol'];
 const defaultModel = { provider: 'Azure OpenAI', model: 'gpt-5.6-terra' };
 
 describe('getModelGuide', () => {
   it('matches a spec on provider and model', () => {
-    expect(getModelGuide(specs, 'Azure OpenAI', 'gpt-5.6-luna')).toEqual({
-      label: 'GPT-5.6 Luna',
+    expect(getModelGuide(specs, 'Azure OpenAI', 'gpt-6-luna')).toEqual({
+      label: 'GPT-6 Luna',
       description: 'Fast all-rounder — quick answers.',
     });
   });
@@ -78,7 +78,7 @@ describe('ModelCards', () => {
     expect(screen.getByText('com_ui_model_guide_gpt_5_6_terra')).toBeInTheDocument();
     expect(screen.getByText('com_ui_model_default_badge')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /GPT-5\.6 Terra/ })).toBeChecked();
-    expect(screen.getByRole('radio', { name: /^gpt-5\.5$/ })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: /^gpt-6-sol$/ })).not.toBeChecked();
   });
 
   it('reports the picked model', () => {
@@ -92,8 +92,8 @@ describe('ModelCards', () => {
         onChange={onChange}
       />,
     );
-    fireEvent.click(screen.getByRole('radio', { name: /GPT-5\.6 Luna/ }));
-    expect(onChange).toHaveBeenCalledWith('gpt-5.6-luna');
+    fireEvent.click(screen.getByRole('radio', { name: /GPT-6 Luna/ }));
+    expect(onChange).toHaveBeenCalledWith('gpt-6-luna');
     expect(screen.queryByText('com_ui_model_default_badge')).not.toBeInTheDocument();
   });
 });
