@@ -4,13 +4,14 @@ import { EModelEndpoint, getEndpointField } from 'librechat-data-provider';
 import type { AgentForm, IconComponentTypes } from '~/common';
 import AgentCategorySelector from './AgentCategorySelector';
 import { useLocalize, useAgentCapabilities } from '~/hooks';
-import { validateEmail, getIconKey, cn } from '~/utils';
+import { getIconKey, cn } from '~/utils';
 import { useAgentFileEntries } from './Tools/hooks';
 import { useAgentPanelContext } from '~/Providers';
 import ToolsSection from './Tools/ToolsSection';
 import { icons } from '~/hooks/Endpoint/Icons';
 import Instructions from './Instructions';
 import FileContext from './FileContext';
+import SupportContact from './SupportContact';
 import AgentAvatar from './AgentAvatar';
 import { Panel } from '~/common';
 
@@ -22,13 +23,6 @@ const fieldClass = 'h-9';
  * File Context is deliberately unaffected; it is a separate section, not tool access.
  */
 const TOOLS_ENABLED = false;
-
-/**
- * Support Contact is hidden in every agent builder (2026-08-01). Stored values are
- * untouched and still render on the marketplace agent detail card; flip to `true`
- * to bring the fields back.
- */
-const SUPPORT_CONTACT_ENABLED = false;
 
 export default function AgentConfig() {
   const localize = useLocalize();
@@ -202,84 +196,13 @@ export default function AgentConfig() {
         </div>
       )}
 
-      {/* SUPPORT CONTACT */}
-      {SUPPORT_CONTACT_ENABLED && (
-        <div className="mb-3 flex flex-col">
-          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-            {localize('com_ui_support_contact')}
-          </label>
-          <div className="space-y-2">
-            <Controller
-              name="support_contact.name"
-              control={control}
-              rules={{
-                minLength: {
-                  value: 3,
-                  message: localize('com_ui_support_contact_name_min_length', { minLength: 3 }),
-                },
-              }}
-              render={({ field, fieldState: { error } }) => (
-                <div className="flex flex-col">
-                  <Input
-                    {...field}
-                    value={field.value ?? ''}
-                    className={cn(fieldClass, error && 'border-2 border-red-500')}
-                    id="support-contact-name"
-                    type="text"
-                    placeholder={localize('com_ui_support_contact_name_placeholder')}
-                    aria-label={localize('com_ui_support_contact_name')}
-                    aria-invalid={error ? 'true' : 'false'}
-                    aria-describedby={error ? 'support-contact-name-error' : undefined}
-                  />
-                  {error && (
-                    <span
-                      id="support-contact-name-error"
-                      className="mt-1 text-xs text-red-500"
-                      role="alert"
-                      aria-live="polite"
-                    >
-                      {error.message}
-                    </span>
-                  )}
-                </div>
-              )}
-            />
-            <Controller
-              name="support_contact.email"
-              control={control}
-              rules={{
-                validate: (value) =>
-                  validateEmail(value ?? '', localize('com_ui_support_contact_email_invalid')),
-              }}
-              render={({ field, fieldState: { error } }) => (
-                <div className="flex flex-col">
-                  <Input
-                    {...field}
-                    value={field.value ?? ''}
-                    className={cn(fieldClass, error && 'border-2 border-red-500')}
-                    id="support-contact-email"
-                    type="email"
-                    placeholder={localize('com_ui_support_contact_email_placeholder')}
-                    aria-label={localize('com_ui_support_contact_email')}
-                    aria-invalid={error ? 'true' : 'false'}
-                    aria-describedby={error ? 'support-contact-email-error' : undefined}
-                  />
-                  {error && (
-                    <span
-                      id="support-contact-email-error"
-                      className="mt-1 text-xs text-red-500"
-                      role="alert"
-                      aria-live="polite"
-                    >
-                      {error.message}
-                    </span>
-                  )}
-                </div>
-              )}
-            />
-          </div>
-        </div>
-      )}
+      {/* CONTACT FOR STUDENTS */}
+      <div className="mb-3 flex flex-col">
+        <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+          {localize('com_ui_support_contact_heading')}
+        </span>
+        <SupportContact />
+      </div>
     </div>
   );
 }
