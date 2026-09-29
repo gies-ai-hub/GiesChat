@@ -136,6 +136,7 @@ export enum MutationKeys {
   updateAdminAgentEmbed = 'updateAdminAgentEmbed',
   updateAdminAgentCollaborators = 'updateAdminAgentCollaborators',
   openAdminAgentDraft = 'openAdminAgentDraft',
+  runAdminModelTest = 'runAdminModelTest',
   postAdminAgentDraft = 'postAdminAgentDraft',
   createProject = 'createProject',
   updateProject = 'updateProject',

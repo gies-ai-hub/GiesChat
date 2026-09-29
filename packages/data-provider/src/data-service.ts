@@ -1325,6 +1325,12 @@ export function updateAdminAgentCollaborators(
   return request.put(endpoints.adminAgentCollaborators(agentId), { userIds, emails });
 }
 
+export function runAdminModelTest(
+  payload: q.AdminModelTestRequest,
+): Promise<q.AdminModelTestResponse> {
+  return request.post(endpoints.adminModelTest(), payload);
+}
+
 export function openAdminAgentDraft(agentId: string): Promise<q.AdminOpenDraftResponse> {
   return request.post(endpoints.adminAgentDrafts(agentId), {});
 }

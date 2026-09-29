@@ -1,7 +1,13 @@
 const express = require('express');
 const { nanoid } = require('nanoid');
 const { PrincipalType, ResourceType, AccessRoleIds } = require('librechat-data-provider');
-const { createAdminUsageHandlers, topicsModelFromConfig } = require('@librechat/api');
+const {
+  callTestModel,
+  topicsModelFromConfig,
+  searchAgentDocuments,
+  createAdminUsageHandlers,
+  modelTestEndpointFromConfig,
+} = require('@librechat/api');
 const { SystemCapabilities } = require('@librechat/data-schemas');
 const { requireCapability } = require('~/server/middleware/roles/capabilities');
 const { findAccessibleResources, grantPermission } = require('~/server/services/PermissionService');
@@ -33,6 +39,9 @@ const handlers = createAdminUsageHandlers({
   aggregateAgentAnalytics: db.aggregateAgentAnalytics,
   sampleStudentMessages: db.sampleStudentMessages,
   resolveTopicsModel: async () => topicsModelFromConfig(await getAppConfig()),
+  resolveModelTestEndpoint: async () => modelTestEndpointFromConfig(await getAppConfig()),
+  searchDocuments: searchAgentDocuments,
+  askTestModel: callTestModel,
   updateUser: db.updateUser,
   setAgentEmbed: db.setAgentEmbed,
   getAgent: db.getAgent,
@@ -110,6 +119,12 @@ router.put('/agents/:agent_id/collaborators', handlers.updateAgentCollaborators)
 router.get('/agents/:agent_id/drafts', handlers.listAgentDrafts);
 router.post('/agents/:agent_id/drafts', handlers.openAgentDraft);
 router.post('/agents/:agent_id/drafts/:draft_id/post', handlers.postAgentDraft);
+
+/**
+ * Compares two models on an agent the caller can edit (usage scope) or on a new agent's
+ * instructions. Reads no class data and writes nothing, so `access:admin` is the gate.
+ */
+router.post('/model-test', handlers.testAgentModels);
 
 router.get('/layout', handlers.getDashboardLayout);
 router.put('/layout', handlers.updateDashboardLayout);

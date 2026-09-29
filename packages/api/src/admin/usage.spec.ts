@@ -330,6 +330,9 @@ interface TestDeps extends AdminUsageDeps {
   aggregateAgentAnalytics: jest.Mock;
   sampleStudentMessages: jest.Mock;
   resolveTopicsModel: jest.Mock;
+  resolveModelTestEndpoint: jest.Mock;
+  searchDocuments: jest.Mock;
+  askTestModel: jest.Mock;
   updateUser: jest.Mock;
   setAgentEmbed: jest.Mock;
   getAgent: jest.Mock;
@@ -388,6 +391,17 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
     aggregateAgentAnalytics: jest.fn(async () => EMPTY_ANALYTICS_RAW),
     sampleStudentMessages: jest.fn(async () => []),
     resolveTopicsModel: jest.fn(async () => null),
+    resolveModelTestEndpoint: jest.fn(async () => ({
+      baseURL: 'https://models.test/v1',
+      apiKey: 'k',
+      models: ['gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-terra'],
+    })),
+    searchDocuments: jest.fn(async () => 'File: syllabus.pdf\nContent: Late work loses 10% a day.'),
+    askTestModel: jest.fn(async ({ model }: { model: string }) => ({
+      model,
+      text: `answer from ${model}`,
+      ms: 5,
+    })),
     updateUser: jest.fn(async () => null),
     setAgentEmbed: jest.fn(async () => null),
     getAgent: jest.fn(
@@ -2376,6 +2390,119 @@ describe('createAdminUsageHandlers', () => {
       });
       return { prod, bobDraft, anaDraft };
     }
+
+    describe('testAgentModels', () => {
+      const body = {
+        agent_id: 'agent_prod',
+        instructions: 'You coach BADM 350 students.',
+        models: ['gpt-6-sol', 'gpt-6-luna'],
+        questions: ['What is the late policy?', '  ', 'How is the case graded?'],
+      };
+
+      it('answers every question with both models and searches documents when there are two or more', async () => {
+        const { prod } = world();
+        prod.tool_resources = { context: { file_ids: ['f1', 'f2'] } };
+        const deps = createDeps(baseWorld({ agents: [prod] }), {
+          getFiles: jest.fn(async () => [
+            { file_id: 'f1', filename: 'syllabus.pdf', embedded: true },
+            { file_id: 'f2', filename: 'rubric.pdf', embedded: true },
+          ]),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status, json } = createReqRes({
+          params: {},
+          body,
+          user: prof,
+        });
+        await handlers.testAgentModels(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        expect(deps.searchDocuments).toHaveBeenCalledTimes(2);
+        expect(deps.searchDocuments).toHaveBeenCalledWith({
+          userId: callerId.toString(),
+          agentId: 'agent_prod',
+          fileIds: ['f1', 'f2'],
+          query: 'What is the late policy?',
+        });
+        expect(deps.askTestModel).toHaveBeenCalledTimes(4);
+        const system = deps.askTestModel.mock.calls[0][0].system as string;
+        expect(system).toContain('You coach BADM 350 students.');
+        expect(system).toContain('Late work loses 10% a day.');
+        const { results } = json.mock.calls[0][0];
+        expect(results).toHaveLength(2);
+        expect(results[1].question).toBe('How is the case graded?');
+        expect(results[1].answers.map((answer: { model: string }) => answer.model)).toEqual([
+          'gpt-6-sol',
+          'gpt-6-luna',
+        ]);
+        expect(deps.setAgentMeta).not.toHaveBeenCalled();
+        expect(deps.updateAgent).not.toHaveBeenCalled();
+      });
+
+      it('inlines a single document instead of searching it', async () => {
+        const { prod } = world();
+        prod.tool_resources = { context: { file_ids: ['f1'] } };
+        const deps = createDeps(baseWorld({ agents: [prod] }), {
+          getFiles: jest.fn(async () => [
+            {
+              file_id: 'f1',
+              filename: 'syllabus.pdf',
+              source: 'text',
+              text: 'Office hours are Tuesdays.',
+              embedded: true,
+            },
+          ]),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({ params: {}, body, user: prof });
+        await handlers.testAgentModels(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        expect(deps.searchDocuments).not.toHaveBeenCalled();
+        expect(deps.askTestModel.mock.calls[0][0].system).toContain('Office hours are Tuesdays.');
+      });
+
+      it('tests instructions alone for an agent that does not exist yet', async () => {
+        const deps = createDeps(baseWorld({ agents: [] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: {},
+          body: { ...body, agent_id: undefined },
+          user: prof,
+        });
+        await handlers.testAgentModels(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        expect(deps.getFiles).not.toHaveBeenCalled();
+        expect(deps.askTestModel.mock.calls[0][0].system).toBe('You coach BADM 350 students.');
+      });
+
+      it('404s for an agent outside the caller scope', async () => {
+        const { prod } = world();
+        const deps = createDeps(baseWorld({ agents: [prod] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const stranger = mockUser({ _id: new Types.ObjectId(), role: 'USER', name: 'Other Prof' });
+        const { req, res, status } = createReqRes({ params: {}, body, user: stranger });
+        await handlers.testAgentModels(req, res);
+        expect(status).toHaveBeenCalledWith(404);
+        expect(deps.askTestModel).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ['the same model twice', { models: ['gpt-6-sol', 'gpt-6-sol'] }],
+        ['a model that is not configured', { models: ['gpt-6-sol', 'gpt-9'] }],
+        ['no questions', { questions: ['   '] }],
+        ['more than five questions', { questions: ['1', '2', '3', '4', '5', '6'] }],
+      ])('rejects %s before calling any model', async (_label, patch) => {
+        const deps = createDeps(baseWorld({ agents: [] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: {},
+          body: { ...body, ...patch },
+          user: prof,
+        });
+        await handlers.testAgentModels(req, res);
+        expect(status).toHaveBeenCalledWith(400);
+        expect(deps.askTestModel).not.toHaveBeenCalled();
+      });
+    });
 
     describe('updateAgentCollaborators', () => {
       it('lets the author replace the list with known users, never itself', async () => {

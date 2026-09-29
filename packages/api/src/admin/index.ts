@@ -21,3 +21,4 @@ export type {
   StudentUsageScope,
 } from './usage';
 export * from './topics';
+export * from './modelTest';

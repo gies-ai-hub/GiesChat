@@ -393,6 +393,31 @@ export type AdminTopicsResponse = {
   sampleSize: number;
 };
 
+/** Two models, the same sample questions, the agent's instructions and documents. */
+export type AdminModelTestRequest = {
+  /** Omitted for an agent not created yet: instructions only, no documents. */
+  agent_id?: string;
+  /** The form's current instructions, so unsaved edits are tested too. */
+  instructions: string;
+  models: [string, string];
+  questions: string[];
+};
+
+export type AdminModelTestAnswer = {
+  model: string;
+  text: string;
+  /** Wall time of the model call, in milliseconds. */
+  ms: number;
+  error?: string;
+};
+
+export type AdminModelTestResult = {
+  question: string;
+  answers: AdminModelTestAnswer[];
+};
+
+export type AdminModelTestResponse = { results: AdminModelTestResult[] };
+
 /** The caller's own analytics panel layout. Array order is the panel order. */
 export type AdminDashboardLayoutResponse = {
   panels: AdminDashboardPanel[];

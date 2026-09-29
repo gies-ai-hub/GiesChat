@@ -18,10 +18,14 @@ import type { AgentModelDefault } from '~/utils';
 import { componentMapping } from '~/components/SidePanel/Parameters/components';
 import { useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
 import ModelCards from './ModelCards';
+import ModelTest from './ModelTest';
 import { useLiveAnnouncer } from '~/Providers';
 import { useLocalize } from '~/hooks';
 import { Panel } from '~/common';
-import { cn } from '~/utils';
+import { cn, RETIRED_MODELS } from '~/utils';
+
+/** The only provider the server's model test can call; must match `MODEL_TEST_ENDPOINT`. */
+const MODEL_TEST_PROVIDER = 'Azure OpenAI';
 
 type ModelPanelProps = Pick<AgentModelPanelProps, 'models' | 'providers' | 'setActivePanel'> & {
   /** Lists models as described cards instead of a dropdown of ids. */
@@ -44,6 +48,8 @@ export default function ModelPanel({
   const { control, setValue } = useFormContext<AgentForm>();
 
   const model = useWatch({ control, name: 'model' });
+  const agentId = useWatch({ control, name: 'id' });
+  const instructions = useWatch({ control, name: 'instructions' });
   const providerOption = useWatch({ control, name: 'provider' });
   const modelParameters = useWatch({ control, name: 'model_parameters' });
 
@@ -193,6 +199,19 @@ export default function ModelPanel({
           >
             {localize('com_ui_model')} <span className="text-red-500">*</span>
           </label>
+          {modelCards && provider === MODEL_TEST_PROVIDER && (
+            <div className="mb-2 flex justify-end">
+              <ModelTest
+                provider={provider}
+                models={models}
+                specs={startupConfig?.modelSpecs?.list}
+                current={model ?? ''}
+                agentId={agentId ?? ''}
+                instructions={instructions ?? ''}
+                onUse={(picked) => setValue('model', picked, { shouldDirty: true })}
+              />
+            </div>
+          )}
           <Controller
             name="model"
             control={control}
@@ -229,10 +248,11 @@ export default function ModelPanel({
                     }
                     searchPlaceholder={localize('com_ui_select_model')}
                     setValue={field.onChange}
-                    items={models.map((model) => ({
-                      label: model,
-                      value: model,
-                    }))}
+                    items={models.flatMap((model) =>
+                      RETIRED_MODELS.has(model) && model !== field.value
+                        ? []
+                        : [{ label: model, value: model }],
+                    )}
                     disabled={!provider}
                     className={cn('disabled:opacity-50', error ? 'border-2 border-red-500' : '')}
                     ariaLabel={localize('com_ui_model')}

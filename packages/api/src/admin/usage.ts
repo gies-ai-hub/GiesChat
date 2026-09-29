@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { ResourceType, PermissionBits, sanitizeLayout } from 'librechat-data-provider';
 import { logger, isValidObjectIdString } from '@librechat/data-schemas';
-import type { AdminDashboardPanel } from 'librechat-data-provider';
+import type { AdminDashboardPanel, AdminModelTestAnswer } from 'librechat-data-provider';
 import type {
   IUser,
   IAgent,
@@ -14,8 +14,13 @@ import type {
 import type { FilterQuery, Types } from 'mongoose';
 import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
+import type { ModelTestEndpoint } from './modelTest';
 import type { TopicsModel, TopicsResult } from './topics';
+import { parseModelTestBody, runModelTest } from './modelTest';
 import { summarizeTopics, TOPIC_SAMPLE_LIMIT } from './topics';
+import { splitAgentDocuments } from '~/agents/resources';
+import { extractFileContext } from '~/files/context';
+import { countTokens } from '~/utils/tokenizer';
 import {
   toBuckets,
   zeroFillDays,
@@ -116,6 +121,20 @@ export interface AdminUsageDeps {
   sampleStudentMessages: (scope: AgentAnalyticsScope, limit: number) => Promise<string[]>;
   /** `null` when no model is configured; the topics panel then reports unavailable. */
   resolveTopicsModel: () => Promise<TopicsModel | null>;
+  /** `null` when the Azure OpenAI endpoint is not configured; the model test reports unavailable. */
+  resolveModelTestEndpoint: () => Promise<ModelTestEndpoint | null>;
+  searchDocuments: (params: {
+    userId: string;
+    agentId: string;
+    fileIds: string[];
+    query: string;
+  }) => Promise<string>;
+  askTestModel: (params: {
+    endpoint: ModelTestEndpoint;
+    model: string;
+    system: string;
+    question: string;
+  }) => Promise<AdminModelTestAnswer>;
   updateUser: (userId: string, updateData: Partial<IUser>) => Promise<IUser | null>;
   setAgentEmbed: (agentId: string, embed: IAgentEmbed | null) => Promise<IAgent | null>;
   /** The full document (tool_resources, versions), for cloning and posting. */
@@ -378,6 +397,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   listAgentDrafts: (req: ServerRequest, res: Response) => Promise<Response>;
   openAgentDraft: (req: ServerRequest, res: Response) => Promise<Response>;
   postAgentDraft: (req: ServerRequest, res: Response) => Promise<Response>;
+  testAgentModels: (req: ServerRequest, res: Response) => Promise<Response>;
 } {
   const {
     findAgents,
@@ -389,6 +409,9 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     aggregateAgentAnalytics,
     sampleStudentMessages,
     resolveTopicsModel,
+    resolveModelTestEndpoint,
+    searchDocuments,
+    askTestModel,
     updateUser,
     setAgentEmbed,
     getAgent,
@@ -1155,7 +1178,75 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     }
   }
 
+  /**
+   * Answers the same sample questions with two models, using the agent's instructions
+   * (as typed, saved or not) and its documents the way a real run does: inline text for
+   * one document, retrieved passages for two or more. Writes nothing, so tests never
+   * reach conversations or analytics. Without `agent_id` it is instructions only.
+   */
+  async function testAgentModels(req: ServerRequest, res: Response): Promise<Response> {
+    const caller = req.user;
+    if (caller == null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const endpoint = await resolveModelTestEndpoint();
+      if (endpoint == null) {
+        return res.status(503).json({ error: 'No models are configured for testing' });
+      }
+      const input = parseModelTestBody(req.body, endpoint.models);
+      if (typeof input === 'string') {
+        return res.status(400).json({ error: input });
+      }
+      let inlineContext = '';
+      let searchable: IMongoFile[] = [];
+      let agentId = '';
+      if (input.agentId != null) {
+        const [scoped] = await findScopedAgents(caller, input.agentId);
+        const agent = scoped ? await getAgent({ id: scoped.id }) : null;
+        if (!agent) {
+          return res.status(404).json({ error: 'Agent not found' });
+        }
+        agentId = agent.id;
+        const fileIds = agent.tool_resources?.context?.file_ids ?? [];
+        const files =
+          fileIds.length > 0
+            ? ((await getFiles({ file_id: { $in: fileIds } }, null, {
+                file_id: 1,
+                filename: 1,
+                source: 1,
+                text: 1,
+                embedded: 1,
+              })) ?? [])
+            : [];
+        const documents = splitAgentDocuments(files);
+        searchable = documents.searchable;
+        inlineContext =
+          (await extractFileContext({
+            attachments: documents.inline,
+            req,
+            tokenCountFn: (text) => countTokens(text),
+          })) ?? '';
+      }
+      const searchIds = searchable.map((file) => file.file_id);
+      const results = await runModelTest({
+        input,
+        inlineContext,
+        passagesFor: (query) =>
+          searchIds.length > 0
+            ? searchDocuments({ userId: String(caller._id), agentId, fileIds: searchIds, query })
+            : Promise.resolve(''),
+        ask: (model, system, question) => askTestModel({ endpoint, model, system, question }),
+      });
+      return res.status(200).json({ results });
+    } catch (error) {
+      logger.error('[adminUsage] testAgentModels error:', error);
+      return res.status(500).json({ error: 'Failed to run the model test' });
+    }
+  }
+
   return {
+    testAgentModels,
     listAgentUsage: listAgentUsageHandler,
     updateAgentEmbed,
     revokeAgentEmbed,

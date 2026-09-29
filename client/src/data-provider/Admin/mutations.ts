@@ -4,8 +4,10 @@ import type { UseMutationResult } from '@tanstack/react-query';
 import type {
   AgentEmbedSettings,
   AdminDashboardPanel,
+  AdminModelTestRequest,
   AdminOpenDraftResponse,
   AdminPostDraftResponse,
+  AdminModelTestResponse,
   AdminAgentEmbedResponse,
   AdminCollaboratorsResponse,
   AdminDashboardLayoutResponse,
@@ -88,6 +90,16 @@ export const useUpdateAdminAgentCollaboratorsMutation = (): UseMutationResult<
     },
   );
 };
+
+/** Nothing is cached or invalidated: a model test writes nothing. */
+export const useRunAdminModelTestMutation = (): UseMutationResult<
+  AdminModelTestResponse,
+  unknown,
+  AdminModelTestRequest
+> =>
+  useMutation((payload: AdminModelTestRequest) => dataService.runAdminModelTest(payload), {
+    mutationKey: [MutationKeys.runAdminModelTest],
+  });
 
 export const useOpenAdminAgentDraftMutation = (): UseMutationResult<
   AdminOpenDraftResponse,
