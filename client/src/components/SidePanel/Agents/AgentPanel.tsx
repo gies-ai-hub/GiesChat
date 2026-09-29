@@ -243,6 +243,8 @@ interface AgentPanelProps {
   defaultModel?: AgentModelDefault;
   /** Shows the model picker as described cards instead of a dropdown. */
   modelCards?: boolean;
+  /** How many File Context documents one agent may hold; the endpoint's limit otherwise. */
+  documentLimit?: number;
 }
 
 export default function AgentPanel({
@@ -251,6 +253,7 @@ export default function AgentPanel({
   hideAgentSelect,
   defaultModel,
   modelCards,
+  documentLimit,
 }: AgentPanelProps = {}) {
   const localize = useLocalize();
   const { user } = useAuthContext();
@@ -316,6 +319,7 @@ export default function AgentPanel({
         providerValue,
       ),
       fileSetter: setContextUploads,
+      fileLimit: documentLimit,
     },
     { files: contextUploads, setFiles: setContextUploads, conversation: null },
   );
@@ -675,7 +679,7 @@ export default function AgentPanel({
             />
           )}
           {canEditAgent && !agentQuery.isInitialLoading && activePanel === Panel.builder && (
-            <AgentConfig />
+            <AgentConfig documentLimit={documentLimit} />
           )}
           {canEditAgent && !agentQuery.isInitialLoading && activePanel === Panel.advanced && (
             <AdvancedPanel />

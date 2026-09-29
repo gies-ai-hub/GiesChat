@@ -10,6 +10,7 @@ interface UseSharePointFileHandlingProps {
   toolResource?: string;
   fileFilter?: (file: File) => boolean;
   additionalMetadata?: Record<string, string | undefined>;
+  fileLimit?: number;
   endpointOverride?: EModelEndpoint | string;
   endpointTypeOverride?: EModelEndpoint | string;
 }

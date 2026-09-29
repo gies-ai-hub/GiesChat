@@ -20,6 +20,8 @@ interface AgentPanelSwitchProps {
   defaultModel?: AgentModelDefault;
   /** Shows the model picker as described cards instead of a dropdown. */
   modelCards?: boolean;
+  /** How many File Context documents one agent may hold; the endpoint's limit otherwise. */
+  documentLimit?: number;
 }
 
 export default function AgentPanelSwitch({
@@ -29,6 +31,7 @@ export default function AgentPanelSwitch({
   hideAgentSelect,
   defaultModel,
   modelCards,
+  documentLimit,
 }: AgentPanelSwitchProps = {}) {
   return (
     <AgentPanelProvider>
@@ -39,6 +42,7 @@ export default function AgentPanelSwitch({
         hideAgentSelect={hideAgentSelect}
         defaultModel={defaultModel}
         modelCards={modelCards}
+        documentLimit={documentLimit}
       />
     </AgentPanelProvider>
   );
@@ -51,6 +55,7 @@ function AgentPanelSwitchWithContext({
   hideAgentSelect,
   defaultModel,
   modelCards,
+  documentLimit,
 }: AgentPanelSwitchProps) {
   const { activePanel, setCurrentAgentId } = useAgentPanelContext();
   const agentId = useRecoilValue(store.conversationAgentIdByIndex(0));
@@ -78,6 +83,7 @@ function AgentPanelSwitchWithContext({
       hideAgentSelect={hideAgentSelect}
       defaultModel={defaultModel}
       modelCards={modelCards}
+      documentLimit={documentLimit}
     />
   );
 }

@@ -198,6 +198,20 @@ describe('useFileHandling', () => {
       expect(validateCall.endpointFileConfig).toEqual(agentsConfig);
     });
 
+    it('validates against a host-supplied fileLimit instead of the endpoint limit', async () => {
+      const useFileHandling = await loadHook();
+      const { result } = renderHook(() =>
+        useFileHandling({ endpointOverride: EModelEndpoint.agents, fileLimit: 50 }),
+      );
+
+      await act(async () => {
+        await result.current.handleFiles([new File(['hello'], 'test.txt', { type: 'text/plain' })]);
+      });
+
+      const validateCall = mockValidateFiles.mock.calls[0][0];
+      expect(validateCall.endpointFileConfig.fileLimit).toBe(50);
+    });
+
     it('falls back to conversation endpoint when endpointOverride is undefined', async () => {
       mockConversation = {
         conversationId: 'convo-1',

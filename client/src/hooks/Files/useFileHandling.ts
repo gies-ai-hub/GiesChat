@@ -33,6 +33,8 @@ type UseFileHandling = {
   endpointOverride?: EModelEndpoint | string;
   /** Overrides `endpointType` independently from `endpointOverride` */
   endpointTypeOverride?: EModelEndpoint | string;
+  /** Overrides the endpoint's `fileLimit`, e.g. a host that allows more agent documents. */
+  fileLimit?: number;
 };
 
 export type FileHandlingState = {
@@ -304,11 +306,15 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
     /* Validate files */
     let filesAreValid: boolean;
     try {
-      const endpointFileConfig = getEndpointFileConfig({
+      const resolvedFileConfig = getEndpointFileConfig({
         endpoint,
         fileConfig,
         endpointType,
       });
+      const endpointFileConfig =
+        params?.fileLimit != null
+          ? { ...resolvedFileConfig, fileLimit: params.fileLimit }
+          : resolvedFileConfig;
 
       filesAreValid = validateFiles({
         files,

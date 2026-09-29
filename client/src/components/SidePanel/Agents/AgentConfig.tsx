@@ -24,7 +24,7 @@ const fieldClass = 'h-9';
  */
 const TOOLS_ENABLED = false;
 
-export default function AgentConfig() {
+export default function AgentConfig({ documentLimit }: { documentLimit?: number } = {}) {
   const localize = useLocalize();
   const methods = useFormContext<AgentForm>();
   const { setActivePanel, endpointsConfig, agentsConfig } = useAgentPanelContext();
@@ -192,7 +192,7 @@ export default function AgentConfig() {
       {/* FILE CONTEXT — standalone section, separate from the tool library */}
       {contextEnabled && (
         <div className="mb-3">
-          <FileContext agent_id={agent_id} files={contextFiles} />
+          <FileContext agent_id={agent_id} files={contextFiles} fileLimit={documentLimit} />
         </div>
       )}
 

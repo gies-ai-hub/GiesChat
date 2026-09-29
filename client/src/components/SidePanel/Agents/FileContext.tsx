@@ -26,10 +26,13 @@ function FileContext({
   agent_id,
   files: _files,
   showHeader = true,
+  fileLimit,
 }: {
   agent_id: string;
   files?: [string, ExtendedFile][];
   showHeader?: boolean;
+  /** Overrides how many documents one agent may hold; the endpoint's limit otherwise. */
+  fileLimit?: number;
 }) {
   const localize = useLocalize();
   const { showToast } = useToastContext();
@@ -57,6 +60,7 @@ function FileContext({
       endpointOverride,
       endpointTypeOverride: endpointType,
       fileSetter: setFiles,
+      fileLimit,
     },
     fileHandlingState,
   );
@@ -67,6 +71,7 @@ function FileContext({
         endpointOverride,
         endpointTypeOverride: endpointType,
         fileSetter: setFiles,
+        fileLimit,
       },
       fileHandlingState,
     );

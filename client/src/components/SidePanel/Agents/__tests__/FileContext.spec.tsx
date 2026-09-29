@@ -126,6 +126,17 @@ describe('FileContext', () => {
     expect(params.endpointTypeOverride).toBe(EModelEndpoint.custom);
   });
 
+  it('passes a host document limit to the upload handler', () => {
+    mockFileConfig = mergeFileConfig({ endpoints: { default: { fileLimit: 10 } } });
+    mockUseFileHandlingNoChatContext.mockClear();
+    render(
+      <Wrapper provider="Moonshot">
+        <FileContext agent_id="agent-1" fileLimit={50} />
+      </Wrapper>,
+    );
+    expect(mockUseFileHandlingNoChatContext.mock.calls[0][0].fileLimit).toBe(50);
+  });
+
   it('falls back to agents for endpointOverride when no provider', () => {
     mockFileConfig = mergeFileConfig({ endpoints: { default: { fileLimit: 10 } } });
     mockUseFileHandlingNoChatContext.mockClear();
