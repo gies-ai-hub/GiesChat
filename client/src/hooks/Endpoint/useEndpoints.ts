@@ -18,7 +18,7 @@ import type {
 import type { Endpoint } from '~/common';
 import { useHasAccess, useShowMarketplace } from '~/hooks';
 import { useGetEndpointsQuery } from '~/data-provider';
-import { mapEndpoints, getIconKey } from '~/utils';
+import { mapEndpoints, getIconKey, RETIRED_MODELS } from '~/utils';
 import { icons } from './Icons';
 
 const defaultInterface = getConfigDefaults().interface;
@@ -183,10 +183,9 @@ export const useEndpoints = ({
         ep !== EModelEndpoint.assistants &&
         (modelsQuery.data?.[ep]?.length ?? 0) > 0
       ) {
-        result.models = modelsQuery.data?.[ep]?.map((model) => ({
-          name: model,
-          isGlobal: false,
-        }));
+        result.models = modelsQuery.data?.[ep]?.flatMap((model) =>
+          RETIRED_MODELS.has(model) ? [] : [{ name: model, isGlobal: false }],
+        );
       }
 
       acc.push(result);

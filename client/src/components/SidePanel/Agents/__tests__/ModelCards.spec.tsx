@@ -23,7 +23,7 @@ const specs = [
   },
 ] as TModelSpec[];
 
-const models = ['gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.4'];
+const models = ['gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5'];
 const defaultModel = { provider: 'Azure OpenAI', model: 'gpt-5.6-terra' };
 
 describe('getModelGuide', () => {
@@ -48,6 +48,14 @@ describe('orderModels', () => {
     expect(orderModels(['a', 'b'], 'zzz')).toEqual(['a', 'b']);
     expect(orderModels(['a', 'b'])).toEqual(['a', 'b']);
   });
+
+  it('hides retired models unless the agent is still on one', () => {
+    expect(orderModels(['gpt-6-sol', 'gpt-5.4', 'gpt-5.4-mini'])).toEqual(['gpt-6-sol']);
+    expect(orderModels(['gpt-6-sol', 'gpt-5.4'], undefined, 'gpt-5.4')).toEqual([
+      'gpt-6-sol',
+      'gpt-5.4',
+    ]);
+  });
 });
 
 describe('ModelCards', () => {
@@ -70,7 +78,7 @@ describe('ModelCards', () => {
     expect(screen.getByText('com_ui_model_guide_gpt_5_6_terra')).toBeInTheDocument();
     expect(screen.getByText('com_ui_model_default_badge')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /GPT-5\.6 Terra/ })).toBeChecked();
-    expect(screen.getByRole('radio', { name: /^gpt-5\.4$/ })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: /^gpt-5\.5$/ })).not.toBeChecked();
   });
 
   it('reports the picked model', () => {

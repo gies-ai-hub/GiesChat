@@ -14,6 +14,12 @@ import type { LocalizeFunction, IconsRecord } from '~/common';
 import { getTimestampedValue } from './timestamps';
 
 /**
+ * Still in `librechat.yaml`'s model list so agents pinned to them keep validating,
+ * but never offered in a picker. Remove an id here once nothing uses it.
+ */
+export const RETIRED_MODELS = new Set(['gpt-5.4', 'gpt-5.4-mini']);
+
+/**
  * Clears model for non-ephemeral agent conversations.
  * Agents use their configured model internally, so the conversation model should be undefined.
  * Mutates the template in place.

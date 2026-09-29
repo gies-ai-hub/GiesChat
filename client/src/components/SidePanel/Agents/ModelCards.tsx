@@ -2,7 +2,7 @@ import type { TModelSpec } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks/useLocalize';
 import type { AgentModelDefault } from '~/utils';
 import { useLocalize } from '~/hooks';
-import { cn } from '~/utils';
+import { cn, RETIRED_MODELS } from '~/utils';
 
 /** Models with no chat spec to borrow from get their name and line here. */
 const FALLBACK_GUIDE: Record<string, { label: string; description: TranslationKeys }> = {
@@ -32,11 +32,13 @@ export function getModelLabel(
 }
 
 /** The default model leads the list; the rest keep the endpoint's order. */
-export function orderModels(models: string[], defaultModel?: string): string[] {
-  if (defaultModel == null || !models.includes(defaultModel)) {
-    return models;
+/** Default first; retired models only while the agent still uses one, so it can move off. */
+export function orderModels(models: string[], defaultModel?: string, current?: string): string[] {
+  const offered = models.filter((model) => model === current || !RETIRED_MODELS.has(model));
+  if (defaultModel == null || !offered.includes(defaultModel)) {
+    return offered;
   }
-  return [defaultModel, ...models.filter((model) => model !== defaultModel)];
+  return [defaultModel, ...offered.filter((model) => model !== defaultModel)];
 }
 
 type ModelCardsProps = {
@@ -69,53 +71,55 @@ export default function ModelCards({
       <p id="model-cards-hint" className="mb-1 text-xs text-text-secondary">
         {localize('com_ui_model_cards_hint')}
       </p>
-      {orderModels(models, isDefaultProvider ? defaultModel?.model : undefined).map((model) => {
-        const guide = getModelGuide(specs, provider, model);
-        const fallback = FALLBACK_GUIDE[model];
-        const label = getModelLabel(specs, provider, model);
-        const description =
-          guide.description ?? (fallback ? localize(fallback.description) : undefined);
-        const checked = model === value;
-        const isDefault = isDefaultProvider && defaultModel?.model === model;
-        return (
-          <label
-            key={model}
-            className={cn(
-              'relative block cursor-pointer rounded-xl border py-2 pl-9 pr-3 transition-colors hover:bg-surface-hover has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring-primary has-[:focus-visible]:ring-offset-2',
-              checked
-                ? 'border-ring-primary bg-surface-tertiary'
-                : 'border-border-light bg-surface-primary',
-            )}
-          >
-            <input
-              type="radio"
-              name="model-card"
-              value={model}
-              checked={checked}
-              onChange={() => onChange(model)}
-              className="absolute left-3 top-3"
-            />
-            <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-semibold text-text-primary">
-              {label}
-              {label !== model && (
-                <span className="font-mono text-[11px] font-normal text-text-secondary">
-                  {model}
-                </span>
+      {orderModels(models, isDefaultProvider ? defaultModel?.model : undefined, value).map(
+        (model) => {
+          const guide = getModelGuide(specs, provider, model);
+          const fallback = FALLBACK_GUIDE[model];
+          const label = getModelLabel(specs, provider, model);
+          const description =
+            guide.description ?? (fallback ? localize(fallback.description) : undefined);
+          const checked = model === value;
+          const isDefault = isDefaultProvider && defaultModel?.model === model;
+          return (
+            <label
+              key={model}
+              className={cn(
+                'relative block cursor-pointer rounded-xl border py-2 pl-9 pr-3 transition-colors hover:bg-surface-hover has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring-primary has-[:focus-visible]:ring-offset-2',
+                checked
+                  ? 'border-ring-primary bg-surface-tertiary'
+                  : 'border-border-light bg-surface-primary',
               )}
-              {isDefault && (
-                <span className="rounded-full border border-orange-200 bg-orange-50 px-2 text-[10px] font-bold uppercase tracking-wide text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300">
-                  {localize('com_ui_model_default_badge')}
-                </span>
-              )}
-            </span>
-            {description && (
-              <span className="mt-0.5 block text-xs leading-snug text-text-secondary">
-                {description}
+            >
+              <input
+                type="radio"
+                name="model-card"
+                value={model}
+                checked={checked}
+                onChange={() => onChange(model)}
+                className="absolute left-3 top-3"
+              />
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-semibold text-text-primary">
+                {label}
+                {label !== model && (
+                  <span className="font-mono text-[11px] font-normal text-text-secondary">
+                    {model}
+                  </span>
+                )}
+                {isDefault && (
+                  <span className="rounded-full border border-orange-200 bg-orange-50 px-2 text-[10px] font-bold uppercase tracking-wide text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300">
+                    {localize('com_ui_model_default_badge')}
+                  </span>
+                )}
               </span>
-            )}
-          </label>
-        );
-      })}
+              {description && (
+                <span className="mt-0.5 block text-xs leading-snug text-text-secondary">
+                  {description}
+                </span>
+              )}
+            </label>
+          );
+        },
+      )}
     </fieldset>
   );
 }

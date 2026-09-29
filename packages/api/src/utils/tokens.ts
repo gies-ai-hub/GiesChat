@@ -64,6 +64,7 @@ const openAIModels = {
   'gpt-5.6': 1050000,
   'gpt-5.6-terra': 1050000,
   'gpt-5.6-luna': 1050000,
+  'gpt-6': 400000, // conservative until Azure publishes the limit; covers gpt-6-sol/-luna
   'chat-latest': 400000,
   'gpt-5-mini': 400000,
   'gpt-5-nano': 400000,
@@ -439,6 +440,7 @@ export const modelMaxOutputs = {
   'gpt-5.6': 128000,
   'gpt-5.6-terra': 128000,
   'gpt-5.6-luna': 128000,
+  'gpt-6': 128000,
   'chat-latest': 128000,
   'gpt-5-mini': 128000,
   'gpt-5-nano': 128000,
