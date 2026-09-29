@@ -11,6 +11,7 @@ import {
   TableHead,
   TableHeader,
   TableCaption,
+  TooltipAnchor,
 } from '@librechat/client';
 import type { AdminUserRef, AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
 import DeleteAgentButton from '~/components/Agents/DeleteAgentButton';
@@ -166,56 +167,84 @@ export default function AgentUsageTable({
                   {/* Every listed row is author-or-EDIT scoped by the server, so the pencil
                     needs no per-row flag. DELETE is a narrower bit, hence canDelete. */}
                   <span className="flex justify-end gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      type="button"
-                      onClick={() => onOpenAgent(agent)}
-                      aria-label={localize('com_ui_admin_open_agent', { name: agent.name })}
-                    >
-                      <MessageSquare className="size-4" aria-hidden="true" />
-                    </Button>
+                    <TooltipAnchor
+                      description={localize('com_ui_admin_tip_open')}
+                      render={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          type="button"
+                          onClick={() => onOpenAgent(agent)}
+                          aria-label={localize('com_ui_admin_open_agent', { name: agent.name })}
+                        >
+                          <MessageSquare className="size-4" aria-hidden="true" />
+                        </Button>
+                      }
+                    />
                     {!agent.isCollaborator && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        type="button"
-                        onClick={() => onEditAgent(agent)}
-                        aria-label={localize('com_ui_admin_edit_agent', { name: agent.name })}
-                      >
-                        <Pencil className="size-4" aria-hidden="true" />
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      type="button"
-                      onClick={() => onEmbedAgent(agent)}
-                      aria-label={localize('com_ui_admin_embed_agent', { name: agent.name })}
-                      className={agent.embed ? 'text-[#d94f04] dark:text-[#ff5f05]' : undefined}
-                    >
-                      <Code className="size-4" aria-hidden="true" />
-                    </Button>
-                    {(agent.isAuthor || agent.isCollaborator) && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        type="button"
-                        aria-expanded={expanded === agent.agent_id}
-                        aria-controls={`drafts-${agent.agent_id}`}
-                        aria-label={localize('com_ui_admin_drafts_toggle', { name: agent.name })}
-                        onClick={() =>
-                          setExpanded((current) =>
-                            current === agent.agent_id ? null : agent.agent_id,
-                          )
+                      <TooltipAnchor
+                        description={localize('com_ui_admin_tip_edit')}
+                        render={
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            type="button"
+                            onClick={() => onEditAgent(agent)}
+                            aria-label={localize('com_ui_admin_edit_agent', { name: agent.name })}
+                          >
+                            <Pencil className="size-4" aria-hidden="true" />
+                          </Button>
                         }
-                      >
-                        {expanded === agent.agent_id ? (
-                          <ChevronDown className="size-4" aria-hidden="true" />
-                        ) : (
-                          <ChevronRight className="size-4" aria-hidden="true" />
+                      />
+                    )}
+                    <TooltipAnchor
+                      description={localize(
+                        agent.embed ? 'com_ui_admin_tip_embed_on' : 'com_ui_admin_tip_embed',
+                      )}
+                      render={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          type="button"
+                          onClick={() => onEmbedAgent(agent)}
+                          aria-label={localize('com_ui_admin_embed_agent', { name: agent.name })}
+                          className={agent.embed ? 'text-[#d94f04] dark:text-[#ff5f05]' : undefined}
+                        >
+                          <Code className="size-4" aria-hidden="true" />
+                        </Button>
+                      }
+                    />
+                    {(agent.isAuthor || agent.isCollaborator) && (
+                      <TooltipAnchor
+                        description={localize(
+                          expanded === agent.agent_id
+                            ? 'com_ui_admin_tip_drafts_hide'
+                            : 'com_ui_admin_tip_drafts',
                         )}
-                      </Button>
+                        render={
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            type="button"
+                            aria-expanded={expanded === agent.agent_id}
+                            aria-controls={`drafts-${agent.agent_id}`}
+                            aria-label={localize('com_ui_admin_drafts_toggle', {
+                              name: agent.name,
+                            })}
+                            onClick={() =>
+                              setExpanded((current) =>
+                                current === agent.agent_id ? null : agent.agent_id,
+                              )
+                            }
+                          >
+                            {expanded === agent.agent_id ? (
+                              <ChevronDown className="size-4" aria-hidden="true" />
+                            ) : (
+                              <ChevronRight className="size-4" aria-hidden="true" />
+                            )}
+                          </Button>
+                        }
+                      />
                     )}
                     {agent.canDelete && (
                       <DeleteAgentButton

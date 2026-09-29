@@ -6,6 +6,7 @@ import {
   TrashIcon,
   useToastContext,
   OGDialogTrigger,
+  TooltipAnchor,
   OGDialogTemplate,
 } from '@librechat/client';
 import type { ButtonProps } from '@librechat/client';
@@ -59,16 +60,20 @@ export default function DeleteAgentButton({
   return (
     <OGDialog>
       <OGDialogTrigger asChild>
-        <Button
-          size={size}
-          variant={variant}
-          type="button"
-          disabled={deleteAgent.isLoading}
-          aria-label={localize('com_ui_delete_agent_named', { name: agentName })}
-          title={localize('com_ui_delete_agent')}
-        >
-          <TrashIcon className="size-4 text-red-500" />
-        </Button>
+        <TooltipAnchor
+          description={localize('com_ui_delete_agent')}
+          render={
+            <Button
+              size={size}
+              variant={variant}
+              type="button"
+              disabled={deleteAgent.isLoading}
+              aria-label={localize('com_ui_delete_agent_named', { name: agentName })}
+            >
+              <TrashIcon className="size-4 text-red-500" />
+            </Button>
+          }
+        />
       </OGDialogTrigger>
       <OGDialogTemplate
         title={localize('com_ui_delete_agent')}

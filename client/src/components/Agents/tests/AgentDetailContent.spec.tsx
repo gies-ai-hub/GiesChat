@@ -50,6 +50,7 @@ jest.mock(
       </div>
     ),
     TrashIcon: () => <span data-testid="trash-icon" />,
+    TooltipAnchor: ({ render }: { render: React.ReactNode }) => <>{render}</>,
     useToastContext: () => ({
       showToast: jest.fn(),
     }),
