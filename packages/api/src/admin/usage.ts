@@ -148,7 +148,7 @@ export interface AdminUsageDeps {
     files: IMongoFile[];
     agentId: string;
   }) => Promise<Map<string, string>>;
-  /** One invite email per newly invited address. Failures are logged, never surfaced. */
+  /** One invite email per newly added collaborator. Failures are logged, never surfaced. */
   sendCollaboratorInvite: (params: {
     email: string;
     agentName: string;
@@ -875,7 +875,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   /**
    * Author only: who may draft this agent. Ids without a user and the author itself are
    * dropped. An invited address that already has an account is added straight away;
-   * the rest are kept as pending and emailed once, the first time they are invited.
+   * the rest are kept as pending. Everyone newly added, either way, is emailed once.
    */
   async function updateAgentCollaborators(req: ServerRequest, res: Response): Promise<Response> {
     const rawAgentId = (req.params as AgentUsageParams).agent_id;
@@ -910,9 +910,17 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       }
       const collaborators = [...known.keys()];
       const pendingCollaborators = wanted.filter((email) => !byEmail.has(email));
-      /** Read before the write: only an address that was not already pending is emailed. */
-      const alreadyPending = new Set(agent.pendingCollaborators ?? []);
-      const fresh = pendingCollaborators.filter((email) => !alreadyPending.has(email));
+      /** Read before the write: only someone not already on the list, or pending, is emailed. */
+      const before = new Set([
+        ...(agent.collaborators ?? []).map(String),
+        ...(agent.pendingCollaborators ?? []),
+      ]);
+      const addedEmails = collaborators
+        .filter((id) => !before.has(id))
+        .map((id) => known.get(id)?.email.trim().toLowerCase() ?? '');
+      const fresh = [...new Set([...addedEmails, ...pendingCollaborators])].filter(
+        (email) => email !== '' && !before.has(email),
+      );
       await setAgentMeta(agent.id, { collaborators, pendingCollaborators });
       await Promise.all(
         fresh.map((email) =>

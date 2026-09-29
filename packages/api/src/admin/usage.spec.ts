@@ -2396,8 +2396,29 @@ describe('createAdminUsageHandlers', () => {
         expect(json.mock.calls[0][0]).toEqual({
           collaborators: [{ id: anaId.toString(), name: 'Ana Member', email: 'ana@illinois.edu' }],
           pending: [],
-          invited: [],
+          invited: ['ana@illinois.edu'],
         });
+        expect(deps.sendCollaboratorInvite).toHaveBeenCalledTimes(1);
+        expect(deps.sendCollaboratorInvite).toHaveBeenCalledWith({
+          email: 'ana@illinois.edu',
+          agentName: 'Case Coach',
+          inviterName: 'Prof',
+        });
+      });
+
+      it('does not re-email someone who was already a collaborator', async () => {
+        const { prod } = world();
+        prod.collaborators = [anaId.toString()];
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob, ana] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: [anaId.toString()] },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(deps.sendCollaboratorInvite).not.toHaveBeenCalled();
+        expect(json.mock.calls[0][0]).toMatchObject({ invited: [] });
       });
 
       it('refuses a collaborator or editor', async () => {
@@ -2440,7 +2461,7 @@ describe('createAdminUsageHandlers', () => {
         });
       });
 
-      it('adds an invited address that already has an account instead of inviting it', async () => {
+      it('adds an invited address that already has an account and still emails it', async () => {
         const { prod } = world();
         const deps = createDeps(baseWorld({ agents: [prod], users: [bob, ana] }));
         const handlers = createAdminUsageHandlers(deps);
@@ -2454,10 +2475,14 @@ describe('createAdminUsageHandlers', () => {
           collaborators: [anaId.toString()],
           pendingCollaborators: [],
         });
-        expect(deps.sendCollaboratorInvite).not.toHaveBeenCalled();
+        expect(deps.sendCollaboratorInvite).toHaveBeenCalledTimes(1);
+        expect(deps.sendCollaboratorInvite).toHaveBeenCalledWith(
+          expect.objectContaining({ email: 'ana@illinois.edu' }),
+        );
         expect(json.mock.calls[0][0]).toMatchObject({
           collaborators: [{ id: anaId.toString(), name: 'Ana Member' }],
           pending: [],
+          invited: ['ana@illinois.edu'],
         });
       });
 
