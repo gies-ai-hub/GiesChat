@@ -9,7 +9,11 @@ import type { Option } from '@librechat/client';
 import type { AgentPeopleLists } from './Drafts/CollaboratorsDialog';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
 import { CollaboratorsDialog } from './Drafts';
-import { useAdminAccess, useAdminGroupsQuery } from '~/data-provider';
+import {
+  useAdminAccess,
+  useAdminGroupsQuery,
+  useOpenAdminAgentDraftMutation,
+} from '~/data-provider';
 import { useHasAccess, useLocalize } from '~/hooks';
 import StudentProgressTable from './StudentProgressTable';
 import AgentUsageTable from './AgentUsageTable';
@@ -132,6 +136,16 @@ export default function AdminDashboard() {
   const handleEditDraft = useCallback(
     (draftId: string, agent: AdminAgentUsage) => setEditingAgent({ ...agent, agent_id: draftId }),
     [],
+  );
+
+  const openDraft = useOpenAdminAgentDraftMutation();
+  /** Find-or-create, so the same pencil starts a collaborator's draft and reopens it later. */
+  const handleEditOwnDraft = useCallback(
+    (agent: AdminAgentUsage) =>
+      openDraft.mutate(agent.agent_id, {
+        onSuccess: (result) => handleEditDraft(result.draft_id, agent),
+      }),
+    [openDraft, handleEditDraft],
   );
 
   /** The embed dialog only reads id, name, description and the live embed settings. */
@@ -289,6 +303,7 @@ export default function AdminDashboard() {
               onEmbedAgent={setEmbeddingAgent}
               onOpenAgent={handleOpenAgent}
               onEditDraft={handleEditDraft}
+              onEditOwnDraft={handleEditOwnDraft}
               onTestLink={handleTestLink}
               onOpenDraft={openAgentChat}
               onManageCollaborators={handleManageCollaborators}

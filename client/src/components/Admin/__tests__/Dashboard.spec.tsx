@@ -678,7 +678,7 @@ describe('AdminDashboard', () => {
       await waitFor(() => expect(mockGetAdminAgentDrafts).toHaveBeenCalledWith('agent_1'));
     });
 
-    it('hides the pencil for a collaborator and opens their draft in the edit dialog', async () => {
+    it('gives a collaborator a pencil that opens their own draft, never production', async () => {
       mockGetAdminAgentUsage.mockResolvedValue({
         agents: [{ ...agentUsage.agents[0], isAuthor: false, isCollaborator: true, draftCount: 0 }],
       });
@@ -689,6 +689,26 @@ describe('AdminDashboard', () => {
       expect(
         screen.queryByRole('button', { name: 'Edit Case Study Coach' }),
       ).not.toBeInTheDocument();
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Edit your draft of Case Study Coach' }),
+      );
+      await waitFor(() => expect(mockOpenAdminAgentDraft).toHaveBeenCalledWith('agent_1'));
+      await waitFor(() =>
+        expect(screen.getByTestId('agent-panel-switch')).toHaveAttribute(
+          'data-initial-agent-id',
+          'agent_1_me',
+        ),
+      );
+    });
+
+    it('still lets a collaborator start a draft from the drafts panel', async () => {
+      mockGetAdminAgentUsage.mockResolvedValue({
+        agents: [{ ...agentUsage.agents[0], isAuthor: false, isCollaborator: true, draftCount: 0 }],
+      });
+      mockGetAdminAgentDrafts.mockResolvedValue(emptyDrafts);
+      mockOpenAdminAgentDraft.mockResolvedValue({ draft_id: 'agent_1_me', created: true });
+      renderDashboard();
+      await screen.findByText('Case Study Coach');
       await userEvent.click(screen.getByRole('button', { name: 'Drafts of Case Study Coach' }));
       await userEvent.click(await screen.findByRole('button', { name: 'Start a draft' }));
       await waitFor(() =>

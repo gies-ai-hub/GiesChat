@@ -30,6 +30,8 @@ interface AgentUsageTableProps {
   onEmbedAgent: (agent: AdminAgentUsage) => void;
   onOpenAgent: (agent: AdminAgentUsage) => void;
   onEditDraft: (draftId: string, agent: AdminAgentUsage) => void;
+  /** A collaborator's pencil: opens their own draft, creating it on first use. */
+  onEditOwnDraft: (agent: AdminAgentUsage) => void;
   onTestLink: (draft: AdminAgentDraft, agent: AdminAgentUsage) => void;
   onOpenDraft: (draftId: string) => void;
   onManageCollaborators: (agent: AdminAgentUsage, people: AgentPeopleLists) => void;
@@ -43,6 +45,7 @@ export default function AgentUsageTable({
   onEmbedAgent,
   onOpenAgent,
   onEditDraft,
+  onEditOwnDraft,
   onTestLink,
   onOpenDraft,
   onManageCollaborators,
@@ -183,22 +186,32 @@ export default function AgentUsageTable({
                         </Button>
                       }
                     />
-                    {!agent.isCollaborator && (
-                      <TooltipAnchor
-                        description={localize('com_ui_admin_tip_edit')}
-                        render={
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            type="button"
-                            onClick={() => onEditAgent(agent)}
-                            aria-label={localize('com_ui_admin_edit_agent', { name: agent.name })}
-                          >
-                            <Pencil className="size-4" aria-hidden="true" />
-                          </Button>
-                        }
-                      />
-                    )}
+                    {/* A collaborator's pencil edits their own draft; production changes only when it is posted. */}
+                    <TooltipAnchor
+                      description={localize(
+                        agent.isCollaborator
+                          ? 'com_ui_admin_tip_edit_own_draft'
+                          : 'com_ui_admin_tip_edit',
+                      )}
+                      render={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          type="button"
+                          onClick={() =>
+                            agent.isCollaborator ? onEditOwnDraft(agent) : onEditAgent(agent)
+                          }
+                          aria-label={localize(
+                            agent.isCollaborator
+                              ? 'com_ui_admin_edit_own_draft'
+                              : 'com_ui_admin_edit_agent',
+                            { name: agent.name },
+                          )}
+                        >
+                          <Pencil className="size-4" aria-hidden="true" />
+                        </Button>
+                      }
+                    />
                     <TooltipAnchor
                       description={localize(
                         agent.embed ? 'com_ui_admin_tip_embed_on' : 'com_ui_admin_tip_embed',
