@@ -281,14 +281,27 @@ export const getTextKey = (message?: TMessage | null, convoId?: string | null) =
   return `${(message.messageId as string | null) ?? ''}${TEXT_KEY_DIVIDER}${contentKey}${TEXT_KEY_DIVIDER}${message.conversationId ?? convoId}`;
 };
 
-export const scrollToEnd = (callback?: () => void) => {
-  const messagesEndElement = document.getElementById('messages-end');
-  if (messagesEndElement) {
-    messagesEndElement.scrollIntoView({ behavior: 'instant' });
-    if (callback) {
-      callback();
+export function getMainScrollContainer(): Element | null {
+  const end = document.getElementById('messages-end');
+  let node: HTMLElement | null = end?.parentElement ?? null;
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+      return node;
     }
+    node = node.parentElement;
   }
+  return document.querySelector('main[role="main"]');
+}
+
+/** Scrolls the message list, not `scrollIntoView`, which would also drag a host page around an embed iframe. */
+export const scrollToEnd = (callback?: () => void) => {
+  if (!document.getElementById('messages-end')) {
+    return;
+  }
+  const container = getMainScrollContainer();
+  container?.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
+  callback?.();
 };
 
 /**

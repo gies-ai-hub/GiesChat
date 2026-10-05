@@ -18,7 +18,7 @@ import {
 import { mainTextareaId, NotificationSeverity } from '~/common';
 import { useArchiveConvoMutation } from '~/data-provider';
 import { useHasAccess, useLocalize } from '~/hooks';
-import { clearMessagesCache } from '~/utils';
+import { clearMessagesCache, getMainScrollContainer } from '~/utils';
 import useNewConvo from './useNewConvo';
 import store from '~/store';
 
@@ -285,19 +285,6 @@ export type ShortcutAction = ShortcutDefinition & {
 };
 
 const shortcutActionIds = Object.keys(shortcutDefinitions) as ShortcutActionId[];
-
-function getMainScrollContainer(): Element | null {
-  const end = document.getElementById('messages-end');
-  let node: HTMLElement | null = end?.parentElement ?? null;
-  while (node) {
-    const overflowY = getComputedStyle(node).overflowY;
-    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
-      return node;
-    }
-    node = node.parentElement;
-  }
-  return document.querySelector('main[role="main"]');
-}
 
 function anyModalOpen(): boolean {
   const dialogs = document.querySelectorAll('[role="dialog"], [role="alertdialog"]');

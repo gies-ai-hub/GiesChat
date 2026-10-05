@@ -6,7 +6,7 @@ import {
   OGDialogContent,
   useToastContext,
 } from '@librechat/client';
-import type { AdminAgentUsage, AgentEmbedAudience } from 'librechat-data-provider';
+import type { AdminAgentUsage, AgentEmbedTheme, AgentEmbedAudience } from 'librechat-data-provider';
 import {
   useUpdateAdminAgentEmbedMutation,
   useRevokeAdminAgentEmbedMutation,
@@ -41,6 +41,7 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
   const [audience, setAudience] = useState<AgentEmbedAudience>(live?.audience ?? 'public');
   const [greetingOn, setGreetingOn] = useState(live == null || live.greeting != null);
   const [greeting, setGreeting] = useState(live?.greeting ?? (agent ? defaultGreeting(agent) : ''));
+  const [theme, setTheme] = useState<AgentEmbedTheme>(live?.theme ?? 'light');
 
   useEffect(() => {
     if (agent == null) {
@@ -52,6 +53,7 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
     setAudience(current?.audience ?? 'public');
     setGreetingOn(current == null || current.greeting != null);
     setGreeting(current?.greeting ?? defaultGreeting(agent));
+    setTheme(current?.theme ?? 'light');
   }, [agent]);
 
   const snippet = useMemo(() => (live ? snippetFor(live.key) : ''), [live]);
@@ -70,7 +72,7 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
     update.mutate(
       {
         agentId: agent.agent_id,
-        settings: { audience, greeting: greetingOn ? greeting.trim() : null },
+        settings: { audience, theme, greeting: greetingOn ? greeting.trim() : null },
       },
       {
         onSuccess: (data) => {
@@ -110,6 +112,7 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
         ? 'com_ui_admin_embed_audience_public'
         : 'com_ui_admin_embed_audience_illinois',
     ),
+    localize(theme === 'dark' ? 'com_ui_admin_embed_theme_dark' : 'com_ui_admin_embed_theme_light'),
     greetingOn ? localize('com_ui_admin_embed_greeting_toggle') : null,
   ]
     .filter(Boolean)
@@ -156,6 +159,31 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
                   </span>
                 </label>
               ))}
+            </fieldset>
+            <fieldset className="rounded-lg border border-border-light p-3">
+              <legend className="px-1 text-xs font-semibold">
+                {localize('com_ui_admin_embed_theme')}
+              </legend>
+              <div className="flex gap-4">
+                {(['light', 'dark'] as const).map((value) => (
+                  <label key={value} className="flex cursor-pointer items-center gap-2 py-1">
+                    <input
+                      type="radio"
+                      name="embed-theme"
+                      value={value}
+                      checked={theme === value}
+                      onChange={() => setTheme(value)}
+                    />
+                    <span className="font-medium">
+                      {localize(
+                        value === 'dark'
+                          ? 'com_ui_admin_embed_theme_dark'
+                          : 'com_ui_admin_embed_theme_light',
+                      )}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </fieldset>
             <div className="rounded-lg border border-border-light p-3">
               <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold">

@@ -121,6 +121,7 @@ const agentSchema: Schema<IAgent> = new Schema<IAgent>(
           key: { type: String, select: false, index: true, sparse: true },
           audience: { type: String, enum: ['public', 'illinois'], default: 'public' },
           greeting: { type: String, maxlength: 1000 },
+          theme: { type: String, enum: ['light', 'dark'] },
         },
         { _id: false },
       ),

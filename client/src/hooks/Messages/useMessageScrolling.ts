@@ -84,7 +84,7 @@ export default function useMessageScrolling(messagesTree?: TMessage[] | null) {
   };
 
   const { scrollToRef: scrollToBottom, handleSmoothToRef } = useScrollToRef({
-    targetRef: messagesEndRef,
+    containerRef: scrollableRef,
     callback: scrollCallback,
     smoothCallback: () => {
       scrollCallback();

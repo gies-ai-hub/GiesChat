@@ -11,7 +11,7 @@ import type {
   AgentAnalyticsRaw,
 } from './usage';
 import type { ServerRequest } from '~/types/http';
-import { createAdminUsageHandlers } from './usage';
+import { createAdminUsageHandlers, parseEmbedSettings } from './usage';
 
 jest.mock('@librechat/data-schemas', () => ({
   ...jest.requireActual('@librechat/data-schemas'),
@@ -2918,5 +2918,19 @@ describe('createAdminUsageHandlers', () => {
         expect(data.tool_resources).toEqual({ context: { file_ids: ['file_a'] } });
       });
     });
+  });
+});
+
+describe('parseEmbedSettings', () => {
+  it('defaults the theme to light so older dashboard tabs keep saving', () => {
+    expect(parseEmbedSettings({ audience: 'public', greeting: null })).toEqual({
+      audience: 'public',
+      theme: 'light',
+    });
+  });
+
+  it('keeps a dark theme and rejects anything else', () => {
+    expect(parseEmbedSettings({ audience: 'illinois', theme: 'dark' })?.theme).toBe('dark');
+    expect(parseEmbedSettings({ audience: 'public', theme: 'purple' })).toBeNull();
   });
 });

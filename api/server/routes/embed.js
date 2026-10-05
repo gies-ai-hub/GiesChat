@@ -26,9 +26,9 @@ const startEmbedSession = createEmbedSessionHandler({
 });
 
 /**
- * Public by design: the unguessable key in the URL is the credential. The login
+ * Public by design: the unguessable key in the URL is the credential. The embed
  * limiter throttles how fast one address can mint anonymous guests.
  */
-router.post('/:key', middleware.loginLimiter, middleware.checkBan, startEmbedSession);
+router.post('/:key', middleware.embedLimiter, middleware.checkBan, startEmbedSession);
 
 module.exports = router;

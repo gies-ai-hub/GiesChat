@@ -2,7 +2,13 @@ import jwt from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
 import { SystemRoles } from 'librechat-data-provider';
 import { logger } from '@librechat/data-schemas';
-import type { IUser, IAgent, BalanceConfig, CreateUserRequest } from '@librechat/data-schemas';
+import type {
+  IUser,
+  IAgent,
+  BalanceConfig,
+  AgentEmbedTheme,
+  CreateUserRequest,
+} from '@librechat/data-schemas';
 import type { Types } from 'mongoose';
 import type { Request, Response } from 'express';
 
@@ -35,6 +41,7 @@ interface EmbedAgentInfo {
   avatar: IAgent['avatar'] | null;
   audience: 'public' | 'illinois';
   greeting: string | null;
+  theme: AgentEmbedTheme;
 }
 
 export interface EmbedSessionResponse {
@@ -50,6 +57,7 @@ const toAgentInfo = (agent: IAgent): EmbedAgentInfo => ({
   avatar: agent.avatar ?? null,
   audience: agent.embed?.audience ?? 'public',
   greeting: agent.embed?.greeting ?? null,
+  theme: agent.embed?.theme ?? 'light',
 });
 
 const bearerFrom = (req: Request): string | null => {

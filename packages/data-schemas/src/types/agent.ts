@@ -13,6 +13,7 @@ export interface ISupportContact {
 }
 
 export type AgentEmbedAudience = 'public' | 'illinois';
+export type AgentEmbedTheme = 'light' | 'dark';
 
 export interface IAgentEmbed {
   /** Random link credential; `select: false` on the schema, so absent unless asked for. */
@@ -20,6 +21,8 @@ export interface IAgentEmbed {
   audience: AgentEmbedAudience;
   /** Shown as the agent's first message in every new embedded chat. */
   greeting?: string;
+  /** Unset on links made before the choice existed; read as `light`. */
+  theme?: AgentEmbedTheme;
 }
 
 /** The unversioned bookkeeping fields the dashboard's draft endpoints write. */

@@ -9,6 +9,7 @@ import type {
   IMongoFile,
   IAgentMeta,
   IAgentEmbed,
+  AgentEmbedTheme,
   AgentEmbedAudience,
 } from '@librechat/data-schemas';
 import type { FilterQuery, Types } from 'mongoose';
@@ -35,12 +36,13 @@ const MIN_DAYS = 1;
 const MAX_DAYS = 365;
 
 const AGENT_SCOPE_FIELDS =
-  '_id id name author description avatar category course collaborators pendingCollaborators draftOf draftBase postedVersion embed.audience embed.greeting +embed.key';
+  '_id id name author description avatar category course collaborators pendingCollaborators draftOf draftBase postedVersion embed.audience embed.greeting embed.theme +embed.key';
 /** ponytail: `versions` is loaded whole to count it; switch to a `$size` aggregation if agents ever carry hundreds of versions. */
 const AGENT_LIST_FIELDS = `${AGENT_SCOPE_FIELDS} versions`;
 const DRAFT_FIELDS =
-  '_id id name author draftOf draftBase postedVersion updatedAt embed.audience embed.greeting +embed.key';
+  '_id id name author draftOf draftBase postedVersion updatedAt embed.audience embed.greeting embed.theme +embed.key';
 const EMBED_AUDIENCES: AgentEmbedAudience[] = ['public', 'illinois'];
+const EMBED_THEMES: AgentEmbedTheme[] = ['light', 'dark'];
 const EMBED_GREETING_MAX = 1000;
 /** Only agents built from the class dashboard are listed there. Must match the client. */
 const DASHBOARD_ORIGIN = 'dashboard';
@@ -180,6 +182,7 @@ interface AgentEmbedItem {
   key: string;
   audience: AgentEmbedAudience;
   greeting: string | null;
+  theme: AgentEmbedTheme;
 }
 
 /** A person named on a dashboard row: never an email-only identity, never a raw document. */
@@ -287,20 +290,36 @@ export function parseEmbedSettings(body: unknown): Omit<IAgentEmbed, 'key'> | nu
   if (typeof body !== 'object' || body == null) {
     return null;
   }
-  const { audience, greeting } = body as { audience?: unknown; greeting?: unknown };
+  const {
+    audience,
+    greeting,
+    theme = 'light',
+  } = body as { audience?: unknown; greeting?: unknown; theme?: unknown };
   if (!EMBED_AUDIENCES.includes(audience as AgentEmbedAudience)) {
+    return null;
+  }
+  if (!EMBED_THEMES.includes(theme as AgentEmbedTheme)) {
     return null;
   }
   if (greeting != null && typeof greeting !== 'string') {
     return null;
   }
   const trimmed = typeof greeting === 'string' ? greeting.trim().slice(0, EMBED_GREETING_MAX) : '';
-  return { audience: audience as AgentEmbedAudience, ...(trimmed ? { greeting: trimmed } : {}) };
+  return {
+    audience: audience as AgentEmbedAudience,
+    theme: theme as AgentEmbedTheme,
+    ...(trimmed ? { greeting: trimmed } : {}),
+  };
 }
 
 const toEmbedItem = (embed: IAgentEmbed | undefined): AgentEmbedItem | null =>
   embed?.key
-    ? { key: embed.key, audience: embed.audience, greeting: embed.greeting ?? null }
+    ? {
+        key: embed.key,
+        audience: embed.audience,
+        greeting: embed.greeting ?? null,
+        theme: embed.theme ?? 'light',
+      }
     : null;
 
 /** The dashboard's analytics section — aggregate only, no student is identified. */

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSetRecoilState } from 'recoil';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Spinner } from '@librechat/client';
+import { Button, Spinner, useTheme } from '@librechat/client';
 import { dataService, setTokenHeader, setEmbedMode } from 'librechat-data-provider';
 import type { EmbedSessionAgent } from 'librechat-data-provider';
 import { getResponseStatus } from '~/utils/errors';
@@ -40,6 +40,7 @@ export default function EmbedRoute() {
   const navigate = useNavigate();
   const localize = useLocalize();
   const setEmbed = useSetRecoilState(store.embed);
+  const { setTheme } = useTheme();
   const [status, setStatus] = useState<Status>('loading');
   const [agent, setAgent] = useState<EmbedSessionAgent | null>(null);
 
@@ -50,6 +51,7 @@ export default function EmbedRoute() {
       try {
         const session = await dataService.startEmbedSession(embedKey);
         setAgent(session.agent);
+        setTheme(session.agent.theme);
         if (!session.token) {
           setTokenHeader(undefined);
           setStatus('needs_login');
@@ -63,7 +65,7 @@ export default function EmbedRoute() {
         setStatus(getResponseStatus(error) === 404 ? 'inactive' : 'error');
       }
     },
-    [embedKey, navigate, setEmbed],
+    [embedKey, navigate, setEmbed, setTheme],
   );
 
   useEffect(() => {

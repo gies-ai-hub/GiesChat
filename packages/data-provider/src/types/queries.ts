@@ -272,6 +272,7 @@ export type AdminAgentUsage = AdminUsageCounts & {
 };
 
 export type AgentEmbedAudience = 'public' | 'illinois';
+export type AgentEmbedTheme = 'light' | 'dark';
 
 export type AgentEmbed = {
   /** The link credential: `/embed/<key>`. */
@@ -279,11 +280,13 @@ export type AgentEmbed = {
   audience: AgentEmbedAudience;
   /** Shown as the agent's first message in every new embedded chat; `null` = agent stays silent. */
   greeting: string | null;
+  theme: AgentEmbedTheme;
 };
 
 export type AgentEmbedSettings = {
   audience: AgentEmbedAudience;
   greeting: string | null;
+  theme: AgentEmbedTheme;
 };
 
 export type AdminAgentEmbedResponse = {
@@ -331,6 +334,7 @@ export type EmbedSessionAgent = {
   avatar: AgentAvatar | null;
   audience: AgentEmbedAudience;
   greeting: string | null;
+  theme: AgentEmbedTheme;
 };
 
 export type EmbedSessionResponse = {
