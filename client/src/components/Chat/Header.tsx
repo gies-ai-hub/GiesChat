@@ -97,11 +97,12 @@ function Header() {
   );
 }
 
-/** Inside an iframe there is no sidebar, so the only chrome is the agent's name. */
+/** Inside an iframe there is no sidebar, so the only chrome is the agent's name and the background switch. */
 function EmbedHeader({ name }: { name: string }) {
   return (
-    <div className="absolute top-0 z-10 flex h-[52px] w-full items-center border-b border-border-light bg-presentation px-4 text-text-primary">
+    <div className="absolute top-0 z-10 flex h-[52px] w-full items-center justify-between gap-2 border-b border-border-light bg-presentation px-4 text-text-primary">
       <span className="truncate font-semibold">{name}</span>
+      <BackgroundToggle compact className="h-8 shrink-0 px-2.5 text-xs" />
     </div>
   );
 }
