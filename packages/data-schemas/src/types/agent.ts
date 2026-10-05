@@ -27,7 +27,10 @@ export interface IAgentEmbed {
 
 /** The unversioned bookkeeping fields the dashboard's draft endpoints write. */
 export type IAgentMeta = Partial<
-  Pick<IAgent, 'collaborators' | 'pendingCollaborators' | 'postedVersion'>
+  Pick<
+    IAgent,
+    'collaborators' | 'pendingCollaborators' | 'coAdmins' | 'pendingCoAdmins' | 'postedVersion'
+  >
 >;
 
 export interface IAgent extends Omit<Document, 'model'> {
@@ -72,6 +75,10 @@ export interface IAgent extends Omit<Document, 'model'> {
   collaborators?: string[];
   /** Invited emails, lowercased, with no account yet; claimed on first sign-in. */
   pendingCollaborators?: string[];
+  /** Users who run this agent with its author: edit production and post drafts. Author-managed. */
+  coAdmins?: string[];
+  /** Invited co-admin emails, lowercased, with no account yet; claimed on first sign-in. */
+  pendingCoAdmins?: string[];
   /** On a draft: the production agent id it was cloned from. */
   draftOf?: string;
   /** On a draft: production's version count at clone time. */

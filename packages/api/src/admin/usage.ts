@@ -1,7 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { ResourceType, PermissionBits, sanitizeLayout } from 'librechat-data-provider';
 import { logger, isValidObjectIdString } from '@librechat/data-schemas';
-import type { AdminDashboardPanel, AdminModelTestAnswer } from 'librechat-data-provider';
+import type {
+  AdminAgentRole,
+  AdminDashboardPanel,
+  AdminModelTestAnswer,
+  AdminCollaboratorsResponse,
+} from 'librechat-data-provider';
 import type {
   IUser,
   IAgent,
@@ -36,7 +41,7 @@ const MIN_DAYS = 1;
 const MAX_DAYS = 365;
 
 const AGENT_SCOPE_FIELDS =
-  '_id id name author description avatar category course collaborators pendingCollaborators draftOf draftBase postedVersion embed.audience embed.greeting embed.theme +embed.key';
+  '_id id name author description avatar category course collaborators pendingCollaborators coAdmins pendingCoAdmins draftOf draftBase postedVersion embed.audience embed.greeting embed.theme +embed.key';
 /** ponytail: `versions` is loaded whole to count it; switch to a `$size` aggregation if agents ever carry hundreds of versions. */
 const AGENT_LIST_FIELDS = `${AGENT_SCOPE_FIELDS} versions`;
 const DRAFT_FIELDS =
@@ -144,11 +149,21 @@ export interface AdminUsageDeps {
   setAgentMeta: (agentId: string, meta: IAgentMeta) => Promise<IAgent | null>;
   createAgent: (data: Partial<IAgent> & { id: string; author: string }) => Promise<IAgent>;
   createAgentId: () => string;
-  /** ACL grant on a draft: `owner` for the collaborator, `viewer` so the author can open it in chat. */
+  /**
+   * ACL grant: `owner` for a draft's collaborator, `editor` for a co-admin on production,
+   * `viewer` so the author and co-admins can open a draft in chat. `grantedBy` defaults
+   * to the grantee.
+   */
   grantAgentAccess: (params: {
     userId: string;
     agentDbId: Types.ObjectId | string;
-    role: 'owner' | 'viewer';
+    role: 'owner' | 'editor' | 'viewer';
+    grantedBy?: string;
+  }) => Promise<void>;
+  /** Removes the user's grant on one agent, whatever its role. */
+  revokeAgentAccess: (params: {
+    userId: string;
+    agentDbId: Types.ObjectId | string;
   }) => Promise<void>;
   updateAgent: (
     filter: FilterQuery<IAgent>,
@@ -169,12 +184,54 @@ export interface AdminUsageDeps {
     files: IMongoFile[];
     agentId: string;
   }) => Promise<Map<string, string>>;
-  /** One invite email per newly added collaborator. Failures are logged, never surfaced. */
-  sendCollaboratorInvite: (params: {
-    email: string;
-    agentName: string;
-    inviterName: string;
-  }) => Promise<void>;
+  /** One invite email per newly added person, naming their role. Failures are logged, never surfaced. */
+  sendCollaboratorInvite: (params: AgentPersonEmail) => Promise<void>;
+  /** One email when someone already on the agent changes role. Failures are logged, never surfaced. */
+  sendRoleChange: (params: AgentPersonEmail) => Promise<void>;
+}
+
+export interface AgentPersonEmail {
+  email: string;
+  agentName: string;
+  inviterName: string;
+  role: AdminAgentRole;
+}
+
+type CoAdminAccessDeps = Pick<
+  AdminUsageDeps,
+  'findAgents' | 'grantAgentAccess' | 'revokeAgentAccess'
+>;
+
+/**
+ * A co-admin edits production and can open its open drafts in chat (a draft of their
+ * own already makes them its owner, so those are skipped). Granted on promotion or a
+ * claimed invite, revoked on demotion or removal.
+ */
+export async function setCoAdminAccess(
+  deps: CoAdminAccessDeps,
+  params: { userId: string; agent: Pick<IAgent, '_id' | 'id' | 'author'>; granted: boolean },
+): Promise<void> {
+  const { userId, agent, granted } = params;
+  const drafts = await deps.findAgents({ draftOf: agent.id }, DRAFT_FIELDS);
+  const reviewable = drafts
+    .filter((draft) => draft.postedVersion == null && String(draft.author) !== userId)
+    .map((draft) => draft._id as Types.ObjectId);
+  const productionId = agent._id as Types.ObjectId;
+  if (!granted) {
+    await Promise.all(
+      [productionId, ...reviewable].map((agentDbId) =>
+        deps.revokeAgentAccess({ userId, agentDbId }),
+      ),
+    );
+    return;
+  }
+  const grantedBy = String(agent.author);
+  await Promise.all([
+    deps.grantAgentAccess({ userId, agentDbId: productionId, role: 'editor', grantedBy }),
+    ...reviewable.map((agentDbId) =>
+      deps.grantAgentAccess({ userId, agentDbId, role: 'viewer', grantedBy }),
+    ),
+  ]);
 }
 
 /** What the dashboard shows the professor; `key` is the only place it ever leaves the server. */
@@ -212,11 +269,14 @@ const INVITE_DOMAIN = '@illinois.edu';
 const EMAIL_PATTERN = /^[a-z0-9][a-z0-9._%+-]*@illinois\.edu$/;
 
 /** Untrusted body → lowercased Illinois addresses, or `null` when malformed. */
-export function parseInviteEmails(body: unknown): string[] | null {
+export function parseInviteEmails(
+  body: unknown,
+  key: 'emails' | 'coAdminEmails' = 'emails',
+): string[] | null {
   if (body == null || typeof body !== 'object') {
     return null;
   }
-  const raw = (body as { emails?: unknown }).emails;
+  const raw = (body as { emails?: unknown; coAdminEmails?: unknown })[key];
   if (raw === undefined) {
     return [];
   }
@@ -270,12 +330,21 @@ export function pickDraftFields(agent: IAgent): Partial<DraftFields> {
   ) as Partial<DraftFields>;
 }
 
-/** Untrusted body → deduplicated ObjectId strings, or `null` when malformed. */
-export function parseCollaboratorIds(body: unknown): string[] | null {
+/**
+ * Untrusted body → deduplicated ObjectId strings, or `null` when malformed. `userIds`
+ * is required; `coAdminIds` came later, so an older client that omits it means none.
+ */
+export function parseCollaboratorIds(
+  body: unknown,
+  key: 'userIds' | 'coAdminIds' = 'userIds',
+): string[] | null {
   if (body == null || typeof body !== 'object') {
     return null;
   }
-  const raw = (body as { userIds?: unknown }).userIds;
+  const raw = (body as { userIds?: unknown; coAdminIds?: unknown })[key];
+  if (raw === undefined && key === 'coAdminIds') {
+    return [];
+  }
   if (!Array.isArray(raw) || raw.length > MAX_COLLABORATORS) {
     return null;
   }
@@ -354,11 +423,13 @@ interface AgentUsageItem {
   embed: AgentEmbedItem | null;
   /** Production version students run — the count of saved versions. */
   version: number;
-  /** The caller authored this agent: they alone may set collaborators and post drafts. */
+  /** The caller authored this agent: they alone set roles and delete it. */
   isAuthor: boolean;
+  /** The caller runs this agent with the author: edits production and posts drafts. */
+  isCoAdmin: boolean;
   /** The caller is listed as a collaborator: they draft and test, never edit production. */
   isCollaborator: boolean;
-  /** Drafts of this agent not yet posted (all of them for the author, the caller's own otherwise). */
+  /** Drafts of this agent not yet posted (all of them for the author and co-admins, the caller's own otherwise). */
   draftCount: number;
 }
 
@@ -442,6 +513,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     getFiles,
     copyDocuments,
     sendCollaboratorInvite,
+    sendRoleChange,
   } = deps;
 
   /**
@@ -470,7 +542,12 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     const scope: FilterQuery<IAgent> = {
       createdVia: DASHBOARD_ORIGIN,
       ...(agentId === undefined ? { draftOf: { $exists: false } } : { id: agentId }),
-      $or: [{ author: callerId }, { _id: { $in: editableIds } }, { collaborators: callerId }],
+      $or: [
+        { author: callerId },
+        { _id: { $in: editableIds } },
+        { collaborators: callerId },
+        { coAdmins: callerId },
+      ],
     };
     return findAgents(scope, fields);
   }
@@ -479,8 +556,17 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     return String(agent.author) === String(user._id);
   }
 
+  function isCoAdmin(user: IUser, agent: IAgent): boolean {
+    return !isAuthor(user, agent) && (agent.coAdmins ?? []).includes(String(user._id));
+  }
+
+  /** Author or co-admin: sees every draft and may post one. Setting roles stays author-only. */
+  function canManage(user: IUser, agent: IAgent): boolean {
+    return isAuthor(user, agent) || isCoAdmin(user, agent);
+  }
+
   function isCollaborator(user: IUser, agent: IAgent): boolean {
-    return !isAuthor(user, agent) && (agent.collaborators ?? []).includes(String(user._id));
+    return !canManage(user, agent) && (agent.collaborators ?? []).includes(String(user._id));
   }
 
   /** Every draft of the given production agents; callers narrow to the ones the caller may see. */
@@ -491,12 +577,12 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     return findAgents({ draftOf: { $in: agentIds } }, DRAFT_FIELDS);
   }
 
-  /** The author sees every unposted draft; anyone else only their own. */
+  /** The author and co-admins see every unposted draft; anyone else only their own. */
   function visibleDrafts(user: IUser, agent: IAgent, drafts: IAgent[]): IAgent[] {
     const unposted = drafts.filter(
       (draft) => draft.draftOf === agent.id && draft.postedVersion == null,
     );
-    return isAuthor(user, agent) ? unposted : unposted.filter((draft) => isAuthor(user, draft));
+    return canManage(user, agent) ? unposted : unposted.filter((draft) => isAuthor(user, draft));
   }
 
   /**
@@ -631,6 +717,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
           embed: toEmbedItem(agent.embed),
           version: agent.versions?.length ?? 0,
           isAuthor: isAuthor(caller, agent),
+          isCoAdmin: isCoAdmin(caller, agent),
           isCollaborator: isCollaborator(caller, agent),
           draftCount: visibleDrafts(caller, agent, drafts).length,
         };
@@ -914,10 +1001,25 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     return new Map(users.map((user) => [String(user._id), toUserRef(user)]));
   }
 
+  /** Who held which role before this save, keyed by account id and by pending email. */
+  function previousRoles(agent: IAgent): Map<string, AdminAgentRole> {
+    const entries: [string[] | undefined, AdminAgentRole][] = [
+      [agent.collaborators, 'collaborator'],
+      [agent.pendingCollaborators, 'collaborator'],
+      [agent.coAdmins, 'coAdmin'],
+      [agent.pendingCoAdmins, 'coAdmin'],
+    ];
+    return new Map(
+      entries.flatMap(([keys, role]) => (keys ?? []).map((key) => [String(key), role] as const)),
+    );
+  }
+
   /**
-   * Author only: who may draft this agent. Ids without a user and the author itself are
-   * dropped. An invited address that already has an account is added straight away;
-   * the rest are kept as pending. Everyone newly added, either way, is emailed once.
+   * Author only: who works on this agent, and in which role. Ids without a user and the
+   * author itself are dropped; someone listed under both roles is saved as a co-admin.
+   * An invited address with an account joins straight away, the rest stay pending.
+   * Newly added people get an invite naming their role, people whose role changed get
+   * one email saying so, and co-admin access is granted or revoked to match.
    */
   async function updateAgentCollaborators(req: ServerRequest, res: Response): Promise<Response> {
     const rawAgentId = (req.params as AgentUsageParams).agent_id;
@@ -925,8 +1027,15 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       return res.status(400).json({ error: 'agent_id is required' });
     }
     const requested = parseCollaboratorIds(req.body);
+    const requestedCoAdmins = parseCollaboratorIds(req.body, 'coAdminIds');
     const invited = parseInviteEmails(req.body);
-    if (requested == null || invited == null) {
+    const invitedCoAdmins = parseInviteEmails(req.body, 'coAdminEmails');
+    if (
+      requested == null ||
+      requestedCoAdmins == null ||
+      invited == null ||
+      invitedCoAdmins == null
+    ) {
       return res.status(400).json({ error: 'userIds and emails must be arrays' });
     }
     const caller = req.user;
@@ -941,46 +1050,103 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       if (!isAuthor(caller, agent)) {
         return res.status(403).json({ error: 'Only the author can set collaborators' });
       }
+      const callerId = String(caller._id);
       const callerEmail = caller.email?.trim().toLowerCase();
-      const wanted = invited.filter((email) => email !== callerEmail);
+      const coAdminEmails = invitedCoAdmins.filter((email) => email !== callerEmail);
+      const collaboratorEmails = invited.filter(
+        (email) => email !== callerEmail && !coAdminEmails.includes(email),
+      );
+      const allEmails = [...coAdminEmails, ...collaboratorEmails];
       const existing =
-        wanted.length > 0 ? await findUsers({ email: { $in: wanted } }, USER_FIELDS) : [];
-      const byEmail = new Map(existing.map((user) => [user.email?.toLowerCase(), user]));
-      const known = await findUserRefs(requested.filter((id) => id !== String(caller._id)));
+        allEmails.length > 0 ? await findUsers({ email: { $in: allEmails } }, USER_FIELDS) : [];
+      const byEmail = new Map(existing.map((user) => [user.email?.toLowerCase() ?? '', user]));
+      const known = await findUserRefs([...requestedCoAdmins, ...requested]);
       for (const user of existing) {
         known.set(String(user._id), toUserRef(user));
       }
-      const collaborators = [...known.keys()];
-      const pendingCollaborators = wanted.filter((email) => !byEmail.has(email));
-      /** Read before the write: only someone not already on the list, or pending, is emailed. */
-      const before = new Set([
-        ...(agent.collaborators ?? []).map(String),
-        ...(agent.pendingCollaborators ?? []),
+
+      const roles = new Map<string, AdminAgentRole>();
+      const assign = (id: string | undefined, role: AdminAgentRole) => {
+        if (id != null && id !== callerId && known.has(id) && roles.get(id) !== 'coAdmin') {
+          roles.set(id, role);
+        }
+      };
+      const accountOf = (email: string) => {
+        const user = byEmail.get(email);
+        return user ? String(user._id) : undefined;
+      };
+      requestedCoAdmins.forEach((id) => assign(id, 'coAdmin'));
+      coAdminEmails.forEach((email) => assign(accountOf(email), 'coAdmin'));
+      requested.forEach((id) => assign(id, 'collaborator'));
+      collaboratorEmails.forEach((email) => assign(accountOf(email), 'collaborator'));
+      const pendingRoles = new Map<string, AdminAgentRole>([
+        ...coAdminEmails.filter((email) => !byEmail.has(email)).map((e) => [e, 'coAdmin'] as const),
+        ...collaboratorEmails
+          .filter((email) => !byEmail.has(email))
+          .map((e) => [e, 'collaborator'] as const),
       ]);
-      const addedEmails = collaborators
-        .filter((id) => !before.has(id))
-        .map((id) => known.get(id)?.email.trim().toLowerCase() ?? '');
-      const fresh = [...new Set([...addedEmails, ...pendingCollaborators])].filter(
-        (email) => email !== '' && !before.has(email),
-      );
-      await setAgentMeta(agent.id, { collaborators, pendingCollaborators });
-      await Promise.all(
-        fresh.map((email) =>
-          sendCollaboratorInvite({
-            email,
-            agentName: agent.name ?? '',
-            inviterName: caller.name ?? caller.email ?? '',
-          }).catch((error) =>
-            logger.warn(`[adminUsage] could not send the invite to ${email}`, error),
-          ),
-        ),
+
+      const keysWith = (source: Map<string, AdminAgentRole>, role: AdminAgentRole) =>
+        [...source].filter(([, held]) => held === role).map(([key]) => key);
+      const meta = {
+        collaborators: keysWith(roles, 'collaborator'),
+        pendingCollaborators: keysWith(pendingRoles, 'collaborator'),
+        coAdmins: keysWith(roles, 'coAdmin'),
+        pendingCoAdmins: keysWith(pendingRoles, 'coAdmin'),
+      };
+
+      /** Read before the write: a new person gets an invite, a changed role one notice. */
+      const before = previousRoles(agent);
+      const people = [
+        ...[...roles].map(([id, role]) => {
+          const email = known.get(id)?.email.trim().toLowerCase() ?? '';
+          return { email, role, previous: before.get(id) ?? before.get(email) };
+        }),
+        ...[...pendingRoles].map(([email, role]) => ({
+          email,
+          role,
+          previous: before.get(email),
+        })),
+      ].filter((person) => person.email !== '');
+      const invites = people.filter((person) => person.previous == null);
+      const changes = people.filter(
+        (person) => person.previous != null && person.previous !== person.role,
       );
 
-      return res.status(200).json({
-        collaborators: collaborators.flatMap((id) => known.get(id) ?? []),
-        pending: pendingCollaborators,
-        invited: fresh,
-      });
+      const wasCoAdmin = new Set((agent.coAdmins ?? []).map(String));
+      const isNowCoAdmin = new Set(meta.coAdmins);
+      await Promise.all([
+        ...meta.coAdmins
+          .filter((userId) => !wasCoAdmin.has(userId))
+          .map((userId) => setCoAdminAccess(deps, { userId, agent, granted: true })),
+        ...[...wasCoAdmin]
+          .filter((userId) => !isNowCoAdmin.has(userId))
+          .map((userId) => setCoAdminAccess(deps, { userId, agent, granted: false })),
+      ]);
+      await setAgentMeta(agent.id, meta);
+
+      const inviterName = caller.name ?? caller.email ?? '';
+      const notify = (
+        send: (params: AgentPersonEmail) => Promise<void>,
+        { email, role }: { email: string; role: AdminAgentRole },
+      ) =>
+        send({ email, agentName: agent.name ?? '', inviterName, role }).catch((error) =>
+          logger.warn(`[adminUsage] could not email ${email} about their role`, error),
+        );
+      await Promise.all([
+        ...invites.map((person) => notify(sendCollaboratorInvite, person)),
+        ...changes.map((person) => notify(sendRoleChange, person)),
+      ]);
+
+      const body: AdminCollaboratorsResponse = {
+        collaborators: meta.collaborators.flatMap((id) => known.get(id) ?? []),
+        pending: meta.pendingCollaborators,
+        coAdmins: meta.coAdmins.flatMap((id) => known.get(id) ?? []),
+        pendingCoAdmins: meta.pendingCoAdmins,
+        invited: invites.map((person) => person.email),
+        roleChanged: changes.map((person) => person.email),
+      };
+      return res.status(200).json(body);
     } catch (error) {
       logger.error('[adminUsage] updateAgentCollaborators error:', error);
       return res.status(500).json({ error: 'Failed to update collaborators' });
@@ -1001,7 +1167,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     embed: toEmbedItem(draft.embed),
   });
 
-  /** The author sees every open draft and the collaborator list; a collaborator sees their own draft. */
+  /** The author sees every open draft and the people lists; a co-admin every draft; a collaborator their own. */
   async function listAgentDrafts(req: ServerRequest, res: Response): Promise<Response> {
     const rawAgentId = (req.params as AgentUsageParams).agent_id;
     if (typeof rawAgentId !== 'string') {
@@ -1018,17 +1184,21 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       }
       const author = isAuthor(caller, agent);
       const drafts = visibleDrafts(caller, agent, await findDraftsOf([agent.id]));
+      const collaboratorIds = author ? (agent.collaborators ?? []) : [];
+      const coAdminIds = author ? (agent.coAdmins ?? []) : [];
       const people = await findUserRefs([
         ...drafts.map((draft) => String(draft.author)),
-        ...(author ? (agent.collaborators ?? []) : []),
+        ...collaboratorIds,
+        ...coAdminIds,
       ]);
+      const refs = (ids: string[]) => ids.flatMap((id) => people.get(id) ?? []);
       return res.status(200).json({
         agent_id: agent.id,
         version: agent.versions?.length ?? 0,
-        collaborators: author
-          ? (agent.collaborators ?? []).flatMap((id) => people.get(id) ?? [])
-          : [],
+        collaborators: refs(collaboratorIds),
         pending: author ? (agent.pendingCollaborators ?? []) : [],
+        coAdmins: refs(coAdminIds),
+        pendingCoAdmins: author ? (agent.pendingCoAdmins ?? []) : [],
         drafts: drafts.map((draft) => toDraftItem(draft, people, caller)),
       });
     } catch (error) {
@@ -1095,8 +1265,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
 
   /**
    * Find-or-create the caller's draft. The clone is a real agent the caller owns, so
-   * the builder, chat, documents and embed links work on it unchanged. The author is
-   * granted a view so the draft shows up in their chat agent list too.
+   * the builder, chat, documents and embed links work on it unchanged. The author and
+   * co-admins are granted a view so the draft shows up in their chat agent list too.
    */
   async function openAgentDraft(req: ServerRequest, res: Response): Promise<Response> {
     const rawAgentId = (req.params as AgentUsageParams).agent_id;
@@ -1132,17 +1302,22 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
         draftOf: production.id,
         draftBase: production.versions?.length ?? 0,
       });
+      const reviewers = [String(production.author), ...(production.coAdmins ?? [])].filter(
+        (userId) => userId !== callerId,
+      );
       await Promise.all([
         grantAgentAccess({
           userId: callerId,
           agentDbId: draft._id as Types.ObjectId,
           role: 'owner',
         }),
-        grantAgentAccess({
-          userId: String(production.author),
-          agentDbId: draft._id as Types.ObjectId,
-          role: 'viewer',
-        }),
+        ...reviewers.map((userId) =>
+          grantAgentAccess({
+            userId,
+            agentDbId: draft._id as Types.ObjectId,
+            role: 'viewer',
+          }),
+        ),
       ]);
       return res.status(200).json({ draft_id: draft.id, created: true });
     } catch (error) {
@@ -1152,7 +1327,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   }
 
   /**
-   * Author only. Posting replaces production's copyable fields with the draft's and
+   * Author or co-admin. Posting replaces production's copyable fields with the draft's and
    * records a version through the normal update path, so version history keeps the
    * old production. Search-indexed documents are copied to production first, since
    * their index is bound to the draft's id.
@@ -1171,8 +1346,10 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       if (!scoped || scoped.draftOf != null) {
         return res.status(404).json({ error: 'Agent not found' });
       }
-      if (!isAuthor(caller, scoped)) {
-        return res.status(403).json({ error: 'Only the author can post a draft to production' });
+      if (!canManage(caller, scoped)) {
+        return res
+          .status(403)
+          .json({ error: 'Only the author or a co-admin can post a draft to production' });
       }
       const draft = await getAgent({ id: rawDraftId, draftOf: scoped.id });
       if (!draft) {

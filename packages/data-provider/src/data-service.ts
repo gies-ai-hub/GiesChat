@@ -1319,10 +1319,9 @@ export function getAdminAgentDrafts(agentId: string): Promise<q.AdminAgentDrafts
 
 export function updateAdminAgentCollaborators(
   agentId: string,
-  userIds: string[],
-  emails: string[] = [],
+  people: q.AdminAgentPeople,
 ): Promise<q.AdminCollaboratorsResponse> {
-  return request.put(endpoints.adminAgentCollaborators(agentId), { userIds, emails });
+  return request.put(endpoints.adminAgentCollaborators(agentId), people);
 }
 
 export function runAdminModelTest(

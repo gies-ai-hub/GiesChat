@@ -1,10 +1,12 @@
 import React from 'react';
 import userEvent from '@testing-library/user-event';
+import { RecoilRoot } from 'recoil';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
-import type { TPrincipal, AdminAgentUsage } from 'librechat-data-provider';
+import type { TUser, TPrincipal, AdminAgentUsage } from 'librechat-data-provider';
 import CollaboratorsDialog from '../CollaboratorsDialog';
+import store from '~/store';
 
 const mockUpdate = jest.fn();
 let addPeople: (principals: TPrincipal[]) => void = () => undefined;
@@ -15,8 +17,7 @@ jest.mock('librechat-data-provider', () => {
     ...actual,
     dataService: {
       ...actual.dataService,
-      updateAdminAgentCollaborators: (id: string, userIds: string[], emails: string[]) =>
-        mockUpdate(id, userIds, emails),
+      updateAdminAgentCollaborators: (id: string, people: unknown) => mockUpdate(id, people),
     },
   };
 });
@@ -43,24 +44,114 @@ jest.mock('@librechat/client', () => {
 const agent = { agent_id: 'agent_prod', name: 'Case Coach' } as AdminAgentUsage;
 const priya = { id: 'u1', name: 'Priya Natarajan', email: 'p@illinois.edu' };
 
-function renderDialog(pending: string[] = []) {
+const people = (
+  overrides: Partial<{
+    pending: string[];
+    coAdmins: (typeof priya)[];
+    pendingCoAdmins: string[];
+  }> = {},
+) => ({ collaborators: [priya], pending: [], coAdmins: [], pendingCoAdmins: [], ...overrides });
+
+const saved = (overrides: Record<string, string[]> = {}) => ({
+  userIds: ['u1'],
+  coAdminIds: [],
+  emails: [],
+  coAdminEmails: [],
+  ...overrides,
+});
+
+function renderDialog(lists = people()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const onOpenChange = jest.fn();
   render(
-    <QueryClientProvider client={client}>
-      <CollaboratorsDialog
-        agent={agent}
-        collaborators={[priya]}
-        pending={pending}
-        onOpenChange={onOpenChange}
-      />
-    </QueryClientProvider>,
+    <RecoilRoot
+      initializeState={({ set }) =>
+        set(store.user, { name: 'Prof Castelino', email: 'prof@illinois.edu' } as TUser)
+      }
+    >
+      <QueryClientProvider client={client}>
+        <CollaboratorsDialog agent={agent} people={lists} onOpenChange={onOpenChange} />
+      </QueryClientProvider>
+    </RecoilRoot>,
   );
   return onOpenChange;
 }
 
 describe('CollaboratorsDialog', () => {
-  beforeEach(() => mockUpdate.mockResolvedValue({ collaborators: [], pending: [], invited: [] }));
+  beforeEach(() =>
+    mockUpdate.mockResolvedValue({
+      collaborators: [],
+      pending: [],
+      coAdmins: [],
+      pendingCoAdmins: [],
+      invited: [],
+      roleChanged: [],
+    }),
+  );
+
+  it('lists the owner first, without a role picker', () => {
+    renderDialog();
+    expect(screen.getByText('Prof Castelino')).toBeInTheDocument();
+    expect(screen.getByText('com_ui_admin_role_owner')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('combobox', { name: 'com_ui_admin_role_for {"name":"Prof Castelino"}' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('makes a collaborator a co-admin through the role picker', async () => {
+    renderDialog();
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'com_ui_admin_role_for {"name":"Priya Natarajan"}' }),
+      'coAdmin',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'com_ui_save' }));
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        'agent_prod',
+        saved({ userIds: [], coAdminIds: ['u1'] }),
+      ),
+    );
+  });
+
+  it('invites a typed address straight in as a co-admin', async () => {
+    renderDialog();
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'com_ui_admin_invite_role' }),
+      'coAdmin',
+    );
+    await userEvent.type(
+      screen.getByLabelText('com_ui_admin_collaborators_invite_label'),
+      'co@illinois.edu{enter}',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'com_ui_save' }));
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        'agent_prod',
+        saved({ coAdminEmails: ['co@illinois.edu'] }),
+      ),
+    );
+  });
+
+  it('reminds the owner to have people check spam once emails go out', async () => {
+    mockUpdate.mockResolvedValue({
+      collaborators: [],
+      pending: [],
+      coAdmins: [priya],
+      pendingCoAdmins: [],
+      invited: [],
+      roleChanged: ['p@illinois.edu'],
+    });
+    renderDialog();
+    await userEvent.click(screen.getByRole('button', { name: 'com_ui_save' }));
+    await waitFor(() =>
+      expect(mockShowToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'com_ui_admin_people_emailed {"count":1}',
+          duration: expect.any(Number),
+        }),
+      ),
+    );
+  });
 
   it('lists current collaborators and removes one', async () => {
     renderDialog();
@@ -92,8 +183,7 @@ describe('CollaboratorsDialog', () => {
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
         'agent_prod',
-        ['u1', 'u2'],
-        ['no.account@illinois.edu'],
+        saved({ userIds: ['u1', 'u2'], emails: ['no.account@illinois.edu'] }),
       ),
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -117,12 +207,15 @@ describe('CollaboratorsDialog', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'com_ui_save' }));
     await waitFor(() =>
-      expect(mockUpdate).toHaveBeenCalledWith('agent_prod', ['u1'], ['jokafor@illinois.edu']),
+      expect(mockUpdate).toHaveBeenCalledWith(
+        'agent_prod',
+        saved({ emails: ['jokafor@illinois.edu'] }),
+      ),
     );
   });
 
   it('shows an already-invited address and lets it be removed', async () => {
-    renderDialog(['waiting@illinois.edu']);
+    renderDialog(people({ pending: ['waiting@illinois.edu'] }));
     expect(screen.getByText('waiting@illinois.edu')).toBeInTheDocument();
     expect(screen.getByText('com_ui_admin_collaborators_invited_pending')).toBeInTheDocument();
     await userEvent.click(
@@ -131,27 +224,6 @@ describe('CollaboratorsDialog', () => {
       }),
     );
     await userEvent.click(screen.getByRole('button', { name: 'com_ui_save' }));
-    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith('agent_prod', ['u1'], []));
-  });
-
-  it('reports how many invitations went out', async () => {
-    mockUpdate.mockResolvedValue({
-      collaborators: [],
-      pending: ['jokafor@illinois.edu'],
-      invited: ['jokafor@illinois.edu'],
-    });
-    renderDialog();
-    await userEvent.type(
-      screen.getByLabelText('com_ui_admin_collaborators_invite_label'),
-      'jokafor@illinois.edu{enter}',
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'com_ui_save' }));
-    await waitFor(() =>
-      expect(mockShowToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: 'com_ui_admin_collaborators_invited_sent {"count":1}',
-        }),
-      ),
-    );
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith('agent_prod', saved()));
   });
 });

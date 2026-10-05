@@ -1,6 +1,5 @@
 const express = require('express');
 const { nanoid } = require('nanoid');
-const { PrincipalType, ResourceType, AccessRoleIds } = require('librechat-data-provider');
 const {
   callTestModel,
   topicsModelFromConfig,
@@ -10,9 +9,10 @@ const {
 } = require('@librechat/api');
 const { SystemCapabilities } = require('@librechat/data-schemas');
 const { requireCapability } = require('~/server/middleware/roles/capabilities');
-const { findAccessibleResources, grantPermission } = require('~/server/services/PermissionService');
+const { findAccessibleResources } = require('~/server/services/PermissionService');
 const { copyAgentDocuments } = require('~/server/services/Files/copy');
-const { sendCollaboratorInvite } = require('~/server/services/AgentInvites');
+const { sendCollaboratorInvite, sendRoleChange } = require('~/server/services/AgentInvites');
+const { grantAgentAccess, revokeAgentAccess } = require('~/server/services/AgentAccess');
 const { requireJwtAuth } = require('~/server/middleware');
 const { getAppConfig } = require('~/server/services/Config');
 const db = require('~/models');
@@ -52,28 +52,9 @@ const handlers = createAdminUsageHandlers({
   copyDocuments: copyAgentDocuments,
   sendCollaboratorInvite,
   createAgentId: () => `agent_${nanoid()}`,
-  /** Same two grants `createAgentHandler` makes for a normal agent, plus a viewer variant for the author. */
-  grantAgentAccess: async ({ userId, agentDbId, role }) => {
-    const roles =
-      role === 'owner'
-        ? [
-            [ResourceType.AGENT, AccessRoleIds.AGENT_OWNER],
-            [ResourceType.REMOTE_AGENT, AccessRoleIds.REMOTE_AGENT_OWNER],
-          ]
-        : [[ResourceType.AGENT, AccessRoleIds.AGENT_VIEWER]];
-    await Promise.all(
-      roles.map(([resourceType, accessRoleId]) =>
-        grantPermission({
-          principalType: PrincipalType.USER,
-          principalId: userId,
-          resourceType,
-          resourceId: agentDbId,
-          accessRoleId,
-          grantedBy: userId,
-        }),
-      ),
-    );
-  },
+  sendRoleChange,
+  grantAgentAccess,
+  revokeAgentAccess,
 });
 
 router.use(requireJwtAuth, requireAdminAccess);

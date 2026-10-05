@@ -4005,3 +4005,32 @@ describe('claimPendingCollaborations', () => {
     expect(await methods.claimPendingCollaborations('ta@illinois.edu', '')).toBe(0);
   });
 });
+
+describe('claimPendingCoAdmins', () => {
+  it('turns pending co-admin invites into co-admins and returns those agents, once', async () => {
+    const userId = new mongoose.Types.ObjectId().toString();
+    const author = new mongoose.Types.ObjectId();
+    await methods.createAgent({
+      id: 'agent_coadmin_claim',
+      name: 'coadmin',
+      provider: 'openai',
+      model: 'gpt-4',
+      author,
+    });
+    await methods.setAgentMeta('agent_coadmin_claim', { pendingCoAdmins: ['co@illinois.edu'] });
+
+    const claimed = await methods.claimPendingCoAdmins('CO@illinois.edu', userId);
+
+    expect(claimed.map((agent) => agent.id)).toEqual(['agent_coadmin_claim']);
+    expect(String(claimed[0].author)).toBe(author.toString());
+    const agent = await methods.getAgent({ id: 'agent_coadmin_claim' });
+    expect(agent?.coAdmins).toEqual([userId]);
+    expect(agent?.pendingCoAdmins).toEqual([]);
+    expect(await methods.claimPendingCoAdmins('co@illinois.edu', userId)).toEqual([]);
+  });
+
+  it('does nothing without an email or a user id', async () => {
+    expect(await methods.claimPendingCoAdmins('', 'user')).toEqual([]);
+    expect(await methods.claimPendingCoAdmins('co@illinois.edu', '')).toEqual([]);
+  });
+});

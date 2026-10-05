@@ -1,4 +1,5 @@
 import React from 'react';
+import { RecoilRoot } from 'recoil';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -120,6 +121,7 @@ const agentUsage: AdminAgentUsageResponse = {
       embed: null,
       version: 7,
       isAuthor: true,
+      isCoAdmin: false,
       isCollaborator: false,
       draftCount: 0,
     },
@@ -196,14 +198,16 @@ const renderDashboard = () => {
     defaultOptions: { queries: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/admin']}>
-        <Routes>
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/c/new" element={<ChatLocation />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <RecoilRoot>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/admin']}>
+          <Routes>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/c/new" element={<ChatLocation />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </RecoilRoot>,
   );
 };
 

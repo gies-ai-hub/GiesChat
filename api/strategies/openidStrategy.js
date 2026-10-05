@@ -16,6 +16,7 @@ const {
   getBalanceConfig,
   selectOpenIdRole,
   getAvatarSaveParams,
+  setCoAdminAccess,
   isEmailDomainAllowed,
   getAvatarFileStrategy,
   resolveAppConfigForUser,
@@ -25,12 +26,15 @@ const {
   getLibreChatRolesForOpenIdSync,
 } = require('@librechat/api');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
+const { grantAgentAccess, revokeAgentAccess } = require('~/server/services/AgentAccess');
 const { resizeAvatar } = require('~/server/services/Files/images/avatar');
 const {
   findUser,
+  getAgents,
   createUser,
   updateUser,
   findRolesByNames,
+  claimPendingCoAdmins,
   claimPendingCollaborations,
 } = require('~/models');
 const { getAppConfig } = require('~/server/services/Config');
@@ -831,8 +835,18 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
    * becomes real. Never allowed to block a login. */
   try {
     const claimed = await claimPendingCollaborations(user.email, user._id);
-    if (claimed > 0) {
-      logger.info(`[openidStrategy] ${user.email} claimed ${claimed} agent invitation(s)`);
+    const coAdminOf = await claimPendingCoAdmins(user.email, user._id);
+    await Promise.all(
+      coAdminOf.map((agent) =>
+        setCoAdminAccess(
+          { findAgents: getAgents, grantAgentAccess, revokeAgentAccess },
+          { userId: String(user._id), agent, granted: true },
+        ),
+      ),
+    );
+    const total = claimed + coAdminOf.length;
+    if (total > 0) {
+      logger.info(`[openidStrategy] ${user.email} claimed ${total} agent invitation(s)`);
     }
   } catch (error) {
     logger.error('[openidStrategy] Could not claim pending agent invitations', error);

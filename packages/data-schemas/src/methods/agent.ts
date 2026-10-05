@@ -1096,6 +1096,27 @@ export function createAgentMethods(
     return result.modifiedCount ?? 0;
   }
 
+  /**
+   * Same as `claimPendingCollaborations` for co-admin invites, but returns the agents
+   * claimed: a co-admin also needs an edit grant on each, which the caller makes.
+   */
+  async function claimPendingCoAdmins(email: string, userId: string): Promise<IAgent[]> {
+    const Agent = mongoose.models.Agent as Model<IAgent>;
+    const address = email?.trim().toLowerCase();
+    if (!address || !userId) {
+      return [];
+    }
+    const agents = await Agent.find({ pendingCoAdmins: address }, '_id id author').lean<IAgent[]>();
+    if (agents.length === 0) {
+      return [];
+    }
+    await Agent.updateMany(
+      { _id: { $in: agents.map((agent) => agent._id) } },
+      { $addToSet: { coAdmins: String(userId) }, $pull: { pendingCoAdmins: address } },
+    );
+    return agents;
+  }
+
   /** Deliberately not `updateAgent`: who may draft, and whether a draft was posted, are not versioned edits. */
   async function setAgentMeta(agentId: string, meta: IAgentMeta): Promise<IAgent | null> {
     const Agent = mongoose.models.Agent as Model<IAgent>;
@@ -1112,6 +1133,7 @@ export function createAgentMethods(
     setAgentEmbed,
     setAgentMeta,
     claimPendingCollaborations,
+    claimPendingCoAdmins,
     getAgentVersions,
     getAgentWithVersionCount,
     getAgents,

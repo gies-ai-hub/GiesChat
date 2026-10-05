@@ -48,6 +48,7 @@ const row = (overrides: Partial<AdminAgentUsage> = {}): AdminAgentUsage => ({
   embed: null,
   version: 7,
   isAuthor: true,
+  isCoAdmin: false,
   isCollaborator: false,
   draftCount: 2,
   ...overrides,
@@ -58,6 +59,8 @@ const drafts: AdminAgentDraftsResponse = {
   version: 7,
   collaborators: [{ id: 'u1', name: 'Priya Natarajan', email: 'p@illinois.edu' }],
   pending: [],
+  coAdmins: [],
+  pendingCoAdmins: [],
   drafts: [
     {
       draft_id: 'agent_prod_priya',
@@ -66,7 +69,7 @@ const drafts: AdminAgentDraftsResponse = {
       postedVersion: null,
       updatedAt: '2026-09-20T10:00:00.000Z',
       mine: false,
-      embed: { key: 'abc', audience: 'public', greeting: null },
+      embed: { key: 'abc', audience: 'public', greeting: null, theme: 'light' },
     },
     {
       draft_id: 'agent_prod_marcus',
@@ -125,8 +128,12 @@ describe('DraftsPanel (author)', () => {
     await userEvent.click(screen.getByRole('button', { name: /com_ui_admin_collaborators_count/ }));
     expect(handlers.onManageCollaborators).toHaveBeenCalledWith(
       expect.objectContaining({ agent_id: 'agent_prod' }),
-      drafts.collaborators,
-      drafts.pending,
+      {
+        collaborators: drafts.collaborators,
+        pending: drafts.pending,
+        coAdmins: [],
+        pendingCoAdmins: [],
+      },
     );
   });
 
@@ -154,5 +161,15 @@ describe('DraftsPanel (author)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'com_ui_admin_start_draft' }));
     await waitFor(() => expect(handlers.onEditDraft).toHaveBeenCalledWith('agent_prod_me'));
     expect(screen.queryByRole('button', { name: /com_ui_admin_collaborators_count/ })).toBeNull();
+  });
+
+  it('lets a co-admin see and post every draft but not manage people', async () => {
+    mockGetDrafts.mockResolvedValue({ ...drafts, collaborators: [] });
+    renderPanel(row({ isAuthor: false, isCoAdmin: true }));
+    await screen.findByText('Priya Natarajan');
+    expect(screen.getByText('Marcus Lee')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /com_ui_admin_draft_post$/ })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /com_ui_admin_collaborators_count/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'com_ui_admin_start_draft' })).toBeNull();
   });
 });

@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Dropdown, OGDialog, OGDialogContent, OGDialogTitle } from '@librechat/client';
 import { QueryKeys, Permissions, PermissionTypes } from 'librechat-data-provider';
-import type { AdminUserRef, AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
+import type { AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
 import type { Option } from '@librechat/client';
+import type { AgentPeopleLists } from './Drafts/CollaboratorsDialog';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
 import { CollaboratorsDialog } from './Drafts';
 import { useAdminAccess, useAdminGroupsQuery } from '~/data-provider';
@@ -27,6 +28,12 @@ const DASHBOARD_ORIGIN = 'dashboard';
 const DASHBOARD_MODEL = { provider: 'Azure OpenAI', model: 'gpt-5.6-terra' };
 /** Class agents may hold more File Context documents than a chat message may attach. */
 const DASHBOARD_DOCUMENT_LIMIT = 50;
+const NO_PEOPLE: AgentPeopleLists = {
+  collaborators: [],
+  pending: [],
+  coAdmins: [],
+  pendingCoAdmins: [],
+};
 
 export default function AdminDashboard() {
   const localize = useLocalize();
@@ -46,8 +53,7 @@ export default function AdminDashboard() {
   const [isBuilding, setIsBuilding] = useState(false);
   const [collaboratorsFor, setCollaboratorsFor] = useState<{
     agent: AdminAgentUsage;
-    collaborators: AdminUserRef[];
-    pending: string[];
+    people: AgentPeopleLists;
   } | null>(null);
 
   const { data: groupData, error: groupsError } = useAdminGroupsQuery(
@@ -136,8 +142,7 @@ export default function AdminDashboard() {
   );
 
   const handleManageCollaborators = useCallback(
-    (agent: AdminAgentUsage, collaborators: AdminUserRef[], pending: string[]) =>
-      setCollaboratorsFor({ agent, collaborators, pending }),
+    (agent: AdminAgentUsage, people: AgentPeopleLists) => setCollaboratorsFor({ agent, people }),
     [],
   );
 
@@ -230,7 +235,8 @@ export default function AdminDashboard() {
                 {localize('com_ui_admin_open_in_chat')}
               </Button>
             )}
-            {selectedAgent != null && (
+            {/* Owner only: its role picker can hand out Owner, which includes delete. */}
+            {selectedAgent?.isAuthor === true && (
               <ShareWithClass
                 agentId={selectedAgent.agent_id}
                 agentName={selectedAgent.name}
@@ -334,8 +340,7 @@ export default function AdminDashboard() {
 
         <CollaboratorsDialog
           agent={collaboratorsFor?.agent ?? null}
-          collaborators={collaboratorsFor?.collaborators ?? []}
-          pending={collaboratorsFor?.pending ?? []}
+          people={collaboratorsFor?.people ?? NO_PEOPLE}
           onOpenChange={(open) => {
             if (!open) {
               setCollaboratorsFor(null);

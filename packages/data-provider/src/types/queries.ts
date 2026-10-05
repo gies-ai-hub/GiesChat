@@ -263,8 +263,10 @@ export type AdminAgentUsage = AdminUsageCounts & {
   embed: AgentEmbed | null;
   /** Production version students run — the count of saved versions. */
   version: number;
-  /** The caller authored this agent and may set collaborators and post drafts. */
+  /** The caller authored this agent: they alone set people's roles and delete it. */
   isAuthor: boolean;
+  /** The caller runs this agent with the author: edits production and posts drafts. */
+  isCoAdmin: boolean;
   /** The caller is a named collaborator: drafts and tests, never edits production. */
   isCollaborator: boolean;
   /** Unposted drafts visible to the caller. */
@@ -315,15 +317,35 @@ export type AdminAgentDraftsResponse = {
   collaborators: AdminUserRef[];
   /** Invited addresses with no account yet; empty unless the caller is the author. */
   pending: string[];
+  /** Empty unless the caller is the author. */
+  coAdmins: AdminUserRef[];
+  /** Invited co-admin addresses with no account yet; empty unless the caller is the author. */
+  pendingCoAdmins: string[];
   drafts: AdminAgentDraft[];
+};
+
+/** A person's role on one class agent, below its author. */
+export type AdminAgentRole = 'coAdmin' | 'collaborator';
+
+export type AdminAgentPeople = {
+  /** Account ids, by role. Someone listed under both is saved as a co-admin. */
+  userIds: string[];
+  coAdminIds: string[];
+  /** Invited @illinois.edu addresses, by role. */
+  emails: string[];
+  coAdminEmails: string[];
 };
 
 export type AdminCollaboratorsResponse = {
   collaborators: AdminUserRef[];
   /** Invited addresses still waiting for a first sign-in. */
   pending: string[];
-  /** The subset that was emailed by this request. */
+  coAdmins: AdminUserRef[];
+  pendingCoAdmins: string[];
+  /** Newly added addresses that were sent an invite by this request. */
   invited: string[];
+  /** Existing people whose role changed and who were told so by email. */
+  roleChanged: string[];
 };
 export type AdminOpenDraftResponse = { draft_id: string; created: boolean };
 export type AdminPostDraftResponse = { agent_id: string; version: number };

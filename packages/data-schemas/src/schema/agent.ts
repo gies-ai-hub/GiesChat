@@ -139,6 +139,18 @@ const agentSchema: Schema<IAgent> = new Schema<IAgent>(
       default: undefined,
       index: true,
     },
+    /** User ids who run this agent with its author: edit production and post drafts, never delete or set roles. */
+    coAdmins: {
+      type: [String],
+      default: undefined,
+      index: true,
+    },
+    /** Invited co-admin emails with no account yet; claimed into `coAdmins` on first sign-in. */
+    pendingCoAdmins: {
+      type: [String],
+      default: undefined,
+      index: true,
+    },
     /** Set on a draft: the id of the production agent it was cloned from. Its presence hides the agent from dashboard lists. */
     draftOf: {
       type: String,

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { QueryKeys, MutationKeys, dataService } from 'librechat-data-provider';
 import type { UseMutationResult } from '@tanstack/react-query';
 import type {
+  AdminAgentPeople,
   AgentEmbedSettings,
   AdminDashboardPanel,
   AdminModelTestRequest,
@@ -76,12 +77,11 @@ export const useRevokeAdminAgentEmbedMutation = (): UseMutationResult<
 export const useUpdateAdminAgentCollaboratorsMutation = (): UseMutationResult<
   AdminCollaboratorsResponse,
   unknown,
-  { agentId: string; userIds: string[]; emails?: string[] }
+  AdminAgentPeople & { agentId: string }
 > => {
   const queryClient = useQueryClient();
   return useMutation(
-    ({ agentId, userIds, emails }) =>
-      dataService.updateAdminAgentCollaborators(agentId, userIds, emails ?? []),
+    ({ agentId, ...people }) => dataService.updateAdminAgentCollaborators(agentId, people),
     {
       mutationKey: [MutationKeys.updateAdminAgentCollaborators],
       onSuccess: (_data, { agentId }) => {

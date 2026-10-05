@@ -193,6 +193,9 @@ const readAgentField: FieldReader<IAgent> = (doc, key) => {
   if (key === 'collaborators') {
     return doc.collaborators;
   }
+  if (key === 'coAdmins') {
+    return doc.coAdmins;
+  }
   if (key === 'draftOf') {
     return doc.draftOf;
   }
@@ -344,6 +347,8 @@ interface TestDeps extends AdminUsageDeps {
   getFiles: jest.Mock;
   copyDocuments: jest.Mock;
   sendCollaboratorInvite: jest.Mock;
+  revokeAgentAccess: jest.Mock;
+  sendRoleChange: jest.Mock;
 }
 
 /** The shape the analytics pipeline returns when nothing happened in the window. */
@@ -438,6 +443,8 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
         new Map(files.map((file) => [file.file_id, `${file.file_id}_copy`])),
     ),
     sendCollaboratorInvite: jest.fn(async () => undefined),
+    revokeAgentAccess: jest.fn(async () => undefined),
+    sendRoleChange: jest.fn(async () => undefined),
     ...overrides,
   };
 
@@ -477,6 +484,7 @@ interface AgentUsageResponseItem {
   canDelete: boolean;
   version: number;
   isAuthor: boolean;
+  isCoAdmin: boolean;
   isCollaborator: boolean;
   draftCount: number;
 }
@@ -1292,6 +1300,7 @@ describe('createAdminUsageHandlers', () => {
           'draftCount',
           'embed',
           'isAuthor',
+          'isCoAdmin',
           'isCollaborator',
           'lastActivity',
           'messageCount',
@@ -2519,17 +2528,23 @@ describe('createAdminUsageHandlers', () => {
         expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
           collaborators: [anaId.toString()],
           pendingCollaborators: [],
+          coAdmins: [],
+          pendingCoAdmins: [],
         });
         expect(json.mock.calls[0][0]).toEqual({
           collaborators: [{ id: anaId.toString(), name: 'Ana Member', email: 'ana@illinois.edu' }],
           pending: [],
+          coAdmins: [],
+          pendingCoAdmins: [],
           invited: ['ana@illinois.edu'],
+          roleChanged: [],
         });
         expect(deps.sendCollaboratorInvite).toHaveBeenCalledTimes(1);
         expect(deps.sendCollaboratorInvite).toHaveBeenCalledWith({
           email: 'ana@illinois.edu',
           agentName: 'Case Coach',
           inviterName: 'Prof',
+          role: 'collaborator',
         });
       });
 
@@ -2575,12 +2590,15 @@ describe('createAdminUsageHandlers', () => {
         expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
           collaborators: [],
           pendingCollaborators: ['jokafor@illinois.edu'],
+          coAdmins: [],
+          pendingCoAdmins: [],
         });
         expect(deps.sendCollaboratorInvite).toHaveBeenCalledTimes(1);
         expect(deps.sendCollaboratorInvite).toHaveBeenCalledWith({
           email: 'jokafor@illinois.edu',
           agentName: 'Case Coach',
           inviterName: 'Prof',
+          role: 'collaborator',
         });
         expect(json.mock.calls[0][0]).toMatchObject({
           pending: ['jokafor@illinois.edu'],
@@ -2601,6 +2619,8 @@ describe('createAdminUsageHandlers', () => {
         expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
           collaborators: [anaId.toString()],
           pendingCollaborators: [],
+          coAdmins: [],
+          pendingCoAdmins: [],
         });
         expect(deps.sendCollaboratorInvite).toHaveBeenCalledTimes(1);
         expect(deps.sendCollaboratorInvite).toHaveBeenCalledWith(
@@ -2630,6 +2650,8 @@ describe('createAdminUsageHandlers', () => {
         expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
           collaborators: [],
           pendingCollaborators: ['jokafor@illinois.edu'],
+          coAdmins: [],
+          pendingCoAdmins: [],
         });
         expect(deps.sendCollaboratorInvite).not.toHaveBeenCalled();
         expect(json.mock.calls[0][0]).toMatchObject({ invited: [] });
@@ -2653,6 +2675,8 @@ describe('createAdminUsageHandlers', () => {
         expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
           collaborators: [],
           pendingCollaborators: ['jokafor@illinois.edu'],
+          coAdmins: [],
+          pendingCoAdmins: [],
         });
       });
 
@@ -2812,6 +2836,215 @@ describe('createAdminUsageHandlers', () => {
         await handlers.openAgentDraft(req, res);
         expect(status).toHaveBeenCalledWith(404);
         expect(deps.createAgent).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('co-admins', () => {
+      const coId = new Types.ObjectId();
+      const cora = mockUser({
+        _id: coId,
+        role: 'USER',
+        name: 'Cora Admin',
+        email: 'cora@illinois.edu',
+      });
+
+      it('makes a known user a co-admin: edit on production, view on open drafts, invite with the role', async () => {
+        const { prod, bobDraft } = world();
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob, cora] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: [bobId.toString()], coAdminIds: [coId.toString()] },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
+          collaborators: [bobId.toString()],
+          pendingCollaborators: [],
+          coAdmins: [coId.toString()],
+          pendingCoAdmins: [],
+        });
+        expect(deps.grantAgentAccess).toHaveBeenCalledWith(
+          expect.objectContaining({ userId: coId.toString(), agentDbId: prod._id, role: 'editor' }),
+        );
+        expect(deps.grantAgentAccess).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userId: coId.toString(),
+            agentDbId: bobDraft._id,
+            role: 'viewer',
+          }),
+        );
+        expect(deps.sendCollaboratorInvite).toHaveBeenCalledWith({
+          email: 'cora@illinois.edu',
+          agentName: 'Case Coach',
+          inviterName: 'Prof',
+          role: 'coAdmin',
+        });
+        expect(json.mock.calls[0][0]).toMatchObject({
+          coAdmins: [{ id: coId.toString(), name: 'Cora Admin' }],
+          invited: ['cora@illinois.edu'],
+          roleChanged: [],
+        });
+      });
+
+      it('demoting a co-admin revokes their access and emails the role change, not an invite', async () => {
+        const { prod, bobDraft } = world();
+        prod.coAdmins = [coId.toString()];
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob, cora] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: [bobId.toString(), coId.toString()], coAdminIds: [] },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(deps.revokeAgentAccess).toHaveBeenCalledWith({
+          userId: coId.toString(),
+          agentDbId: prod._id,
+        });
+        expect(deps.revokeAgentAccess).toHaveBeenCalledWith({
+          userId: coId.toString(),
+          agentDbId: bobDraft._id,
+        });
+        expect(deps.grantAgentAccess).not.toHaveBeenCalled();
+        expect(deps.sendCollaboratorInvite).not.toHaveBeenCalled();
+        expect(deps.sendRoleChange).toHaveBeenCalledWith({
+          email: 'cora@illinois.edu',
+          agentName: 'Case Coach',
+          inviterName: 'Prof',
+          role: 'collaborator',
+        });
+        expect(json.mock.calls[0][0]).toMatchObject({ roleChanged: ['cora@illinois.edu'] });
+      });
+
+      it('promoting an invited address keeps it pending as a co-admin and tells them', async () => {
+        const { prod } = world();
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: {
+            userIds: [bobId.toString()],
+            coAdminEmails: ['invited@illinois.edu'],
+            emails: ['invited@illinois.edu'],
+          },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod', {
+          collaborators: [bobId.toString()],
+          pendingCollaborators: [],
+          coAdmins: [],
+          pendingCoAdmins: ['invited@illinois.edu'],
+        });
+        expect(deps.grantAgentAccess).not.toHaveBeenCalled();
+        expect(deps.sendRoleChange).toHaveBeenCalledWith(
+          expect.objectContaining({ email: 'invited@illinois.edu', role: 'coAdmin' }),
+        );
+        expect(deps.sendCollaboratorInvite).not.toHaveBeenCalled();
+      });
+
+      it('a co-admin cannot change roles', async () => {
+        const { prod } = world();
+        prod.coAdmins = [coId.toString()];
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob, cora] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: [], coAdminIds: [coId.toString()] },
+          user: cora,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(status).toHaveBeenCalledWith(403);
+        expect(deps.setAgentMeta).not.toHaveBeenCalled();
+      });
+
+      it('lists the agent for a co-admin, flagged as such and not as a collaborator', async () => {
+        const { prod } = world();
+        prod.coAdmins = [coId.toString()];
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob, cora] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({ user: cora });
+        await handlers.listAgentUsage(req, res);
+        expect(agentBody(json).agents[0]).toMatchObject({
+          agent_id: 'agent_prod',
+          isAuthor: false,
+          isCoAdmin: true,
+          isCollaborator: false,
+          draftCount: 0,
+        });
+      });
+
+      it('shows a co-admin every open draft but never the people lists', async () => {
+        const { prod, bobDraft, anaDraft } = world();
+        prod.coAdmins = [coId.toString()];
+        const deps = createDeps(
+          baseWorld({ agents: [prod, bobDraft, anaDraft], users: [bob, ana, cora] }),
+        );
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          user: cora,
+        });
+        await handlers.listAgentDrafts(req, res);
+        const body = json.mock.calls[0][0] as {
+          collaborators: unknown[];
+          coAdmins: unknown[];
+          pending: string[];
+          drafts: { draft_id: string }[];
+        };
+        expect(body.drafts.map((draft) => draft.draft_id).sort()).toEqual([
+          'agent_prod_ana',
+          'agent_prod_bob',
+        ]);
+        expect(body.collaborators).toEqual([]);
+        expect(body.coAdmins).toEqual([]);
+        expect(body.pending).toEqual([]);
+      });
+
+      it('gives the author the co-admin lists', async () => {
+        const { prod } = world();
+        prod.coAdmins = [coId.toString()];
+        prod.pendingCoAdmins = ['later@illinois.edu'];
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob, cora] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, json } = createReqRes({ params: { agent_id: 'agent_prod' }, user: prof });
+        await handlers.listAgentDrafts(req, res);
+        expect(json.mock.calls[0][0]).toMatchObject({
+          coAdmins: [{ id: coId.toString(), name: 'Cora Admin' }],
+          pendingCoAdmins: ['later@illinois.edu'],
+        });
+      });
+
+      it('lets a co-admin post a draft', async () => {
+        const { prod, bobDraft } = world();
+        prod.coAdmins = [coId.toString()];
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob, cora] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod', draft_id: 'agent_prod_bob' },
+          user: cora,
+        });
+        await handlers.postAgentDraft(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        expect(deps.updateAgent).toHaveBeenCalledWith(
+          { id: 'agent_prod' },
+          expect.anything(),
+          expect.objectContaining({ updatingUserId: coId.toString() }),
+        );
+      });
+
+      it('grants co-admins a view of a newly opened draft', async () => {
+        const { prod } = world();
+        prod.coAdmins = [coId.toString()];
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob, cora] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res } = createReqRes({ params: { agent_id: 'agent_prod' }, user: ta });
+        await handlers.openAgentDraft(req, res);
+        expect(deps.grantAgentAccess).toHaveBeenCalledWith(
+          expect.objectContaining({ userId: coId.toString(), role: 'viewer' }),
+        );
       });
     });
 

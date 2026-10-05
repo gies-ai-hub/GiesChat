@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Button } from '@librechat/client';
 import { Link2, Pencil, Users, MessageSquare } from 'lucide-react';
-import type { AdminUserRef, AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
+import type { AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
+import type { AgentPeopleLists } from './CollaboratorsDialog';
 import { useAdminAgentDraftsQuery, useOpenAdminAgentDraftMutation } from '~/data-provider';
 import DeleteAgentButton from '~/components/Agents/DeleteAgentButton';
 import { formatLastActivity } from '../activity';
@@ -15,11 +16,7 @@ interface DraftsPanelProps {
   onEditDraft: (draftId: string) => void;
   onTestLink: (draft: AdminAgentDraft) => void;
   onOpenInChat: (draftId: string) => void;
-  onManageCollaborators: (
-    agent: AdminAgentUsage,
-    collaborators: AdminUserRef[],
-    pending: string[],
-  ) => void;
+  onManageCollaborators: (agent: AdminAgentUsage, people: AgentPeopleLists) => void;
 }
 
 const initials = (name: string) =>
@@ -31,8 +28,9 @@ const initials = (name: string) =>
     .join('');
 
 /**
- * The expanded row under a production agent. The author sees every open draft with
- * Post; a collaborator sees their own draft (or a Start button). Both see test links.
+ * The expanded row under a production agent. The author and co-admins see every open
+ * draft with Post, and only the author manages People; a collaborator sees their own
+ * draft (or a Start button). All of them see test links.
  */
 export default function DraftsPanel({
   agent,
@@ -48,9 +46,17 @@ export default function DraftsPanel({
 
   const drafts = data?.drafts ?? [];
   const version = data?.version ?? agent.version;
-  const heading = agent.isAuthor
+  const manages = agent.isAuthor || agent.isCoAdmin;
+  const heading = manages
     ? localize('com_ui_admin_drafts_heading', { name: agent.name })
     : localize('com_ui_admin_your_draft');
+  const people: AgentPeopleLists = {
+    collaborators: data?.collaborators ?? [],
+    pending: data?.pending ?? [],
+    coAdmins: data?.coAdmins ?? [],
+    pendingCoAdmins: data?.pendingCoAdmins ?? [],
+  };
+  const peopleCount = Object.values(people).reduce((sum, list) => sum + list.length, 0);
 
   const startDraft = () =>
     openDraft.mutate(agent.agent_id, { onSuccess: (result) => onEditDraft(result.draft_id) });
@@ -60,17 +66,9 @@ export default function DraftsPanel({
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-text-primary">{heading}</h3>
         {agent.isAuthor && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              onManageCollaborators(agent, data?.collaborators ?? [], data?.pending ?? [])
-            }
-          >
+          <Button size="sm" variant="outline" onClick={() => onManageCollaborators(agent, people)}>
             <Users className="mr-1 size-4" aria-hidden="true" />
-            {localize('com_ui_admin_collaborators_count', {
-              count: (data?.collaborators?.length ?? 0) + (data?.pending?.length ?? 0),
-            })}
+            {localize('com_ui_admin_collaborators_count', { count: peopleCount })}
           </Button>
         )}
       </div>
@@ -82,10 +80,10 @@ export default function DraftsPanel({
         errorKey="com_ui_admin_drafts_error"
         onRetry={() => void refetch()}
       >
-        {drafts.length === 0 && agent.isAuthor && (
+        {drafts.length === 0 && manages && (
           <p className="text-sm text-text-secondary">{localize('com_ui_admin_drafts_empty')}</p>
         )}
-        {drafts.length === 0 && !agent.isAuthor && (
+        {drafts.length === 0 && !manages && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border-light bg-surface-primary p-3">
             <p className="text-sm text-text-secondary">
               {localize('com_ui_admin_start_draft_hint')}
@@ -155,7 +153,7 @@ export default function DraftsPanel({
                     <MessageSquare className="mr-1 size-4" aria-hidden="true" />
                     {localize('com_ui_admin_draft_open_in_chat')}
                   </Button>
-                  {agent.isAuthor && (
+                  {manages && (
                     <Button size="sm" onClick={() => setPosting(draft)}>
                       {localize('com_ui_admin_draft_post')}
                     </Button>

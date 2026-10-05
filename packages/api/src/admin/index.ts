@@ -5,7 +5,7 @@ export { createAdminRolesHandlers } from './roles';
 export { createAdminSkillsSyncAccess, createAdminSkillsSyncHandlers } from './skills';
 export { createAdminUsersHandlers } from './users';
 export { createAdminAuditLogHandlers } from './auditLog';
-export { createAdminUsageHandlers } from './usage';
+export { createAdminUsageHandlers, setCoAdminAccess } from './usage';
 export type { AdminConfigDeps } from './config';
 export type { AdminGrantsDeps, GrantPrincipalType } from './grants';
 export type { AdminGroupsDeps } from './groups';

@@ -13,7 +13,8 @@ import {
   TableCaption,
   TooltipAnchor,
 } from '@librechat/client';
-import type { AdminUserRef, AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
+import type { AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
+import type { AgentPeopleLists } from './Drafts/CollaboratorsDialog';
 import DeleteAgentButton from '~/components/Agents/DeleteAgentButton';
 import { useAdminAgentUsageQuery } from '~/data-provider';
 import { formatLastActivity } from './activity';
@@ -31,11 +32,7 @@ interface AgentUsageTableProps {
   onEditDraft: (draftId: string, agent: AdminAgentUsage) => void;
   onTestLink: (draft: AdminAgentDraft, agent: AdminAgentUsage) => void;
   onOpenDraft: (draftId: string) => void;
-  onManageCollaborators: (
-    agent: AdminAgentUsage,
-    collaborators: AdminUserRef[],
-    pending: string[],
-  ) => void;
+  onManageCollaborators: (agent: AdminAgentUsage, people: AgentPeopleLists) => void;
 }
 
 export default function AgentUsageTable({
@@ -134,6 +131,11 @@ export default function AgentUsageTable({
                         )}
                       </span>
                     )}
+                    {agent.isCoAdmin && (
+                      <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 text-[11px] font-semibold text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">
+                        {localize('com_ui_admin_role_coadmin')}
+                      </span>
+                    )}
                     {agent.isCollaborator && (
                       <span className="rounded-full border border-border-light bg-surface-tertiary px-2 text-[11px] font-semibold text-text-primary">
                         {localize('com_ui_admin_status_collaborator')}
@@ -214,7 +216,7 @@ export default function AgentUsageTable({
                         </Button>
                       }
                     />
-                    {(agent.isAuthor || agent.isCollaborator) && (
+                    {(agent.isAuthor || agent.isCoAdmin || agent.isCollaborator) && (
                       <TooltipAnchor
                         description={localize(
                           expanded === agent.agent_id
