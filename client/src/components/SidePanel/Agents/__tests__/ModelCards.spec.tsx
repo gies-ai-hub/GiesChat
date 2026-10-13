@@ -23,8 +23,8 @@ const specs = [
   },
 ] as TModelSpec[];
 
-const models = ['gpt-5.6-terra', 'gpt-6-luna', 'gpt-6-sol'];
-const defaultModel = { provider: 'Azure OpenAI', model: 'gpt-5.6-terra' };
+const models = ['gpt-6-luna', 'gpt-6.1-sol', 'gpt-5.6-terra'];
+const defaultModel = { provider: 'Azure OpenAI', model: 'gpt-6-luna' };
 
 describe('getModelGuide', () => {
   it('matches a spec on provider and model', () => {
@@ -50,16 +50,16 @@ describe('orderModels', () => {
   });
 
   it('hides retired models unless the agent is still on one', () => {
-    expect(orderModels(['gpt-6-sol', 'gpt-5.4', 'gpt-5.4-mini'])).toEqual(['gpt-6-sol']);
-    expect(orderModels(['gpt-6-sol', 'gpt-5.4'], undefined, 'gpt-5.4')).toEqual([
+    expect(orderModels(['gpt-6.1-sol', 'gpt-6-sol', 'gpt-5.6-terra'])).toEqual(['gpt-6.1-sol']);
+    expect(orderModels(['gpt-6.1-sol', 'gpt-6-sol'], undefined, 'gpt-6-sol')).toEqual([
+      'gpt-6.1-sol',
       'gpt-6-sol',
-      'gpt-5.4',
     ]);
   });
 });
 
 describe('ModelCards', () => {
-  it('renders one card per model with the spec description, fallback line, or name only', () => {
+  it('renders one card per model with the spec description, retired line, or name only', () => {
     render(
       <ModelCards
         provider="Azure OpenAI"
@@ -72,13 +72,13 @@ describe('ModelCards', () => {
     );
     const radios = screen.getAllByRole('radio');
     expect(radios).toHaveLength(3);
-    expect(radios[0]).toHaveAttribute('value', 'gpt-5.6-terra');
+    expect(radios[0]).toHaveAttribute('value', 'gpt-6-luna');
     expect(screen.getByText('GPT-5.6 Terra')).toBeInTheDocument();
     expect(screen.getByText('Fast all-rounder — quick answers.')).toBeInTheDocument();
-    expect(screen.getByText('com_ui_model_guide_gpt_5_6_terra')).toBeInTheDocument();
+    expect(screen.getByText('com_ui_model_guide_retired')).toBeInTheDocument();
     expect(screen.getByText('com_ui_model_default_badge')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /GPT-5\.6 Terra/ })).toBeChecked();
-    expect(screen.getByRole('radio', { name: /^gpt-6-sol$/ })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: /^gpt-6\.1-sol$/ })).not.toBeChecked();
   });
 
   it('reports the picked model', () => {
