@@ -1218,6 +1218,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     source: 1,
     context: 1,
     embedded: 1,
+    metadata: 1,
   } as const;
 
   /**

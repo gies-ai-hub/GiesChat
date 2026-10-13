@@ -54,6 +54,7 @@ async function copyAgentDocuments({ req, files, agentId }) {
           text: file.text,
           source: file.source,
           context: file.context,
+          metadata: file.metadata,
           embedded: true,
           usage: 0,
         },

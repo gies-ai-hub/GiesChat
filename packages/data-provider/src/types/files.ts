@@ -159,6 +159,10 @@ export type TFile = {
      * resolve via `resolveCodeEnvRef`.
      */
     codeEnvRef?: CodeEnvRef;
+    /** Saved website copy (dashboard Websites section): the address it was read from. */
+    sourceUrl?: string;
+    pages?: number;
+    checkedAt?: string | Date;
   };
   createdAt?: string | Date;
   updatedAt?: string | Date;

@@ -70,6 +70,11 @@ export interface IMongoFile extends Omit<Document, 'model'> {
      * derive the sessionKey explicitly.
      */
     codeEnvRef?: CodeEnvRef;
+    /** Saved website copy (dashboard Websites section). */
+    sourceUrl?: string;
+    pages?: number;
+    contentHash?: string;
+    checkedAt?: Date;
   };
   expiresAt?: Date;
   expiredAt?: Date | null;

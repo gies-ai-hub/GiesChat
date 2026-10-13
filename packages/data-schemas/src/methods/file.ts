@@ -36,6 +36,8 @@ export function createFileMethods(mongoose: typeof import('mongoose')): {
     selectFields?: Record<string, 0 | 1> | string | null,
   ) => Promise<IMongoFile[] | null>;
   getExpiredFiles: (limit?: number, now?: Date) => Promise<IMongoFile[]>;
+  getDueWebsiteCopies: (before: Date, limit?: number) => Promise<IMongoFile[]>;
+  markWebsiteChecked: (file_id: string, checkedAt: Date) => Promise<void>;
   getToolFilesByIds: (
     fileIds: string[],
     toolResourceSet?: Set<EToolResources>,
@@ -130,6 +132,24 @@ export function createFileMethods(mongoose: typeof import('mongoose')): {
       .sort({ expiredAt: 1 })
       .limit(limit)
       .lean<IMongoFile[]>();
+  }
+
+  /** Saved website copies not confirmed against their site since `before`, oldest first. */
+  async function getDueWebsiteCopies(before: Date, limit = 50): Promise<IMongoFile[]> {
+    const File = mongoose.models.File as Model<IMongoFile>;
+    return await File.find({
+      'metadata.sourceUrl': { $exists: true },
+      'metadata.checkedAt': { $lt: before },
+    })
+      .sort({ 'metadata.checkedAt': 1 })
+      .limit(limit)
+      .select({ text: 0 })
+      .lean<IMongoFile[]>();
+  }
+
+  async function markWebsiteChecked(file_id: string, checkedAt: Date): Promise<void> {
+    const File = mongoose.models.File as Model<IMongoFile>;
+    await File.updateOne({ file_id }, { $set: { 'metadata.checkedAt': checkedAt } });
   }
 
   /**
@@ -568,6 +588,8 @@ export function createFileMethods(mongoose: typeof import('mongoose')): {
     findFileById,
     getFiles,
     getExpiredFiles,
+    getDueWebsiteCopies,
+    markWebsiteChecked,
     getToolFilesByIds,
     getCodeGeneratedFiles,
     getUserCodeFiles,

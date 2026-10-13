@@ -1369,4 +1369,55 @@ describe('File Methods', () => {
       });
     });
   });
+
+  describe('website copies', () => {
+    const makeCopy = (file_id: string, checkedAt?: Date) =>
+      fileMethods.createFile(
+        {
+          file_id,
+          user: new mongoose.Types.ObjectId(),
+          filename: `Website · example.edu/${file_id}`,
+          filepath: `https://example.edu/${file_id}/`,
+          type: 'text/plain',
+          bytes: 10,
+          source: 'text',
+          text: 'page text',
+          ...(checkedAt
+            ? {
+                metadata: {
+                  sourceUrl: `https://example.edu/${file_id}/`,
+                  pages: 3,
+                  contentHash: 'hash',
+                  checkedAt,
+                },
+              }
+            : {}),
+        },
+        true,
+      );
+
+    it('returns copies last checked before the cutoff, oldest first, without their text', async () => {
+      await makeCopy('fresh', new Date('2030-01-02T06:00:00.000Z'));
+      await makeCopy('stale', new Date('2030-01-01T05:00:00.000Z'));
+      await makeCopy('staler', new Date('2029-12-30T05:00:00.000Z'));
+      await makeCopy('plain');
+
+      const due = await fileMethods.getDueWebsiteCopies(new Date('2030-01-02T00:00:00.000Z'), 10);
+
+      expect(due.map((file) => file.file_id)).toEqual(['staler', 'stale']);
+      expect(due[0].text).toBeUndefined();
+      expect(due[0].metadata?.contentHash).toBe('hash');
+    });
+
+    it('markWebsiteChecked moves checkedAt and leaves the rest of the metadata', async () => {
+      await makeCopy('site', new Date('2030-01-01T00:00:00.000Z'));
+      const at = new Date('2030-01-05T00:00:00.000Z');
+
+      await fileMethods.markWebsiteChecked('site', at);
+
+      const [file] = (await fileMethods.getFiles({ file_id: 'site' })) ?? [];
+      expect(file.metadata?.checkedAt).toEqual(at);
+      expect(file.metadata?.sourceUrl).toBe('https://example.edu/site/');
+    });
+  });
 });

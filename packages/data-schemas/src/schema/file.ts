@@ -135,6 +135,13 @@ const file: Schema<IMongoFile> = new Schema(
         ),
         default: undefined,
       },
+      /** Saved website copy: the address it was read from; drives the Websites list. */
+      sourceUrl: { type: String },
+      pages: { type: Number },
+      /** sha256 of the crawled plain text, so an unchanged site skips Luna and re-indexing. */
+      contentHash: { type: String },
+      /** Last time the copy was confirmed to match the site; the refresh selects on it. */
+      checkedAt: { type: Date },
     },
     expiresAt: {
       /* Short-lived upload TTL managed by MongoDB. This is separate from

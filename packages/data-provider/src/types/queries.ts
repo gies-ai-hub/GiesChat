@@ -444,6 +444,38 @@ export type AdminModelTestResult = {
 
 export type AdminModelTestResponse = { results: AdminModelTestResult[] };
 
+/** Why the website crawler left a link out; the Test panel lists it. */
+export type WebsiteSkipReason =
+  | 'robots'
+  | 'offsite'
+  | 'outside'
+  | 'not_html'
+  | 'too_large'
+  | 'limit'
+  | 'error';
+
+export type WebsiteSkipped = { url: string; reason: WebsiteSkipReason };
+
+/** One crawled page. `text` is Luna's Markdown when `cleaned`, otherwise the plain page text. */
+export type WebsitePage = {
+  url: string;
+  title: string;
+  text: string;
+  words: number;
+  cleaned: boolean;
+};
+
+export type AdminWebsitePreviewResponse = {
+  url: string;
+  pages: WebsitePage[];
+  skipped: WebsiteSkipped[];
+};
+
+/** A saved website copy on an agent, as the Websites list shows it. */
+export type AdminWebsiteItem = { file_id: string; url: string; pages: number; checkedAt: string };
+
+export type AdminWebsiteSaveResponse = { website: AdminWebsiteItem };
+
 /** The caller's own analytics panel layout. Array order is the panel order. */
 export type AdminDashboardLayoutResponse = {
   panels: AdminDashboardPanel[];
