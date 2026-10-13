@@ -245,6 +245,9 @@ export type AgentPanelContextType = {
    * created; they are uploaded as soon as there is an agent to attach them to. */
   pendingContextFiles: PendingContextFile[];
   setPendingContextFiles: React.Dispatch<React.SetStateAction<PendingContextFile[]>>;
+  /** Website addresses picked before the agent existed; saved by `AgentPanel` after Create. */
+  pendingWebsites: string[];
+  setPendingWebsites: React.Dispatch<React.SetStateAction<string[]>>;
 };
 
 export type AgentModelPanelProps = {

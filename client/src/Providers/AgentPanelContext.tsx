@@ -35,6 +35,7 @@ export function AgentPanelProvider({ children }: { children: React.ReactNode }) 
   const [activePanel, setActivePanel] = useState<Panel>(Panel.builder);
   const [agent_id, setCurrentAgentId] = useState<string | undefined>(undefined);
   const [pendingContextFiles, setPendingContextFiles] = useState<PendingContextFile[]>([]);
+  const [pendingWebsites, setPendingWebsites] = useState<string[]>([]);
   const { availableMCPServers, isLoading, availableMCPServersMap } = useMCPServerManager();
   const { data: startupConfig } = useGetStartupConfig();
   const { data: actions } = useGetActionsQuery(EModelEndpoint.agents, {
@@ -160,6 +161,8 @@ export function AgentPanelProvider({ children }: { children: React.ReactNode }) 
     availableMCPServersMap,
     pendingContextFiles,
     setPendingContextFiles,
+    pendingWebsites,
+    setPendingWebsites,
   };
 
   return <AgentPanelContext.Provider value={value}>{children}</AgentPanelContext.Provider>;
