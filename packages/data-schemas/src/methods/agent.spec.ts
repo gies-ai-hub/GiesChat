@@ -154,6 +154,27 @@ describe('Agent Methods', () => {
       expect(count).toBe(1);
     });
 
+    test('skipVersioning attaches the file without recording a version', async () => {
+      const agent = await createBasicAgent();
+      const before = (await Agent.findOne({ id: agent.id }).lean())?.versions?.length ?? 0;
+
+      const versioned = await addAgentResourceFile({
+        agent_id: agent.id,
+        tool_resource: 'context',
+        file_id: uuidv4(),
+      });
+      const quiet = await addAgentResourceFile({
+        agent_id: agent.id,
+        tool_resource: 'context',
+        file_id: uuidv4(),
+        skipVersioning: true,
+      });
+
+      expect(versioned.versions?.length).toBe(before + 1);
+      expect(quiet.versions?.length).toBe(before + 1);
+      expect(quiet.tool_resources?.context?.file_ids).toHaveLength(2);
+    });
+
     test('should not duplicate tool_resource in tools if already present', async () => {
       const agent = await createBasicAgent();
       const fileId1 = uuidv4();

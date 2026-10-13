@@ -290,11 +290,13 @@ export function createAgentMethods(
     tool_resource,
     file_id,
     updatingUserId,
+    skipVersioning,
   }: {
     agent_id: string;
     tool_resource: string;
     file_id: string;
     updatingUserId?: string;
+    skipVersioning?: boolean;
   }) => Promise<IAgent>;
   getListAgentsByAccess: ({
     accessibleIds,
@@ -609,11 +611,14 @@ export function createAgentMethods(
     tool_resource,
     file_id,
     updatingUserId,
+    skipVersioning = false,
   }: {
     agent_id: string;
     tool_resource: string;
     file_id: string;
     updatingUserId?: string;
+    /** Automated attachments (the nightly website refresh) are not edits worth a version. */
+    skipVersioning?: boolean;
   }): Promise<IAgent> {
     const Agent = mongoose.models.Agent as Model<IAgent>;
     const searchParameter = { id: agent_id };
@@ -643,6 +648,7 @@ export function createAgentMethods(
 
     const updatedAgent = await updateAgent(searchParameter, updateDataObj, {
       updatingUserId,
+      skipVersioning,
     });
     if (updatedAgent) {
       return updatedAgent;

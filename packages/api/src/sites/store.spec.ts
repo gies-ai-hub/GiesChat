@@ -82,7 +82,11 @@ describe('saveSiteCopy', () => {
       },
     });
     expect(file.text).toBe(`## Schedule (${URL_A})\n\nWeek 5 Tuesday`);
+    expect(file.filepath).toBe('text');
     expect(agentFiles.get('agent_a')).toEqual([file.file_id]);
+    expect(deps.addAgentResourceFile).toHaveBeenCalledWith(
+      expect.objectContaining({ skipVersioning: false }),
+    );
   });
 
   it('still saves an inline-only copy when indexing fails', async () => {
@@ -159,6 +163,39 @@ describe('refreshDueSites', () => {
     expect(agentFiles.get('agent_a')).toHaveLength(1);
     expect(agentFiles.get('agent_draft')).toHaveLength(1);
     expect(agentFiles.get('agent_a')).not.toEqual(agentFiles.get('agent_draft'));
+    expect(deps.addAgentResourceFile).toHaveBeenCalledWith(
+      expect.objectContaining({ skipVersioning: true }),
+    );
+  });
+
+  it('keeps a fuller copy when tonight some pages failed to load', async () => {
+    const ctx = world();
+    const file = await saveSiteCopy(ctx.deps, {
+      userId,
+      agentId: 'agent_a',
+      crawl: {
+        url: URL_A,
+        pages: [
+          { url: URL_A, title: 'Schedule', text: 'Week 4', words: 2, cleaned: false },
+          { url: `${URL_A}week-5/`, title: 'Week 5', text: 'Tuesday', words: 1, cleaned: false },
+        ],
+        skipped: [],
+      },
+    });
+    jest.clearAllMocks();
+    (ctx.deps.crawl as jest.Mock).mockResolvedValueOnce({
+      url: URL_A,
+      pages: [{ url: URL_A, title: 'Schedule', text: 'Week 4 changed', words: 3, cleaned: false }],
+      skipped: [{ url: `${URL_A}week-5/`, reason: 'error' }],
+    });
+    const now = new Date('2026-10-13T03:00:00.000Z');
+
+    const summary = await refreshDueSites(ctx.deps, now);
+
+    expect(summary).toEqual({ checked: 0, updated: 0, failed: 1, dropped: 0 });
+    expect(ctx.files.has(file.file_id)).toBe(true);
+    expect(ctx.deps.createFile).not.toHaveBeenCalled();
+    expect(ctx.deps.markWebsiteChecked).toHaveBeenCalledWith(file.file_id, now);
   });
 
   it('drops a copy no agent uses any more instead of crawling it again', async () => {

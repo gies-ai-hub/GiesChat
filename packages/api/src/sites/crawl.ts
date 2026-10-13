@@ -10,10 +10,18 @@ import { createSSRFSafeUndiciConnect, isSSRFTarget, resolveHostnameSSRF } from '
 
 export const MAX_PAGES = 20;
 const PAGE_TIMEOUT_MS = 8_000;
+/** Leaves room for Luna inside Azure's 230 s request limit. */
+const CRAWL_DEADLINE_MS = 60_000;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
+/** Google's limit; rules past it are ignored. */
+const MAX_ROBOTS_BYTES = 512 * 1024;
+/** Empty JS-rendered pages do not count toward `maxPages`, so fetches get their own cap. */
+const FETCHES_PER_PAGE = 3;
 const CONCURRENCY = 4;
 const MAX_REDIRECTS = 5;
-const MAX_SKIPPED = 50;
+/** Site menus produce dozens of these; the reasons that explain a gap are always kept. */
+const NOISY_REASONS = new Set<WebsiteSkipReason>(['outside', 'offsite']);
+const MAX_NOISY_SKIPPED = 50;
 const USER_AGENT = 'GiesChatBot/1.0 (+https://gieschat.azurewebsites.net)';
 const NOT_HTML = /\.(pdf|docx?|pptx?|xlsx?|csv|zip|png|jpe?g|gif|svg|webp|mp3|mp4|mov)$/i;
 const CHROME = 'script, style, noscript, svg, iframe, nav, header, footer, form';
@@ -136,17 +144,21 @@ function get(url: URL, dispatcher: Agent) {
   });
 }
 
-async function readCapped(body: AsyncIterable<Buffer>): Promise<string | null> {
+async function readCapped(
+  body: AsyncIterable<Buffer>,
+  maxBytes: number,
+): Promise<{ text: string; truncated: boolean }> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of body) {
-    size += chunk.byteLength;
-    if (size > MAX_PAGE_BYTES) {
-      return null;
+    if (size + chunk.byteLength > maxBytes) {
+      chunks.push(chunk.subarray(0, maxBytes - size));
+      return { text: Buffer.concat(chunks).toString('utf8'), truncated: true };
     }
+    size += chunk.byteLength;
     chunks.push(chunk);
   }
-  return Buffer.concat(chunks).toString('utf8');
+  return { text: Buffer.concat(chunks).toString('utf8'), truncated: false };
 }
 
 /**
@@ -176,8 +188,8 @@ async function fetchPage(url: URL, start: URL, dispatcher: Agent): Promise<Fetch
         await res.body.dump();
         return { kind: 'skip', url, reason: 'not_html' };
       }
-      const html = await readCapped(res.body);
-      if (html == null) {
+      const { text: html, truncated } = await readCapped(res.body, MAX_PAGE_BYTES);
+      if (truncated) {
         res.body.destroy();
         return { kind: 'skip', url, reason: 'too_large' };
       }
@@ -189,14 +201,33 @@ async function fetchPage(url: URL, start: URL, dispatcher: Agent): Promise<Fetch
   }
 }
 
+/** Follows same-site redirects (http→https, bare→www) so a non-canonical paste keeps its rules. */
 async function fetchRobots(start: URL, dispatcher: Agent): Promise<string[]> {
+  let current = new URL('/robots.txt', start);
   try {
-    const res = await get(new URL('/robots.txt', start), dispatcher);
-    if (res.statusCode !== 200) {
-      await res.body.dump();
-      return [];
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      const res = await get(current, dispatcher);
+      const location = firstHeader(res.headers, 'location');
+      if (res.statusCode >= 300 && res.statusCode < 400 && location) {
+        await res.body.dump();
+        const next = normalizeSiteUrl(location, current);
+        if (!next || bareHost(next) !== bareHost(start)) {
+          return [];
+        }
+        current = next;
+        continue;
+      }
+      if (res.statusCode !== 200) {
+        await res.body.dump();
+        return [];
+      }
+      const { text, truncated } = await readCapped(res.body, MAX_ROBOTS_BYTES);
+      if (truncated) {
+        res.body.destroy();
+      }
+      return parseRobots(text);
     }
-    return parseRobots(await res.body.text());
+    return [];
   } catch {
     return [];
   }
@@ -212,9 +243,9 @@ const isDisallowed = (url: URL, disallow: string[]): boolean =>
  */
 export async function crawlSite(
   rawUrl: string,
-  options: { maxPages?: number; allowedAddresses?: string[] | null } = {},
+  options: { maxPages?: number; allowedAddresses?: string[] | null; deadlineMs?: number } = {},
 ): Promise<CrawlResult> {
-  const { maxPages = MAX_PAGES, allowedAddresses = null } = options;
+  const { maxPages = MAX_PAGES, allowedAddresses = null, deadlineMs = CRAWL_DEADLINE_MS } = options;
   const start = normalizeSiteUrl(rawUrl);
   if (!start) {
     throw new WebsiteError('invalid_url');
@@ -229,10 +260,18 @@ export async function crawlSite(
 
   const dispatcher = new Agent({ connect: createSSRFSafeUndiciConnect(allowedAddresses, port) });
   const skipped = new Map<string, WebsiteSkipReason>();
+  let noisy = 0;
   const skip = (url: URL, reason: WebsiteSkipReason) => {
-    if (skipped.size < MAX_SKIPPED && !skipped.has(url.href)) {
-      skipped.set(url.href, reason);
+    if (skipped.has(url.href)) {
+      return;
     }
+    if (NOISY_REASONS.has(reason)) {
+      if (noisy >= MAX_NOISY_SKIPPED) {
+        return;
+      }
+      noisy += 1;
+    }
+    skipped.set(url.href, reason);
   };
   const toResult = (pages: WebsitePage[]): CrawlResult => ({
     url: start.href,
@@ -249,8 +288,18 @@ export async function crawlSite(
     const pages: WebsitePage[] = [];
     const seen = new Set<string>([start.href]);
     const queue: URL[] = [start];
-    while (queue.length > 0 && pages.length < maxPages) {
-      const batch = queue.splice(0, Math.min(CONCURRENCY, maxPages - pages.length));
+    const deadline = Date.now() + deadlineMs;
+    const maxFetches = maxPages * FETCHES_PER_PAGE;
+    let fetches = 0;
+    while (
+      queue.length > 0 &&
+      pages.length < maxPages &&
+      fetches < maxFetches &&
+      (fetches === 0 || Date.now() < deadline)
+    ) {
+      const size = Math.min(CONCURRENCY, maxPages - pages.length, maxFetches - fetches);
+      const batch = queue.splice(0, size);
+      fetches += batch.length;
       const results = await Promise.all(batch.map((url) => fetchPage(url, start, dispatcher)));
       for (const result of results) {
         if (result.kind === 'skip') {
@@ -269,6 +318,8 @@ export async function crawlSite(
             words: countWords(text),
             cleaned: false,
           });
+        } else {
+          skip(result.url, 'empty');
         }
         for (const link of links) {
           if (seen.has(link.href)) {

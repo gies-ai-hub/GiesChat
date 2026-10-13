@@ -135,6 +135,7 @@
   "com_agents_websites_saved_badge": "Saved · {{0}} pages",
   "com_agents_websites_saved_toast": "Saved {{0}} pages from {{1}}",
   "com_agents_websites_skip_error": "couldn't load",
+  "com_agents_websites_skip_empty": "no readable text (the page may need JavaScript)",
   "com_agents_websites_skip_limit": "over 20 pages",
   "com_agents_websites_skip_not_html": "not a web page",
   "com_agents_websites_skip_offsite": "other site",

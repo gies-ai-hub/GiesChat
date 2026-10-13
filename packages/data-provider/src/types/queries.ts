@@ -449,6 +449,7 @@ export type WebsiteSkipReason =
   | 'robots'
   | 'offsite'
   | 'outside'
+  | 'empty'
   | 'not_html'
   | 'too_large'
   | 'limit'

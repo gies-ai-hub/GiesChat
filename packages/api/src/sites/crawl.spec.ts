@@ -9,12 +9,19 @@ import {
   normalizeSiteUrl,
 } from './crawl';
 
-type Route = { status?: number; type?: string; body?: string; location?: string };
+type Route = {
+  status?: number;
+  type?: string;
+  body?: string;
+  location?: string;
+  delayMs?: number;
+};
 
 let routes: Record<string, Route> = {};
 let server: http.Server;
 let base = '';
 let allowed: string[] = [];
+let requests = 0;
 
 const page = (title: string, main: string, links: string[] = []) =>
   `<html><head><title>${title}</title></head><body>
@@ -24,17 +31,20 @@ const page = (title: string, main: string, links: string[] = []) =>
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
+    requests += 1;
     const route = routes[req.url ?? ''];
     if (!route) {
       res.writeHead(404);
       res.end();
       return;
     }
-    res.writeHead(route.status ?? 200, {
-      'content-type': route.type ?? 'text/html; charset=utf-8',
-      ...(route.location ? { location: route.location } : {}),
-    });
-    res.end(route.body ?? '');
+    setTimeout(() => {
+      res.writeHead(route.status ?? 200, {
+        'content-type': route.type ?? 'text/html; charset=utf-8',
+        ...(route.location ? { location: route.location } : {}),
+      });
+      res.end(route.body ?? '');
+    }, route.delayMs ?? 0);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
@@ -46,6 +56,7 @@ afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 beforeEach(() => {
   routes = {};
+  requests = 0;
 });
 
 describe('scope rules', () => {
@@ -169,6 +180,69 @@ describe('crawlSite', () => {
       expect.arrayContaining([
         { url: `${base}/big/huge/`, reason: 'too_large' },
         { url: `${base}/big/data/`, reason: 'not_html' },
+      ]),
+    );
+  });
+
+  it('follows a same-site robots.txt redirect so the rules still apply', async () => {
+    routes['/robots.txt'] = { status: 301, location: '/real-robots.txt' };
+    routes['/real-robots.txt'] = { type: 'text/plain', body: 'User-agent: *\nDisallow: /' };
+    routes['/readings/'] = { body: page('Readings', 'Hidden.') };
+
+    const result = await crawlSite(`${base}/readings/`, { allowedAddresses: allowed });
+
+    expect(result.pages).toEqual([]);
+    expect(result.skipped).toEqual([{ url: `${base}/readings/`, reason: 'robots' }]);
+  });
+
+  it('reads only the first 512 KB of robots.txt', async () => {
+    routes['/robots.txt'] = {
+      type: 'text/plain',
+      body: `User-agent: *\n#${'x'.repeat(600 * 1024)}\nDisallow: /`,
+    };
+    routes['/readings/'] = { body: page('Readings', 'Visible.') };
+
+    const result = await crawlSite(`${base}/readings/`, { allowedAddresses: allowed });
+
+    expect(result.pages.map((p) => p.url)).toEqual([`${base}/readings/`]);
+  });
+
+  it('reports pages with no readable text and caps total fetches', async () => {
+    const links = Array.from({ length: 40 }, (_, i) => `/app/${i}/`);
+    const shell = (hrefs: string[] = []) =>
+      `<html><body><main id="app"></main>${hrefs.map((h) => `<a href="${h}">x</a>`).join('')}</body></html>`;
+    routes['/app/'] = { body: shell(links) };
+    links.forEach((href) => (routes[href] = { body: shell() }));
+
+    const result = await crawlSite(`${base}/app/`, { allowedAddresses: allowed, maxPages: 2 });
+
+    expect(result.pages).toEqual([]);
+    expect(result.skipped).toContainEqual({ url: `${base}/app/`, reason: 'empty' });
+    expect(requests).toBeLessThanOrEqual(1 + 3 * 2);
+  });
+
+  it('still reports the page limit when site menus fill the skipped list', async () => {
+    const outside = Array.from({ length: 60 }, (_, i) => `/menu/${i}/`);
+    routes['/s/'] = { body: page('Index', 'All weeks.', [...outside, '/s/1/', '/s/2/', '/s/3/']) };
+    ['/s/1/', '/s/2/', '/s/3/'].forEach((href) => (routes[href] = { body: page(href, 'week') }));
+
+    const result = await crawlSite(`${base}/s/`, { allowedAddresses: allowed, maxPages: 2 });
+
+    expect(result.skipped.some((s) => s.reason === 'limit')).toBe(true);
+  });
+
+  it('stops queueing pages once the crawl deadline passes', async () => {
+    routes['/slow/'] = { body: page('Index', 'start', ['/slow/1/', '/slow/2/']) };
+    routes['/slow/1/'] = { body: page('One', 'one'), delayMs: 50 };
+    routes['/slow/2/'] = { body: page('Two', 'two'), delayMs: 50 };
+
+    const result = await crawlSite(`${base}/slow/`, { allowedAddresses: allowed, deadlineMs: 1 });
+
+    expect(result.pages.map((p) => p.url)).toEqual([`${base}/slow/`]);
+    expect(result.skipped).toEqual(
+      expect.arrayContaining([
+        { url: `${base}/slow/1/`, reason: 'limit' },
+        { url: `${base}/slow/2/`, reason: 'limit' },
       ]),
     );
   });

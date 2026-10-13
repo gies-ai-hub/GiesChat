@@ -53,13 +53,23 @@ export async function refreshDueSites(
       if (crawl.pages.length === 0) {
         throw new Error('no readable pages');
       }
+      const lostPages =
+        crawl.pages.length < (file.metadata?.pages ?? 0) &&
+        crawl.skipped.some((item) => item.reason === 'error');
+      if (lostPages) {
+        /* Pages that failed to load tonight would shrink a good copy; keep it and look again tomorrow. */
+        await deps.markWebsiteChecked(file.file_id, now);
+        summary.failed += 1;
+        logger.warn(`[sites] ${url}: some pages failed to load; keeping the fuller copy`);
+        continue;
+      }
       if (contentHash(crawl.pages) === file.metadata?.contentHash) {
         await deps.markWebsiteChecked(file.file_id, now);
         summary.checked += 1;
         continue;
       }
       for (const agent of agents) {
-        await saveSiteCopy(deps, { userId, agentId: agent.id, crawl, now });
+        await saveSiteCopy(deps, { userId, agentId: agent.id, crawl, now, versioned: false });
         await retireCopy(deps, { agentId: agent.id, file, userId });
       }
       summary.updated += 1;

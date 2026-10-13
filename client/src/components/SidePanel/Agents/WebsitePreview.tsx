@@ -7,6 +7,7 @@ const SKIP_KEYS: Record<WebsiteSkipReason, TranslationKeys> = {
   robots: 'com_agents_websites_skip_robots',
   offsite: 'com_agents_websites_skip_offsite',
   outside: 'com_agents_websites_skip_outside',
+  empty: 'com_agents_websites_skip_empty',
   not_html: 'com_agents_websites_skip_not_html',
   too_large: 'com_agents_websites_skip_too_large',
   limit: 'com_agents_websites_skip_limit',

@@ -2589,6 +2589,25 @@ describe('createAdminUsageHandlers', () => {
         expect(deps.crawlWebsite).not.toHaveBeenCalled();
       });
 
+      it('Add refuses a collaborator writing to the production agent', async () => {
+        const { prod } = world();
+        const deps = createDeps(baseWorld({ agents: [prod] }), {
+          crawlWebsite: jest.fn(async () => crawl),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { url: URL_A },
+          user: ta,
+        });
+
+        await handlers.saveAgentWebsite(req, res);
+
+        expect(status).toHaveBeenCalledWith(403);
+        expect(deps.crawlWebsite).not.toHaveBeenCalled();
+        expect(deps.replaceWebsiteCopy).not.toHaveBeenCalled();
+      });
+
       it('Add refuses a site with no readable pages and stores nothing', async () => {
         const { prod } = world();
         const deps = createDeps(baseWorld({ agents: [prod] }), {

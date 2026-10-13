@@ -34,10 +34,16 @@ beforeAll(async () => {
         res.end();
         return;
       }
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(
-        JSON.stringify({ choices: [{ message: { content: '## Week 5\n\n| Due | Item |' } }] }),
-      );
+      const finish_reason = body.messages[1].content.includes('LONG') ? 'length' : 'stop';
+      const reply = () => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            choices: [{ finish_reason, message: { content: '## Week 5\n\n| Due | Item |' } }],
+          }),
+        );
+      };
+      setTimeout(reply, body.messages[1].content.includes('SLOW') ? 300 : 0);
     });
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -84,6 +90,29 @@ describe('cleanPages', () => {
 
     expect(cleaned[0]).toMatchObject({ text: 'BROKEN page', cleaned: false });
     expect(cleaned[1].cleaned).toBe(true);
+  });
+
+  it('keeps the plain text when Luna stops at its output limit', async () => {
+    const [cleaned] = await cleanPages([page('https://x.edu/a/', 'LONG schedule')], endpoint);
+
+    expect(cleaned).toMatchObject({ text: 'LONG schedule', cleaned: false });
+  });
+
+  it('skips Luna for a page longer than it is given, so nothing is cut', async () => {
+    const long = page('https://x.edu/a/', 'w '.repeat(30_000));
+
+    const [cleaned] = await cleanPages([long], endpoint);
+
+    expect(cleaned).toEqual(long);
+    expect(requests).toHaveLength(0);
+  });
+
+  it('keeps plain text for pages Luna has not finished when the budget runs out', async () => {
+    const pages = [page('https://x.edu/a/', 'SLOW page')];
+
+    const cleaned = await cleanPages(pages, endpoint, { budgetMs: 100 });
+
+    expect(cleaned[0]).toMatchObject({ text: 'SLOW page', cleaned: false });
   });
 
   it('makes no call when Luna is not on the endpoint or no endpoint is configured', async () => {

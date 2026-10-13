@@ -589,6 +589,20 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     return !canManage(user, agent) && (agent.collaborators ?? []).includes(String(user._id));
   }
 
+  /**
+   * A collaborator is in scope so they can reach their draft, but holds no grant on
+   * production; an ACL EDIT share is the only other way to write to the agent itself.
+   */
+  async function holdsAgentEdit(user: IUser, agent: IAgent): Promise<boolean> {
+    const editableIds = await findAccessibleResources({
+      userId: String(user._id),
+      role: user.role,
+      resourceType: ResourceType.AGENT,
+      requiredPermissions: PermissionBits.EDIT,
+    });
+    return editableIds.some((id) => String(id) === String(agent._id));
+  }
+
   /** Every draft of the given production agents; callers narrow to the ones the caller may see. */
   async function findDraftsOf(agentIds: string[]): Promise<IAgent[]> {
     if (agentIds.length === 0) {
@@ -1512,6 +1526,9 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       const agent = scoped ? await getAgent({ id: scoped.id }) : null;
       if (!agent) {
         return res.status(404).json({ error: 'Agent not found' });
+      }
+      if (isCollaborator(caller, scoped) && !(await holdsAgentEdit(caller, scoped))) {
+        return res.status(403).json({ error: 'forbidden' });
       }
       const crawl = await crawlWebsite(url);
       if (crawl.pages.length === 0) {

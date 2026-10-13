@@ -23,6 +23,7 @@ export interface SiteStoreDeps {
     tool_resource: string;
     file_id: string;
     updatingUserId?: string;
+    skipVersioning?: boolean;
   }) => Promise<unknown>;
   removeAgentResourceFiles: (params: {
     agent_id: string;
@@ -62,12 +63,16 @@ export function toWebsiteItem(file: IMongoFile): AdminWebsiteItem {
   };
 }
 
-/** Luna cleans the crawled pages and the result becomes one context document on the agent. */
+/**
+ * Luna cleans the crawled pages and the result becomes one context document on the agent.
+ * `versioned: false` (the nightly refresh) attaches it without an agent version, so a
+ * changing site does not mark every open draft "production has changed".
+ */
 export async function saveSiteCopy(
   deps: SiteStoreDeps,
-  params: { userId: string; agentId: string; crawl: CrawlResult; now?: Date },
+  params: { userId: string; agentId: string; crawl: CrawlResult; now?: Date; versioned?: boolean },
 ): Promise<IMongoFile> {
-  const { userId, agentId, crawl, now = new Date() } = params;
+  const { userId, agentId, crawl, now = new Date(), versioned = true } = params;
   const cleaned = await cleanPages(crawl.pages, await deps.resolveEndpoint());
   const text = siteDocument(cleaned);
   const fileId = randomUUID();
@@ -83,7 +88,8 @@ export async function saveSiteCopy(
       user: new Types.ObjectId(userId),
       file_id: fileId,
       filename,
-      filepath: crawl.url,
+      /* Never the site address: download routes read local files by `filepath`. */
+      filepath: FileSources.text,
       type: 'text/plain',
       bytes: Buffer.byteLength(text, 'utf8'),
       text,
@@ -108,6 +114,7 @@ export async function saveSiteCopy(
     tool_resource: EToolResources.context,
     file_id: fileId,
     updatingUserId: userId,
+    skipVersioning: !versioned,
   });
   return file;
 }
