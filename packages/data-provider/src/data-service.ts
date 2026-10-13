@@ -1330,6 +1330,17 @@ export function runAdminModelTest(
   return request.post(endpoints.adminModelTest(), payload);
 }
 
+export function previewAdminWebsite(url: string): Promise<q.AdminWebsitePreviewResponse> {
+  return request.post(endpoints.adminWebsitePreview(), { url });
+}
+
+export function saveAdminAgentWebsite(
+  agentId: string,
+  url: string,
+): Promise<q.AdminWebsiteSaveResponse> {
+  return request.post(endpoints.adminAgentWebsites(agentId), { url });
+}
+
 export function openAdminAgentDraft(agentId: string): Promise<q.AdminOpenDraftResponse> {
   return request.post(endpoints.adminAgentDrafts(agentId), {});
 }

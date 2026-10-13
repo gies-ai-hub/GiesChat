@@ -515,6 +515,11 @@ export const adminAgentCollaborators = (agentId: string) =>
 
 export const adminModelTest = () => `${BASE_URL}/api/admin/usage/model-test`;
 
+export const adminWebsitePreview = () => `${BASE_URL}/api/admin/usage/websites/preview`;
+
+export const adminAgentWebsites = (agentId: string) =>
+  `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/websites`;
+
 export const adminAgentDrafts = (agentId: string) =>
   `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/drafts`;
 

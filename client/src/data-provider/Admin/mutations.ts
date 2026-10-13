@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { QueryKeys, MutationKeys, dataService } from 'librechat-data-provider';
+import { QueryKeys, MutationKeys, dataService, DynamicQueryKeys } from 'librechat-data-provider';
 import type { UseMutationResult } from '@tanstack/react-query';
 import type {
   AdminAgentPeople,
@@ -12,6 +12,8 @@ import type {
   AdminAgentEmbedResponse,
   AdminCollaboratorsResponse,
   AdminDashboardLayoutResponse,
+  AdminWebsiteSaveResponse,
+  AdminWebsitePreviewResponse,
 } from 'librechat-data-provider';
 
 /**
@@ -130,4 +132,33 @@ export const usePostAdminAgentDraftMutation = (): UseMutationResult<
       queryClient.invalidateQueries([QueryKeys.adminAgentUsage]);
     },
   });
+};
+
+/** Test writes nothing, so nothing is cached or invalidated. */
+export const usePreviewAdminWebsiteMutation = (): UseMutationResult<
+  AdminWebsitePreviewResponse,
+  unknown,
+  string
+> =>
+  useMutation((url: string) => dataService.previewAdminWebsite(url), {
+    mutationKey: [MutationKeys.previewAdminWebsite],
+  });
+
+/** A saved copy is an agent document, so the agent's file list is refetched. */
+export const useSaveAdminAgentWebsiteMutation = (): UseMutationResult<
+  AdminWebsiteSaveResponse,
+  unknown,
+  { agentId: string; url: string }
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    ({ agentId, url }: { agentId: string; url: string }) =>
+      dataService.saveAdminAgentWebsite(agentId, url),
+    {
+      mutationKey: [MutationKeys.saveAdminAgentWebsite],
+      onSuccess: (_data, { agentId }) => {
+        queryClient.invalidateQueries(DynamicQueryKeys.agentFiles(agentId));
+      },
+    },
+  );
 };
