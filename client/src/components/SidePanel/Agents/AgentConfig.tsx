@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { Input } from '@librechat/client';
 import { Controller, useWatch, useFormContext } from 'react-hook-form';
 import { EModelEndpoint, getEndpointField } from 'librechat-data-provider';
+import type { TFile } from 'librechat-data-provider';
 import type { AgentForm, IconComponentTypes } from '~/common';
 import AgentCategorySelector from './AgentCategorySelector';
 import { useLocalize, useAgentCapabilities } from '~/hooks';
@@ -9,6 +11,8 @@ import { useAgentFileEntries } from './Tools/hooks';
 import { useAgentPanelContext } from '~/Providers';
 import ToolsSection from './Tools/ToolsSection';
 import { icons } from '~/hooks/Endpoint/Icons';
+import Websites, { isWebsiteFile } from './Websites';
+import { useGetAgentFiles } from '~/data-provider';
 import Instructions from './Instructions';
 import FileContext from './FileContext';
 import SupportContact from './SupportContact';
@@ -17,6 +21,9 @@ import { Panel } from '~/common';
 
 const fieldClass = 'h-9';
 
+const selectWebsiteIds = (files: TFile[]) =>
+  new Set(files.filter(isWebsiteFile).map((file) => file.file_id));
+
 /**
  * Tool access is switched off across every agent builder for now (2026-07-31).
  * Flip to `true` to restore the unified Tool Library — nothing else needs changing.
@@ -24,7 +31,10 @@ const fieldClass = 'h-9';
  */
 const TOOLS_ENABLED = false;
 
-export default function AgentConfig({ documentLimit }: { documentLimit?: number } = {}) {
+export default function AgentConfig({
+  documentLimit,
+  showWebsites = false,
+}: { documentLimit?: number; showWebsites?: boolean } = {}) {
   const localize = useLocalize();
   const methods = useFormContext<AgentForm>();
   const { setActivePanel, endpointsConfig, agentsConfig } = useAgentPanelContext();
@@ -39,6 +49,13 @@ export default function AgentConfig({ documentLimit }: { documentLimit?: number 
   const agent = useWatch({ control, name: 'agent' });
   const agent_id = useWatch({ control, name: 'id' });
   const { contextFiles } = useAgentFileEntries();
+  /** Website copies are managed in their own section, not listed as documents. */
+  const { data: websiteIds } = useGetAgentFiles(agent_id, { select: selectWebsiteIds });
+  const documentFiles = useMemo(
+    () =>
+      websiteIds?.size ? contextFiles.filter(([fileId]) => !websiteIds.has(fileId)) : contextFiles,
+    [contextFiles, websiteIds],
+  );
 
   const providerValue = typeof provider === 'string' ? provider : provider?.value;
   let Icon: IconComponentTypes | null | undefined;
@@ -192,7 +209,14 @@ export default function AgentConfig({ documentLimit }: { documentLimit?: number 
       {/* FILE CONTEXT — standalone section, separate from the tool library */}
       {contextEnabled && (
         <div className="mb-3">
-          <FileContext agent_id={agent_id} files={contextFiles} fileLimit={documentLimit} />
+          <FileContext agent_id={agent_id} files={documentFiles} fileLimit={documentLimit} />
+        </div>
+      )}
+
+      {/* WEBSITES — dashboard dialogs only */}
+      {showWebsites && (
+        <div className="mb-3">
+          <Websites agent_id={agent_id} />
         </div>
       )}
 

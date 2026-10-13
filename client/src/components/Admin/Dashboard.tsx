@@ -338,6 +338,7 @@ export default function AdminDashboard() {
                 defaultModel={DASHBOARD_MODEL}
                 modelCards
                 documentLimit={DASHBOARD_DOCUMENT_LIMIT}
+                showWebsites
                 onAgentCreated={handleAgentCreated}
               />
             </OGDialogContent>
@@ -378,6 +379,7 @@ export default function AdminDashboard() {
                 defaultModel={DASHBOARD_MODEL}
                 modelCards
                 documentLimit={DASHBOARD_DOCUMENT_LIMIT}
+                showWebsites
               />
             )}
           </OGDialogContent>

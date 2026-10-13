@@ -22,6 +22,8 @@ interface AgentPanelSwitchProps {
   modelCards?: boolean;
   /** How many File Context documents one agent may hold; the endpoint's limit otherwise. */
   documentLimit?: number;
+  /** Shows the Websites section (dashboard dialogs only). */
+  showWebsites?: boolean;
 }
 
 export default function AgentPanelSwitch({
@@ -32,6 +34,7 @@ export default function AgentPanelSwitch({
   defaultModel,
   modelCards,
   documentLimit,
+  showWebsites,
 }: AgentPanelSwitchProps = {}) {
   return (
     <AgentPanelProvider>
@@ -43,6 +46,7 @@ export default function AgentPanelSwitch({
         defaultModel={defaultModel}
         modelCards={modelCards}
         documentLimit={documentLimit}
+        showWebsites={showWebsites}
       />
     </AgentPanelProvider>
   );
@@ -56,6 +60,7 @@ function AgentPanelSwitchWithContext({
   defaultModel,
   modelCards,
   documentLimit,
+  showWebsites,
 }: AgentPanelSwitchProps) {
   const { activePanel, setCurrentAgentId } = useAgentPanelContext();
   const agentId = useRecoilValue(store.conversationAgentIdByIndex(0));
@@ -84,6 +89,7 @@ function AgentPanelSwitchWithContext({
       defaultModel={defaultModel}
       modelCards={modelCards}
       documentLimit={documentLimit}
+      showWebsites={showWebsites}
     />
   );
 }

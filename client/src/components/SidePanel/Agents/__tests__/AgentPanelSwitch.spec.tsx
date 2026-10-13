@@ -8,8 +8,18 @@ const mockSetCurrentAgentId = jest.fn();
 
 jest.mock('../AgentPanel', () => ({
   __esModule: true,
-  default: ({ hideAgentSelect }: { hideAgentSelect?: boolean }) => (
-    <div data-testid="agent-panel" data-hide-agent-select={String(hideAgentSelect === true)} />
+  default: ({
+    hideAgentSelect,
+    showWebsites,
+  }: {
+    hideAgentSelect?: boolean;
+    showWebsites?: boolean;
+  }) => (
+    <div
+      data-testid="agent-panel"
+      data-hide-agent-select={String(hideAgentSelect === true)}
+      data-show-websites={String(showWebsites === true)}
+    />
   ),
 }));
 
@@ -57,5 +67,11 @@ describe('AgentPanelSwitch', () => {
     const { getByTestId } = renderSwitch({ initialAgentId: 'agent_1', hideAgentSelect: true });
 
     expect(getByTestId('agent-panel')).toHaveAttribute('data-hide-agent-select', 'true');
+  });
+
+  it('forwards showWebsites to the panel', () => {
+    const { getByTestId } = renderSwitch({ initialAgentId: 'agent_1', showWebsites: true });
+
+    expect(getByTestId('agent-panel')).toHaveAttribute('data-show-websites', 'true');
   });
 });

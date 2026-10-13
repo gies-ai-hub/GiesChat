@@ -27,6 +27,7 @@ import {
   useGetAgentByIdQuery,
   useGetExpandedAgentByIdQuery,
   useUploadAgentAvatarMutation,
+  useSaveAdminAgentWebsiteMutation,
 } from '~/data-provider';
 import { createProviderOption, getDefaultAgentFormValues } from '~/utils';
 import { useResourcePermissions } from '~/hooks/useResourcePermissions';
@@ -245,6 +246,8 @@ interface AgentPanelProps {
   modelCards?: boolean;
   /** How many File Context documents one agent may hold; the endpoint's limit otherwise. */
   documentLimit?: number;
+  /** Shows the Websites section (dashboard dialogs only). */
+  showWebsites?: boolean;
 }
 
 export default function AgentPanel({
@@ -254,6 +257,7 @@ export default function AgentPanel({
   defaultModel,
   modelCards,
   documentLimit,
+  showWebsites,
 }: AgentPanelProps = {}) {
   const localize = useLocalize();
   const { user } = useAuthContext();
@@ -267,6 +271,8 @@ export default function AgentPanel({
     agent_id: current_agent_id,
     pendingContextFiles,
     setPendingContextFiles,
+    pendingWebsites,
+    setPendingWebsites,
   } = useAgentPanelContext();
 
   const { onSelect: onSelectAgent } = useSelectAgent();
@@ -342,6 +348,31 @@ export default function AgentPanel({
       }
     },
     [pendingContextFiles, setPendingContextFiles, uploadContextFiles],
+  );
+  const saveWebsite = useSaveAdminAgentWebsiteMutation();
+  /** Websites picked before the agent existed are read against the new id, one at a time. */
+  const attachPendingWebsites = useCallback(
+    async (agentId: string) => {
+      if (pendingWebsites.length === 0) {
+        return;
+      }
+      const staged = pendingWebsites;
+      setPendingWebsites([]);
+      setIsAttachingDocuments(true);
+      try {
+        for (const url of staged) {
+          try {
+            await saveWebsite.mutateAsync({ agentId, url });
+          } catch (error) {
+            console.error('[AgentPanel] Website save failed after create', error);
+            showToast({ message: localize('com_agents_websites_failed'), status: 'error' });
+          }
+        }
+      } finally {
+        setIsAttachingDocuments(false);
+      }
+    },
+    [pendingWebsites, setPendingWebsites, saveWebsite, showToast, localize],
   );
   const uploadAvatarMutation = useUploadAgentAvatarMutation({
     onSuccess: (updatedAgent) => {
@@ -482,6 +513,7 @@ export default function AgentPanel({
       }
 
       await attachPendingDocuments(data.id);
+      await attachPendingWebsites(data.id);
       onAgentCreated?.(data.id);
     },
     onError: (err) => {
@@ -679,7 +711,7 @@ export default function AgentPanel({
             />
           )}
           {canEditAgent && !agentQuery.isInitialLoading && activePanel === Panel.builder && (
-            <AgentConfig documentLimit={documentLimit} />
+            <AgentConfig documentLimit={documentLimit} showWebsites={showWebsites} />
           )}
           {canEditAgent && !agentQuery.isInitialLoading && activePanel === Panel.advanced && (
             <AdvancedPanel />
