@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import { ResourceType, PermissionBits } from 'librechat-data-provider';
-import type { IUser, IAgent, IGroup } from '@librechat/data-schemas';
+import type { IUser, IAgent, IGroup, IMongoFile } from '@librechat/data-schemas';
+import type { WebsitePage } from 'librechat-data-provider';
 import type { Response } from 'express';
 import type {
   AdminUsageDeps,
@@ -12,6 +13,7 @@ import type {
 } from './usage';
 import type { ServerRequest } from '~/types/http';
 import { createAdminUsageHandlers, parseEmbedSettings } from './usage';
+import { WebsiteError } from '~/sites/crawl';
 
 jest.mock('@librechat/data-schemas', () => ({
   ...jest.requireActual('@librechat/data-schemas'),
@@ -445,6 +447,15 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
     sendCollaboratorInvite: jest.fn(async () => undefined),
     revokeAgentAccess: jest.fn(async () => undefined),
     sendRoleChange: jest.fn(async () => undefined),
+    crawlWebsite: jest.fn(async (url: string) => ({ url, pages: [], skipped: [] })),
+    cleanWebsitePages: jest.fn(async (pages: WebsitePage[]) => pages),
+    replaceWebsiteCopy: jest.fn(
+      async ({ crawl }: { crawl: { url: string } }) =>
+        ({
+          file_id: 'site_copy',
+          metadata: { sourceUrl: crawl.url, pages: 1, checkedAt: NOW },
+        }) as IMongoFile,
+    ),
     ...overrides,
   };
 
@@ -2510,6 +2521,125 @@ describe('createAdminUsageHandlers', () => {
         await handlers.testAgentModels(req, res);
         expect(status).toHaveBeenCalledWith(400);
         expect(deps.askTestModel).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('websites', () => {
+      const URL_A = 'https://badm350.web.illinois.edu/schedule/';
+      const crawl = {
+        url: URL_A,
+        pages: [{ url: URL_A, title: 'Schedule', text: 'Week 5', words: 2, cleaned: false }],
+        skipped: [{ url: 'https://youtube.com/', reason: 'offsite' as const }],
+      };
+
+      it('Test returns cleaned pages and skipped links and stores nothing', async () => {
+        const deps = createDeps(baseWorld(), {
+          crawlWebsite: jest.fn(async () => crawl),
+          cleanWebsitePages: jest.fn(async (pages: { text: string }[]) =>
+            pages.map((p) => ({ ...p, text: '## Schedule', cleaned: true })),
+          ),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status, json } = createReqRes({ body: { url: URL_A }, user: prof });
+
+        await handlers.previewWebsite(req, res);
+
+        expect(status).toHaveBeenCalledWith(200);
+        expect(json).toHaveBeenCalledWith({
+          url: URL_A,
+          pages: [expect.objectContaining({ text: '## Schedule', cleaned: true })],
+          skipped: crawl.skipped,
+        });
+        expect(deps.replaceWebsiteCopy).not.toHaveBeenCalled();
+      });
+
+      it('Test rejects a missing or private address with a code', async () => {
+        const deps = createDeps(baseWorld(), {
+          crawlWebsite: jest.fn(async () => {
+            throw new WebsiteError('blocked');
+          }),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const missing = createReqRes({ body: {}, user: prof });
+        const blocked = createReqRes({ body: { url: 'http://10.0.0.5/' }, user: prof });
+
+        await handlers.previewWebsite(missing.req, missing.res);
+        await handlers.previewWebsite(blocked.req, blocked.res);
+
+        expect(missing.status).toHaveBeenCalledWith(400);
+        expect(missing.json).toHaveBeenCalledWith({ error: 'invalid_url' });
+        expect(blocked.status).toHaveBeenCalledWith(400);
+        expect(blocked.json).toHaveBeenCalledWith({ error: 'blocked' });
+      });
+
+      it('Add refuses an agent outside the caller scope before crawling', async () => {
+        const { prod } = world();
+        prod.author = otherAuthorId;
+        const deps = createDeps(baseWorld({ agents: [prod] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { url: URL_A },
+          user: prof,
+        });
+
+        await handlers.saveAgentWebsite(req, res);
+
+        expect(status).toHaveBeenCalledWith(404);
+        expect(deps.crawlWebsite).not.toHaveBeenCalled();
+      });
+
+      it('Add refuses a site with no readable pages and stores nothing', async () => {
+        const { prod } = world();
+        const deps = createDeps(baseWorld({ agents: [prod] }), {
+          crawlWebsite: jest.fn(async () => ({ ...crawl, pages: [] })),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { url: URL_A },
+          user: prof,
+        });
+
+        await handlers.saveAgentWebsite(req, res);
+
+        expect(status).toHaveBeenCalledWith(422);
+        expect(json).toHaveBeenCalledWith({ error: 'empty', skipped: crawl.skipped });
+        expect(deps.replaceWebsiteCopy).not.toHaveBeenCalled();
+      });
+
+      it("Add replaces the agent's older copies of the same address", async () => {
+        const { prod } = world();
+        prod.tool_resources = { context: { file_ids: ['syllabus', 'old_copy'] } };
+        const oldCopy = { file_id: 'old_copy', metadata: { sourceUrl: URL_A } };
+        const deps = createDeps(baseWorld({ agents: [prod] }), {
+          crawlWebsite: jest.fn(async () => crawl),
+          getFiles: jest.fn(async () => [oldCopy]),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status, json } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { url: URL_A },
+          user: prof,
+        });
+
+        await handlers.saveAgentWebsite(req, res);
+
+        expect(deps.getFiles).toHaveBeenCalledWith(
+          { file_id: { $in: ['syllabus', 'old_copy'] }, 'metadata.sourceUrl': URL_A },
+          null,
+          { text: 0 },
+        );
+        expect(deps.replaceWebsiteCopy).toHaveBeenCalledWith({
+          userId: callerId.toString(),
+          agentId: 'agent_prod',
+          crawl,
+          previous: [oldCopy],
+        });
+        expect(status).toHaveBeenCalledWith(200);
+        expect(json).toHaveBeenCalledWith({
+          website: { file_id: 'site_copy', url: URL_A, pages: 1, checkedAt: NOW.toISOString() },
+        });
       });
     });
 

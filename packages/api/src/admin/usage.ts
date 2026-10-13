@@ -6,6 +6,7 @@ import type {
   AdminDashboardPanel,
   AdminModelTestAnswer,
   AdminCollaboratorsResponse,
+  WebsitePage,
 } from 'librechat-data-provider';
 import type {
   IUser,
@@ -22,9 +23,12 @@ import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
 import type { ModelTestEndpoint } from './modelTest';
 import type { TopicsModel, TopicsResult } from './topics';
+import type { CrawlResult } from '~/sites/crawl';
 import { parseModelTestBody, runModelTest } from './modelTest';
 import { summarizeTopics, TOPIC_SAMPLE_LIMIT } from './topics';
 import { splitAgentDocuments } from '~/agents/resources';
+import { toWebsiteItem } from '~/sites/store';
+import { WebsiteError } from '~/sites/crawl';
 import { extractFileContext } from '~/files/context';
 import { countTokens } from '~/utils/tokenizer';
 import {
@@ -188,6 +192,17 @@ export interface AdminUsageDeps {
   sendCollaboratorInvite: (params: AgentPersonEmail) => Promise<void>;
   /** One email when someone already on the agent changes role. Failures are logged, never surfaced. */
   sendRoleChange: (params: AgentPersonEmail) => Promise<void>;
+  /** Same-site crawl; throws `WebsiteError` for a malformed or private address. */
+  crawlWebsite: (url: string) => Promise<CrawlResult>;
+  /** GPT-6 Luna cleanup for the Test panel; plain text when Luna is unavailable. */
+  cleanWebsitePages: (pages: WebsitePage[]) => Promise<WebsitePage[]>;
+  /** Saves a fresh copy on the agent, then retires its older copies of the same address. */
+  replaceWebsiteCopy: (params: {
+    userId: string;
+    agentId: string;
+    crawl: CrawlResult;
+    previous: IMongoFile[];
+  }) => Promise<IMongoFile>;
 }
 
 export interface AgentPersonEmail {
@@ -488,6 +503,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   openAgentDraft: (req: ServerRequest, res: Response) => Promise<Response>;
   postAgentDraft: (req: ServerRequest, res: Response) => Promise<Response>;
   testAgentModels: (req: ServerRequest, res: Response) => Promise<Response>;
+  previewWebsite: (req: ServerRequest, res: Response) => Promise<Response>;
+  saveAgentWebsite: (req: ServerRequest, res: Response) => Promise<Response>;
 } {
   const {
     findAgents,
@@ -514,6 +531,9 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     copyDocuments,
     sendCollaboratorInvite,
     sendRoleChange,
+    crawlWebsite,
+    cleanWebsitePages,
+    replaceWebsiteCopy,
   } = deps;
 
   /**
@@ -1442,8 +1462,84 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     }
   }
 
+  const readUrl = (body: unknown): string | null => {
+    const url = (body as { url?: unknown } | null)?.url;
+    return typeof url === 'string' && url.trim() ? url : null;
+  };
+
+  function websiteFailure(res: Response, error: unknown, action: string): Response {
+    if (error instanceof WebsiteError) {
+      return res.status(400).json({ error: error.code });
+    }
+    logger.error(`[adminUsage] ${action} error:`, error);
+    return res.status(500).json({ error: 'failed' });
+  }
+
+  /** Test: the same crawl and Luna cleanup as Add, stored nowhere. Needs no agent, so it works before Create. */
+  async function previewWebsite(req: ServerRequest, res: Response): Promise<Response> {
+    if (req.user == null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const url = readUrl(req.body);
+    if (url == null) {
+      return res.status(400).json({ error: 'invalid_url' });
+    }
+    try {
+      const crawl = await crawlWebsite(url);
+      const pages = await cleanWebsitePages(crawl.pages);
+      return res.status(200).json({ url: crawl.url, pages, skipped: crawl.skipped });
+    } catch (error) {
+      return websiteFailure(res, error, 'previewWebsite');
+    }
+  }
+
+  /** Add or Refresh: one saved copy per address per agent, inside the usage scope. */
+  async function saveAgentWebsite(req: ServerRequest, res: Response): Promise<Response> {
+    const rawAgentId = (req.params as AgentUsageParams).agent_id;
+    if (typeof rawAgentId !== 'string') {
+      return res.status(400).json({ error: 'agent_id is required' });
+    }
+    const caller = req.user;
+    if (caller == null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const url = readUrl(req.body);
+    if (url == null) {
+      return res.status(400).json({ error: 'invalid_url' });
+    }
+    try {
+      const [scoped] = await findScopedAgents(caller, rawAgentId);
+      const agent = scoped ? await getAgent({ id: scoped.id }) : null;
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      const crawl = await crawlWebsite(url);
+      if (crawl.pages.length === 0) {
+        return res.status(422).json({ error: 'empty', skipped: crawl.skipped });
+      }
+      const fileIds = agent.tool_resources?.context?.file_ids ?? [];
+      const previous =
+        fileIds.length > 0
+          ? ((await getFiles({ file_id: { $in: fileIds }, 'metadata.sourceUrl': crawl.url }, null, {
+              text: 0,
+            })) ?? [])
+          : [];
+      const file = await replaceWebsiteCopy({
+        userId: String(caller._id),
+        agentId: agent.id,
+        crawl,
+        previous,
+      });
+      return res.status(200).json({ website: toWebsiteItem(file) });
+    } catch (error) {
+      return websiteFailure(res, error, 'saveAgentWebsite');
+    }
+  }
+
   return {
     testAgentModels,
+    previewWebsite,
+    saveAgentWebsite,
     listAgentUsage: listAgentUsageHandler,
     updateAgentEmbed,
     revokeAgentEmbed,
