@@ -60,6 +60,7 @@ export * from './favorites';
 export * from './endpoints';
 /* Files */
 export * from './files';
+export * from './sites';
 /* Storage */
 export * from './storage';
 /* Tools */

@@ -9,7 +9,7 @@ const OUTPUT_TOKENS = 4_000;
 const CALL_TIMEOUT_MS = 60_000;
 const CONCURRENCY = 4;
 
-export const EXTRACT_PROMPT = [
+export const EXTRACT_PROMPT: string = [
   'You turn one web page into clean Markdown for a course assistant to read.',
   "Rewrite the page's main content as Markdown. Keep every fact, date, time, number, name, place, link text and table (as a Markdown table).",
   'Drop navigation, menus, breadcrumbs, cookie notices, sign-in prompts, footers, share buttons and ads.',
