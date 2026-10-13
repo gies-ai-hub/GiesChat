@@ -29,7 +29,7 @@ const GROUP_PAGE_SIZE = 200;
 /** Stamped on agents built here; the usage endpoint lists only these. Must match the server. */
 const DASHBOARD_ORIGIN = 'dashboard';
 /** Class agents start on this deployment; it is listed under the endpoint in librechat.yaml. */
-const DASHBOARD_MODEL = { provider: 'Azure OpenAI', model: 'gpt-5.6-terra' };
+const DASHBOARD_MODEL = { provider: 'Azure OpenAI', model: 'gpt-6-luna' };
 /** Class agents may hold more File Context documents than a chat message may attach. */
 const DASHBOARD_DOCUMENT_LIMIT = 50;
 const NO_PEOPLE: AgentPeopleLists = {

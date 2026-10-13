@@ -6,7 +6,8 @@ import { cn, RETIRED_MODELS } from '~/utils';
 
 /** Models with no chat spec to borrow from get their name and line here. */
 const FALLBACK_GUIDE: Record<string, { label: string; description: TranslationKeys }> = {
-  'gpt-5.6-terra': { label: 'GPT-5.6 Terra', description: 'com_ui_model_guide_gpt_5_6_terra' },
+  'gpt-6-sol': { label: 'GPT-6 Sol', description: 'com_ui_model_guide_retired' },
+  'gpt-5.6-terra': { label: 'GPT-5.6 Terra', description: 'com_ui_model_guide_retired' },
 };
 
 export type ModelGuide = { label: string; description?: string };

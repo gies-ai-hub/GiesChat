@@ -24,7 +24,7 @@ jest.mock('~/hooks', () => ({
     values ? `${key} ${JSON.stringify(values)}` : key,
 }));
 
-const models = ['gpt-6-sol', 'gpt-6-luna', 'gpt-5.4'];
+const models = ['gpt-6.1-sol', 'gpt-6-luna', 'gpt-5.4'];
 
 function renderTest(agentId = 'agent_prod') {
   const onUse = jest.fn();
@@ -55,7 +55,7 @@ describe('ModelTest', () => {
           answers: [
             { model: 'gpt-6-luna', text: 'Ten percent a day.', ms: 1200 },
             {
-              model: 'gpt-6-sol',
+              model: 'gpt-6.1-sol',
               text: 'Late work loses 10% per day, per the syllabus.',
               ms: 2400,
             },
@@ -66,7 +66,7 @@ describe('ModelTest', () => {
     const onUse = renderTest();
     await userEvent.click(screen.getByRole('button', { name: 'com_ui_model_test' }));
     expect(screen.getByLabelText('com_ui_model_test_a')).toHaveValue('gpt-6-luna');
-    expect(screen.getByLabelText('com_ui_model_test_b')).toHaveValue('gpt-6-sol');
+    expect(screen.getByLabelText('com_ui_model_test_b')).toHaveValue('gpt-6.1-sol');
     expect(screen.queryByRole('option', { name: 'gpt-5.4' })).not.toBeInTheDocument();
 
     await userEvent.type(
@@ -79,14 +79,14 @@ describe('ModelTest', () => {
     expect(mockRun).toHaveBeenCalledWith({
       agent_id: 'agent_prod',
       instructions: 'You coach BADM 350 students.',
-      models: ['gpt-6-luna', 'gpt-6-sol'],
+      models: ['gpt-6-luna', 'gpt-6.1-sol'],
       questions: ['What is the late policy?'],
     });
 
     await userEvent.click(
-      screen.getByRole('button', { name: 'com_ui_model_test_use {"model":"gpt-6-sol"}' }),
+      screen.getByRole('button', { name: 'com_ui_model_test_use {"model":"gpt-6.1-sol"}' }),
     );
-    expect(onUse).toHaveBeenCalledWith('gpt-6-sol');
+    expect(onUse).toHaveBeenCalledWith('gpt-6.1-sol');
   });
 
   it('refuses to run without a question and never calls the server', async () => {
