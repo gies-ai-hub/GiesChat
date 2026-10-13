@@ -2,7 +2,7 @@ import { logger, runAsSystem } from '@librechat/data-schemas';
 import type { IMongoFile } from '@librechat/data-schemas';
 import type { SiteStoreDeps } from './store';
 import type { CrawlResult } from './crawl';
-import { contentHash, retireCopy, saveSiteCopy } from './store';
+import { dropCopy, contentHash, retireCopy, saveSiteCopy } from './store';
 import { isLeader } from '~/cluster';
 
 const DUE_AFTER_MS = 24 * 60 * 60 * 1000;
@@ -20,10 +20,13 @@ export interface RefreshSummary {
   checked: number;
   updated: number;
   failed: number;
+  /** Copies no agent uses any more (removed in the builder, or the agent was deleted). */
+  dropped: number;
 }
 
 /**
- * One pass over copies not checked for a day. Unchanged text only stamps `checkedAt`;
+ * One pass over copies not checked for a day. A copy no agent uses is deleted without a
+ * crawl (the builder's Remove only detaches it). Unchanged text only stamps `checkedAt`;
  * changed text gets Luna and a new copy for every agent using the old one. A failure
  * keeps the old copy and leaves it due, so the next run tries again.
  */
@@ -32,13 +35,20 @@ export async function refreshDueSites(
   now: Date = new Date(),
 ): Promise<RefreshSummary> {
   const due = await deps.getDueWebsiteCopies(new Date(now.getTime() - DUE_AFTER_MS), BATCH);
-  const summary: RefreshSummary = { checked: 0, updated: 0, failed: 0 };
+  const summary: RefreshSummary = { checked: 0, updated: 0, failed: 0, dropped: 0 };
   for (const file of due) {
     const url = file.metadata?.sourceUrl;
     if (!url) {
       continue;
     }
     try {
+      const userId = String(file.user);
+      const agents = await deps.findAgentsUsingFile(file.file_id);
+      if (agents.length === 0) {
+        await dropCopy(deps, { file, userId });
+        summary.dropped += 1;
+        continue;
+      }
       const crawl = await deps.crawl(url);
       if (crawl.pages.length === 0) {
         throw new Error('no readable pages');
@@ -48,8 +58,6 @@ export async function refreshDueSites(
         summary.checked += 1;
         continue;
       }
-      const userId = String(file.user);
-      const agents = await deps.findAgentsUsingFile(file.file_id);
       for (const agent of agents) {
         await saveSiteCopy(deps, { userId, agentId: agent.id, crawl, now });
         await retireCopy(deps, { agentId: agent.id, file, userId });
@@ -78,7 +86,7 @@ export function startSiteRefresh(deps: RefreshDeps): NodeJS.Timeout | null {
     running = true;
     try {
       const summary = await runAsSystem(() => refreshDueSites(deps));
-      if (summary.checked + summary.updated + summary.failed > 0) {
+      if (summary.checked + summary.updated + summary.failed + summary.dropped > 0) {
         logger.info(`[sites] website refresh ${JSON.stringify(summary)}`);
       }
     } catch (error) {

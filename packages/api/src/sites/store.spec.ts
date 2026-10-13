@@ -142,7 +142,7 @@ describe('refreshDueSites', () => {
 
     const summary = await refreshDueSites(deps, now);
 
-    expect(summary).toEqual({ checked: 1, updated: 0, failed: 0 });
+    expect(summary).toEqual({ checked: 1, updated: 0, failed: 0, dropped: 0 });
     expect(deps.markWebsiteChecked).toHaveBeenCalledWith(file.file_id, now);
     expect(deps.createFile).not.toHaveBeenCalled();
     expect(deps.resolveEndpoint).not.toHaveBeenCalled();
@@ -154,20 +154,32 @@ describe('refreshDueSites', () => {
 
     const summary = await refreshDueSites(deps);
 
-    expect(summary).toEqual({ checked: 0, updated: 1, failed: 0 });
+    expect(summary).toEqual({ checked: 0, updated: 1, failed: 0, dropped: 0 });
     expect(files.has(file.file_id)).toBe(false);
     expect(agentFiles.get('agent_a')).toHaveLength(1);
     expect(agentFiles.get('agent_draft')).toHaveLength(1);
     expect(agentFiles.get('agent_a')).not.toEqual(agentFiles.get('agent_draft'));
   });
 
+  it('drops a copy no agent uses any more instead of crawling it again', async () => {
+    const { deps, files, agentFiles, file } = await seeded('Week 4 Monday');
+    agentFiles.set('agent_a', []);
+
+    const summary = await refreshDueSites(deps);
+
+    expect(summary).toEqual({ checked: 0, updated: 0, failed: 0, dropped: 1 });
+    expect(deps.crawl).not.toHaveBeenCalled();
+    expect(files.has(file.file_id)).toBe(false);
+    expect(deps.deleteVectors).toHaveBeenCalledWith({ userId, file });
+  });
+
   it('keeps the old copy when the site is down or has no readable pages', async () => {
     const { deps, files, file } = await seeded('Week 4 Monday');
     (deps.crawl as jest.Mock).mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
-    expect(await refreshDueSites(deps)).toEqual({ checked: 0, updated: 0, failed: 1 });
+    expect(await refreshDueSites(deps)).toEqual({ checked: 0, updated: 0, failed: 1, dropped: 0 });
     (deps.crawl as jest.Mock).mockResolvedValueOnce({ url: URL_A, pages: [], skipped: [] });
-    expect(await refreshDueSites(deps)).toEqual({ checked: 0, updated: 0, failed: 1 });
+    expect(await refreshDueSites(deps)).toEqual({ checked: 0, updated: 0, failed: 1, dropped: 0 });
     expect(files.has(file.file_id)).toBe(true);
     expect(deps.deleteFiles).not.toHaveBeenCalled();
     expect(deps.markWebsiteChecked).not.toHaveBeenCalled();

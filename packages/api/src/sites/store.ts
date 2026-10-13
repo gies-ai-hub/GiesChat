@@ -112,6 +112,18 @@ export async function saveSiteCopy(
   return file;
 }
 
+/** Deletes a copy and its search entries; callers make sure no agent still uses it. */
+export async function dropCopy(
+  deps: SiteStoreDeps,
+  params: { file: IMongoFile; userId: string },
+): Promise<void> {
+  const { file, userId } = params;
+  await deps.deleteVectors({ userId, file }).catch((error: unknown) => {
+    logger.warn(`[sites] could not remove search entries for ${file.file_id}`, error);
+  });
+  await deps.deleteFiles([file.file_id]);
+}
+
 /** Detaches a copy from one agent, then deletes it once no agent uses it (a draft may share it). */
 export async function retireCopy(
   deps: SiteStoreDeps,
@@ -125,10 +137,7 @@ export async function retireCopy(
   if ((await deps.findAgentsUsingFile(file.file_id)).length > 0) {
     return;
   }
-  await deps.deleteVectors({ userId, file }).catch((error: unknown) => {
-    logger.warn(`[sites] could not remove search entries for ${file.file_id}`, error);
-  });
-  await deps.deleteFiles([file.file_id]);
+  await dropCopy(deps, { file, userId });
 }
 
 /** The new copy is saved and attached before the old ones go, so the agent is never without one. */
