@@ -131,7 +131,8 @@ export default function Websites({ agent_id }: { agent_id: string }) {
   const refreshing = save.isLoading ? save.variables?.url : undefined;
 
   return (
-    <div className="flex flex-col gap-2">
+    /* `contain: inline-size` keeps this section's long text from widening the host dialog. */
+    <div className="flex min-w-0 flex-col gap-2 [contain:inline-size]">
       <label
         htmlFor="agent-website-url"
         className="text-[11px] font-medium uppercase tracking-wide text-text-secondary"

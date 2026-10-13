@@ -29,11 +29,19 @@ export default function WebsitePreview({
 }) {
   const localize = useLocalize();
   const words = preview.pages.reduce((total, page) => total + page.words, 0);
+  /** Site menus put dozens of links outside the address; one count per reason keeps it readable. */
+  const skippedByReason = preview.skipped.reduce<Partial<Record<WebsiteSkipReason, string[]>>>(
+    (groups, item) => {
+      (groups[item.reason] ??= []).push(item.url);
+      return groups;
+    },
+    {},
+  );
   const title = localize('com_agents_websites_preview_title', { 0: shortUrl(preview.url) });
   return (
     <section
       aria-label={title}
-      className="mt-2 overflow-hidden rounded-xl border border-border-light bg-surface-primary-alt"
+      className="mt-2 min-w-0 overflow-hidden rounded-xl border border-border-light bg-surface-primary-alt"
     >
       <div className="flex items-start justify-between gap-2 border-b border-border-light bg-surface-tertiary px-3 py-2">
         <div className="min-w-0">
@@ -67,10 +75,10 @@ export default function WebsitePreview({
                 <span className="min-w-0 flex-1 truncate font-medium text-text-primary">
                   {page.title}
                 </span>
-                <span className="whitespace-nowrap text-[11px] text-text-tertiary">
+                <span className="min-w-0 max-w-[40%] truncate text-[11px] text-text-tertiary">
                   {new URL(page.url).pathname}
                 </span>
-                <span className="whitespace-nowrap text-[11px] text-text-secondary">
+                <span className="shrink-0 whitespace-nowrap text-[11px] text-text-secondary">
                   {localize('com_agents_websites_words', { 0: page.words.toLocaleString() })}
                   {!page.cleaned && ` · ${localize('com_agents_websites_plain')}`}
                 </span>
@@ -83,19 +91,25 @@ export default function WebsitePreview({
         </div>
       )}
       {preview.skipped.length > 0 && (
-        <p className="border-t border-border-light px-3 py-2 text-[11px] leading-5 text-text-secondary">
-          <span className="font-semibold text-text-primary">
+        <div className="border-t border-border-light px-3 py-2 text-[11px] leading-5 text-text-secondary">
+          <p className="font-semibold text-text-primary">
             {localize('com_agents_websites_skipped')}
-          </span>{' '}
-          {preview.skipped.map((item) => (
-            <span
-              key={item.url}
-              className="mr-1 inline-block rounded border border-border-light bg-surface-primary px-1.5"
-            >
-              {shortUrl(item.url)} — {localize(SKIP_KEYS[item.reason])}
-            </span>
-          ))}
-        </p>
+          </p>
+          {(Object.entries(skippedByReason) as [WebsiteSkipReason, string[]][]).map(
+            ([reason, urls]) => (
+              <details key={reason}>
+                <summary className="cursor-pointer">
+                  {`${localize(SKIP_KEYS[reason])} · ${urls.length}`}
+                </summary>
+                <ul className="mb-1 ml-3 break-all">
+                  {urls.map((url) => (
+                    <li key={url}>{shortUrl(url)}</li>
+                  ))}
+                </ul>
+              </details>
+            ),
+          )}
+        </div>
       )}
       <div className="flex items-center justify-between gap-2 border-t border-border-light bg-surface-primary px-3 py-2">
         <span className="text-[11px] text-text-tertiary">

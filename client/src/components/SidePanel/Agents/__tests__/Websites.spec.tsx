@@ -97,11 +97,32 @@ describe('Websites', () => {
     await userEvent.click(screen.getByRole('button', { name: 'com_agents_websites_test' }));
 
     expect(await screen.findByText('Week 5')).toBeInTheDocument();
-    expect(screen.getByText(/com_agents_websites_skip_offsite/)).toBeInTheDocument();
+    expect(screen.getByText('com_agents_websites_skip_offsite · 1')).toBeInTheDocument();
     expect(mockSave).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole('button', { name: 'com_agents_websites_add_this' }));
     await waitFor(() => expect(mockSave).toHaveBeenCalledWith('agent_prod', url));
+  });
+
+  it('groups skipped links by reason with a count, so site menus do not flood the panel', async () => {
+    const url = 'https://badm350.web.illinois.edu/readings/';
+    mockPreview.mockResolvedValue({
+      url,
+      pages: [{ url, title: 'Readings', text: 'text', words: 1, cleaned: true }],
+      skipped: [
+        { url: 'https://badm350.web.illinois.edu/schedule/', reason: 'outside' },
+        { url: 'https://badm350.web.illinois.edu/apply/', reason: 'outside' },
+        { url: 'https://youtube.com/', reason: 'offsite' },
+      ],
+    });
+    renderWebsites();
+
+    await userEvent.type(screen.getByLabelText('com_agents_websites_label'), url);
+    await userEvent.click(screen.getByRole('button', { name: 'com_agents_websites_test' }));
+
+    expect(await screen.findByText('com_agents_websites_skip_outside · 2')).toBeInTheDocument();
+    expect(screen.getByText('com_agents_websites_skip_offsite · 1')).toBeInTheDocument();
+    expect(screen.getByText('badm350.web.illinois.edu/apply/')).toBeInTheDocument();
   });
 
   it('rejects a bad or duplicate address without calling the server', async () => {
