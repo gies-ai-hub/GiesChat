@@ -1,6 +1,8 @@
 const express = require('express');
 const { nanoid } = require('nanoid');
 const {
+  crawlSite,
+  cleanPages,
   callTestModel,
   topicsModelFromConfig,
   searchAgentDocuments,
@@ -13,6 +15,7 @@ const { findAccessibleResources } = require('~/server/services/PermissionService
 const { copyAgentDocuments } = require('~/server/services/Files/copy');
 const { sendCollaboratorInvite, sendRoleChange } = require('~/server/services/AgentInvites');
 const { grantAgentAccess, revokeAgentAccess } = require('~/server/services/AgentAccess');
+const { siteStore, replaceWebsiteCopy } = require('~/server/services/Websites');
 const { requireJwtAuth } = require('~/server/middleware');
 const { getAppConfig } = require('~/server/services/Config');
 const db = require('~/models');
@@ -55,6 +58,9 @@ const handlers = createAdminUsageHandlers({
   sendRoleChange,
   grantAgentAccess,
   revokeAgentAccess,
+  crawlWebsite: (url) => crawlSite(url),
+  cleanWebsitePages: async (pages) => cleanPages(pages, await siteStore.resolveEndpoint()),
+  replaceWebsiteCopy,
 });
 
 router.use(requireJwtAuth, requireAdminAccess);
@@ -91,6 +97,14 @@ router.get(
  */
 router.put('/agents/:agent_id/embed', handlers.updateAgentEmbed);
 router.delete('/agents/:agent_id/embed', handlers.revokeAgentEmbed);
+
+/**
+ * Websites. Test reads a public site and stores nothing; Add/Refresh writes a document onto
+ * an agent the caller already edits (usage scope). No roster is read, so `access:admin` is
+ * the gate, as for embedding.
+ */
+router.post('/websites/preview', handlers.previewWebsite);
+router.post('/agents/:agent_id/websites', handlers.saveAgentWebsite);
 
 /**
  * Draft collaboration. All four resolve the agent through the usage scope; the
