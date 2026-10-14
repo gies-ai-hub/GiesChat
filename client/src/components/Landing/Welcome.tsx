@@ -16,6 +16,7 @@ import type { CSSProperties } from 'react';
 import type { TranslationKeys } from '~/hooks';
 import { BackgroundToggle } from '~/components/ui';
 import { useLocalize } from '~/hooks';
+import gies from './gies.jpg';
 import bif from './bif.jpg';
 import Reel from './Reel';
 import './landing.css';
@@ -270,7 +271,7 @@ export default function Welcome() {
       </section>
 
       <section className="lp-section" style={{ paddingTop: 0 }}>
-        <div className="lp-cta">
+        <div className="lp-cta" style={{ '--lp-cta-photo': `url(${gies})` } as CSSProperties}>
           <h2>{localize('com_ui_landing_outro_title')}</h2>
           <p>{localize('com_ui_landing_outro_body')}</p>
           <div className="lp-ctas">

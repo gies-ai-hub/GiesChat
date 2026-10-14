@@ -28,19 +28,19 @@ describe('Reel', () => {
   it('advances to the next feature on its own and wraps around', () => {
     render(<Reel />);
     expect(pressedTab()).toBe(0);
-    advance(6200);
+    advance(4200);
     expect(pressedTab()).toBe(1);
-    advance(6100 * 4);
+    advance(4100 * 4);
     expect(pressedTab()).toBe(0);
   });
 
   it('jumps to a clicked feature and holds while hovered', () => {
     const { container } = render(<Reel />);
     fireEvent.click(screen.getByText('com_ui_landing_tab_dashboard'));
-    expect(pressedTab()).toBe(2);
+    expect(pressedTab()).toBe(3);
     fireEvent.mouseEnter(container.firstChild as Element);
     advance(15000);
-    expect(pressedTab()).toBe(2);
+    expect(pressedTab()).toBe(3);
   });
 
   it('stays on the first feature when the visitor prefers reduced motion', () => {

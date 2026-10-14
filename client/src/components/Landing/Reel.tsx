@@ -1,22 +1,24 @@
-import { Plus, Check } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { TranslationKeys } from '~/hooks';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 
-const SCENE_MS = 6000;
+const SCENE_MS = 4000;
+/** Scenes are authored on a slower clock; this compresses every entrance to fit SCENE_MS. */
+const PACE = 0.65;
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 const TABS: TranslationKeys[] = [
   'com_ui_landing_tab_tutors',
   'com_ui_landing_tab_deck',
+  'com_ui_landing_builder_title',
   'com_ui_landing_tab_dashboard',
-  'com_agents_websites_label',
   'com_ui_landing_tab_embed',
 ];
 const TUTOR_MODEL = 'GPT-6 Luna';
 const DECK_MODEL = 'GPT-6.1 Sol';
-const SAMPLE_SITE = 'giesbusiness.illinois.edu/finance';
+const REPLIT = 'Replit';
 const CHART = [34, 52, 47, 78, 96, 41, 22];
 /** 2026-10-12 is a Monday; Intl gives localized weekday names without translation keys. */
 const WEEKDAYS = CHART.map((_, i) =>
@@ -28,22 +30,21 @@ const TOPICS: Array<[TranslationKeys, number]> = [
   ['com_ui_landing_topic3', 18],
   ['com_ui_landing_topic4', 9],
 ];
-const PAGES: Array<[TranslationKeys, string, number]> = [
-  ['com_ui_landing_page1', '/finance/syllabus', 1840],
-  ['com_ui_landing_page2', '/finance/schedule', 960],
-  ['com_ui_landing_page3', '/finance/exams', 730],
-  ['com_ui_landing_page4', '/finance/office-hours', 210],
-];
+const GOING = ['JK', 'AR', 'MS', 'DL'];
 
 const prefersStill = () => window.matchMedia(REDUCED_MOTION).matches;
 
 /** Staggered entrance: CSS starts an `.lp-a` element `delay` seconds after its scene plays. */
 const at = (delay: number, extra?: Record<string, string>) =>
-  ({ '--d': `${delay}s`, ...extra }) as CSSProperties;
+  ({ '--d': `${delay * PACE}s`, ...extra }) as CSSProperties;
 
 function Typing({ delay, length }: { delay: number; length: number }) {
   return (
-    <span className="lp-dots" style={at(delay, { '--len': `${length}s` })} aria-hidden="true">
+    <span
+      className="lp-dots"
+      style={at(delay, { '--len': `${length * PACE}s` })}
+      aria-hidden="true"
+    >
       <i />
       <i />
       <i />
@@ -96,10 +97,10 @@ function Count({ to, decimals = 0, active }: { to: number; decimals?: number; ac
       setValue(active ? to : 0);
       return;
     }
-    const start = performance.now() + 300;
+    const start = performance.now() + 200;
     let frame = 0;
     const step = (now: number) => {
-      const k = Math.min(1, Math.max(0, (now - start) / 900));
+      const k = Math.min(1, Math.max(0, (now - start) / 600));
       setValue(to * (1 - Math.pow(1 - k, 3)));
       if (k < 1) {
         frame = requestAnimationFrame(step);
@@ -298,53 +299,61 @@ function DashboardScene({ active }: { active: boolean }) {
   );
 }
 
-function WebsitesScene() {
+function AppScene() {
   const localize = useLocalize();
+  const name = localize('com_ui_landing_builder_title');
   return (
-    <>
-      <div className="lp-head">
-        <b>{localize('com_ui_landing_web_title')}</b>
-        <span>{localize('com_ui_landing_web_sections')}</span>
-      </div>
-      <div className="lp-builder">
-        <h3>{localize('com_agents_websites_label')}</h3>
-        <p>{localize('com_agents_websites_description')}</p>
-        <div className="lp-url-row">
-          <div className="lp-url">
-            <span className="lp-typed" style={at(0.3)}>
-              {SAMPLE_SITE}
+    <div className="lp-deck">
+      <div className="lp-deck-chat">
+        <div className="lp-head">
+          <span className="lp-head-left">
+            <span className="lp-chip">
+              <i />
+              {name}
             </span>
-            <span className="lp-caret" />
-          </div>
-          <span className="lp-btn lp-btn-sm lp-outline lp-press" style={at(1.9)}>
-            {localize('com_agents_websites_test')}
+            <span className="lp-model">{REPLIT}</span>
           </span>
-          <span className="lp-btn lp-btn-sm lp-primary">{localize('com_agents_websites_add')}</span>
         </div>
-        <div className="lp-read lp-a" style={at(2.3)}>
-          <div className="lp-read-head">
-            {localize('com_agents_websites_preview_stats', {
-              0: 12,
-              1: 3,
-              2: (9480).toLocaleString(),
-            })}
+        <div className="lp-msgs">
+          <div className="lp-msg-user lp-a" style={at(0.2)}>
+            {localize('com_ui_landing_app_q')}
           </div>
-          {PAGES.map(([title, path, words], i) => (
-            <div key={path} className="lp-page lp-a" style={at(2.5 + i * 0.15)}>
-              <b>{localize(title)}</b>
-              <code>{path}</code>
-              <span>{localize('com_agents_websites_words', { 0: words.toLocaleString() })}</span>
-            </div>
-          ))}
-        </div>
-        <div className="lp-saved lp-a" style={at(3.6)}>
-          <Check className="size-4" aria-hidden="true" />
-          <b>{localize('com_agents_websites_saved_badge', { 0: 12 })}</b>
-          <span>{localize('com_ui_landing_web_refresh')}</span>
-          <span>{localize('com_ui_landing_web_remove')}</span>
+          <BotMessage avatar="AB" name={name} delay={0.7} typing={1}>
+            {localize('com_ui_landing_app_a')}
+          </BotMessage>
         </div>
       </div>
-    </>
+      <div className="lp-deck-preview">
+        <div className="lp-head">
+          <b>{localize('com_ui_landing_app_preview')}</b>
+          <span className="lp-live">{localize('com_ui_landing_app_live')}</span>
+        </div>
+        <div className="lp-mini lp-a" style={at(1.8)}>
+          <h3>{localize('com_ui_landing_app_title')}</h3>
+          <p>{localize('com_ui_landing_app_hint')}</p>
+          <div className="lp-mini-field lp-a" style={at(2.1)}>
+            <span>{localize('com_ui_landing_app_name')}</span>
+            <div>{localize('com_ui_landing_app_name_value')}</div>
+          </div>
+          <div className="lp-mini-slots lp-a" style={at(2.35)}>
+            <span>{localize('com_ui_landing_app_slot1')}</span>
+            <span className="lp-mini-on">{localize('com_ui_landing_app_slot2')}</span>
+            <span>{localize('com_ui_landing_app_slot3')}</span>
+          </div>
+          <span className="lp-btn lp-btn-sm lp-primary lp-a" style={at(2.6)}>
+            {localize('com_ui_landing_app_join')}
+          </span>
+          <div className="lp-mini-going lp-a" style={at(3.1)}>
+            <span>{localize('com_ui_landing_app_going', { 0: GOING.length })}</span>
+            {GOING.map((initials, i) => (
+              <i key={initials} className="lp-a" style={at(3.2 + i * 0.12)}>
+                {initials}
+              </i>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -447,8 +456,8 @@ export default function Reel() {
   const scenes = [
     <TutorScene key="tutors" />,
     <DeckScene key="deck" />,
-    <DashboardScene key="dashboard" active={plays(2)} />,
-    <WebsitesScene key="websites" />,
+    <AppScene key="app" />,
+    <DashboardScene key="dashboard" active={plays(3)} />,
     <EmbedScene key="embed" />,
   ];
 

@@ -329,35 +329,6 @@
     transform: translateY(-4px);
   }
 }
-.lp-typed {
-  display: inline-block;
-  overflow: hidden;
-  white-space: nowrap;
-  width: 0;
-  vertical-align: bottom;
-}
-.lp-play .lp-typed {
-  animation: lp-type 1.3s steps(33) forwards;
-  animation-delay: var(--d, 0s);
-}
-@keyframes lp-type {
-  to {
-    width: 34ch;
-  }
-}
-.lp-caret {
-  display: inline-block;
-  width: 1px;
-  height: 13px;
-  background: var(--lp-orange);
-  vertical-align: middle;
-  animation: lp-caret 1s steps(1) infinite;
-}
-@keyframes lp-caret {
-  50% {
-    opacity: 0;
-  }
-}
 .lp-grow-y {
   transform: scaleY(0);
   transform-origin: bottom;
@@ -382,15 +353,6 @@
 @keyframes lp-grow-x {
   to {
     transform: scaleX(1);
-  }
-}
-.lp-play .lp-press {
-  animation: lp-press 0.3s ease forwards;
-  animation-delay: var(--d, 0s);
-}
-@keyframes lp-press {
-  50% {
-    transform: scale(0.94);
   }
 }
 
@@ -744,91 +706,93 @@
   background: var(--lp-orange);
 }
 
-/* websites */
-.lp-builder {
-  padding: 14px 18px;
-  font-size: 12.5px;
+/* app builder */
+.lp-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #15803d;
 }
-.lp-builder h3 {
-  margin: 0 0 3px;
-  font-size: 13px;
-  font-weight: 700;
+.lp-live::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
 }
-.lp-builder > p {
-  margin: 0 0 9px;
-  color: var(--lp-t2);
-}
-.lp-url-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.lp-url {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--lp-bd2);
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 12px;
-}
-.lp-read {
+.lp-mini {
+  margin: 14px 18px;
   border: 1px solid var(--lp-bd);
   border-radius: 12px;
-  overflow: hidden;
+  padding: 14px 16px;
+  background: var(--lp-bg);
+  font-size: 12.5px;
 }
-.lp-read-head {
-  background: var(--lp-tert);
-  padding: 7px 12px;
+.lp-mini h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--lp-head);
+}
+.lp-mini > p {
+  margin: 2px 0 10px;
+  color: var(--lp-t2);
+}
+.lp-mini-field span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lp-t2);
+}
+.lp-mini-field div {
+  margin: 3px 0 10px;
+  border: 1px solid var(--lp-bd2);
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+.lp-mini-slots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.lp-mini-slots span {
+  border: 1px solid var(--lp-bd);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+}
+.lp-mini-slots .lp-mini-on {
+  border-color: var(--lp-orange);
+  background: var(--illini-orange-soft);
+  color: var(--lp-orange);
+  font-weight: 600;
+}
+.dark .lp-mini-slots .lp-mini-on {
+  background: color-mix(in srgb, var(--illini-orange) 18%, transparent);
+}
+.lp-mini-going {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
   font-size: 11.5px;
   color: var(--lp-t2);
 }
-.lp-read-head b {
-  color: var(--lp-t1);
+.lp-mini-going span {
+  margin-right: 4px;
 }
-.lp-page {
-  display: flex;
-  gap: 10px;
-  padding: 6px 12px;
-  border-top: 1px solid var(--lp-bd);
-  font-size: 12px;
-}
-.lp-page b {
-  flex: 1;
-}
-.lp-page code {
-  font-size: 11px;
-  color: var(--lp-t2);
-}
-.lp-page span {
-  width: 84px;
-  text-align: right;
-  color: var(--lp-t2);
-}
-.lp-saved {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-  border: 1px solid #86efac;
-  border-radius: 10px;
-  padding: 8px 12px;
-  background: #f0fdf4;
-  color: #166534;
-  font-size: 12px;
-}
-.dark .lp-saved {
-  background: #052e16;
-  border-color: #166534;
-  color: #86efac;
-}
-.lp-saved b {
-  flex: 1;
-}
-.lp-saved span {
-  font-weight: 600;
-  text-decoration: underline;
+.lp-mini-going i {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--illini-blue);
+  color: #fff;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 700;
 }
 
 /* canvas embed */
@@ -1066,21 +1030,14 @@
   margin: 0 auto;
   max-width: 65rem;
   border-radius: 22px;
-  padding: 3.25rem 1.75rem;
+  padding: 4.75rem 1.75rem;
   text-align: center;
-  background: var(--illini-blue);
+  /* Gies College of Business by day, under the same Illini-blue wash as the hero */
+  background:
+    linear-gradient(180deg, rgba(19, 41, 75, 0.62) 0%, rgba(19, 41, 75, 0.82) 100%),
+    var(--lp-cta-photo) center 45% / cover no-repeat,
+    var(--illini-blue);
   color: #fff;
-}
-.lp-cta::after {
-  content: '';
-  position: absolute;
-  right: -60px;
-  top: -60px;
-  width: 240px;
-  height: 240px;
-  border: 36px solid var(--lp-orange);
-  border-radius: 50%;
-  opacity: 0.9;
 }
 .lp-cta > * {
   position: relative;
@@ -1088,16 +1045,17 @@
 }
 .lp-cta h2 {
   margin: 0 0 0.6rem;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.35);
   font-size: 2rem;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 .lp-cta p {
   margin: 0 0 1.5rem;
-  color: #c8d3e6;
+  color: #e3eaf5;
 }
 .lp-cta .lp-ghost {
-  border-color: #4a6286;
+  border-color: rgba(255, 255, 255, 0.55);
   background: transparent;
   color: #fff;
 }
@@ -1175,9 +1133,7 @@
   .lp-deck-chat,
   .lp-lms-nav,
   .lp-panels .lp-panel:first-child,
-  .lp-page code,
-  .lp-head > span:last-child:not(.lp-chip),
-  .lp-url-row .lp-primary {
+  .lp-head > span:last-child:not(.lp-chip):not(.lp-live) {
     display: none;
   }
   .lp-msgs {
@@ -1195,9 +1151,6 @@
   .lp-panels {
     grid-template-columns: 1fr;
   }
-  .lp-url {
-    font-size: 11px;
-  }
   .lp-section {
     padding: 2.75rem 1rem;
   }
@@ -1213,14 +1166,6 @@
   }
   .lp-cta {
     padding: 2.5rem 1.1rem;
-  }
-  .lp-cta::after {
-    right: -70px;
-    top: -70px;
-    width: 140px;
-    height: 140px;
-    border-width: 22px;
-    opacity: 0.55;
   }
   .lp-cta h2 {
     font-size: 1.6rem;
@@ -1238,20 +1183,14 @@
   .lp-scene,
   .lp-card,
   .lp-play .lp-a,
-  .lp-play .lp-typed,
   .lp-play .lp-grow-x,
   .lp-play .lp-grow-y,
-  .lp-play .lp-press,
-  .lp-dots i,
-  .lp-caret {
+  .lp-dots i {
     animation: none !important;
     transition: none !important;
   }
   .lp-a {
     opacity: 1;
-  }
-  .lp-typed {
-    width: auto;
   }
   .lp-grow-x,
   .lp-grow-y {
