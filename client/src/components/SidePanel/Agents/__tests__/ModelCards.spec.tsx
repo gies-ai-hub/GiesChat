@@ -59,11 +59,11 @@ describe('orderModels', () => {
 });
 
 describe('ModelCards', () => {
-  it('renders one card per model with the spec description, retired line, or name only', () => {
+  it('renders one card per model with the spec description, fallback guide, retired line, or name only', () => {
     render(
       <ModelCards
         provider="Azure OpenAI"
-        models={models}
+        models={[...models, 'gpt-7-preview']}
         specs={specs}
         value="gpt-5.6-terra"
         onChange={jest.fn()}
@@ -71,14 +71,16 @@ describe('ModelCards', () => {
       />,
     );
     const radios = screen.getAllByRole('radio');
-    expect(radios).toHaveLength(3);
+    expect(radios).toHaveLength(4);
     expect(radios[0]).toHaveAttribute('value', 'gpt-6-luna');
     expect(screen.getByText('GPT-5.6 Terra')).toBeInTheDocument();
     expect(screen.getByText('Fast all-rounder — quick answers.')).toBeInTheDocument();
     expect(screen.getByText('com_ui_model_guide_retired')).toBeInTheDocument();
     expect(screen.getByText('com_ui_model_default_badge')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /GPT-5\.6 Terra/ })).toBeChecked();
-    expect(screen.getByRole('radio', { name: /^gpt-6\.1-sol$/ })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: /GPT-6\.1 Sol/ })).not.toBeChecked();
+    expect(screen.getByText('com_ui_model_guide_sol')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^gpt-7-preview$/ })).not.toBeChecked();
   });
 
   it('reports the picked model', () => {

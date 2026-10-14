@@ -16,8 +16,6 @@ describe('resolveTourSteps', () => {
       'chats',
       'rooms',
       'composer',
-      'model-picker',
-      'model-menu',
       'report-issue',
       'course-tutors',
     ]);
@@ -27,33 +25,7 @@ describe('resolveTourSteps', () => {
     const interactive = TOUR_STEPS.filter((step) => step.advanceOnClick === true).map(
       (step) => step.id,
     );
-    expect(interactive).toEqual([
-      'new-chat',
-      'chats',
-      'rooms',
-      'model-picker',
-      'model-menu',
-      'course-tutors',
-    ]);
-  });
-
-  it('keeps the model-menu step with a deferred selector while the picker is visible', () => {
-    const picker = document.createElement('div');
-    picker.dataset.tour = 'model-picker';
-    mockVisible(picker);
-    document.body.appendChild(picker);
-
-    const modelMenu = resolveTourSteps().find((step) => step.id === 'model-menu');
-    expect(modelMenu?.selector).toBe('[data-tour="model-menu"]');
-  });
-
-  it('drops the model-menu step when the picker is unavailable', () => {
-    expect(resolveTourSteps().find((step) => step.id === 'model-menu')).toBeUndefined();
-  });
-
-  it('only advances model-menu on an actual model choice', () => {
-    const modelMenu = TOUR_STEPS.find((step) => step.id === 'model-menu');
-    expect(modelMenu?.clickTargetSelector).toBe('[role="menuitemradio"],[role="option"]');
+    expect(interactive).toEqual(['new-chat', 'chats', 'rooms', 'course-tutors']);
   });
 
   it('uses More only when the direct Agents destination is unavailable', () => {

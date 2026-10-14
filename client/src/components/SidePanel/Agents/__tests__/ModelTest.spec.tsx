@@ -84,7 +84,7 @@ describe('ModelTest', () => {
     });
 
     await userEvent.click(
-      screen.getByRole('button', { name: 'com_ui_model_test_use {"model":"gpt-6.1-sol"}' }),
+      screen.getByRole('button', { name: 'com_ui_model_test_use {"model":"GPT-6.1 Sol"}' }),
     );
     expect(onUse).toHaveBeenCalledWith('gpt-6.1-sol');
   });

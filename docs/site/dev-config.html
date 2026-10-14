@@ -17,15 +17,17 @@
   <p><code>librechat.yaml</code> is baked into the Docker image, so changing it means a deploy. At startup <span class="path">packages/api/src/app/</span> loads it and validates it against the schema in <span class="path">packages/data-provider/src/config.ts</span>. A typo fails validation at boot, not later. In the YAML, <code>${VAR}</code> pulls a value from <code>.env</code>, and <code>{{VAR}}</code> is filled in per user (e.g. a student's own Canvas token).</p>
 
   <h2>Models</h2>
-  <p>The <code>agents</code> endpoint allows two providers: the custom <b>Azure OpenAI</b> endpoint (Responses API, web search, medium reasoning) and <b>Anthropic</b> (<code>ANTHROPIC_API_KEY</code>). What users see in the picker comes from <code>modelSpecs</code>:</p>
+  <p>The <code>agents</code> endpoint allows two providers: the custom <b>Azure OpenAI</b> endpoint (Responses API, web search, medium reasoning) and <b>Anthropic</b>, which runs through the same Azure AI Foundry resource (<code>ANTHROPIC_REVERSE_PROXY</code>, with its model list in <code>ANTHROPIC_MODELS</code>). Chat offers one model: <code>modelSpecs</code> lists only GPT-6 Luna, and with no <code>addedEndpoints</code> the menu shows nothing else. Class agents pick from both providers on the builder's model cards.</p>
   <table>
-    <tr><th>Label</th><th>Model</th><th>Notes</th></tr>
-    <tr><td>GPT-6 Luna</td><td><code>gpt-6-luna</code></td><td>Default</td></tr>
-    <tr><td>GPT-6.1 Sol</td><td><code>gpt-6.1-sol</code></td><td>Also runs Deck Builder</td></tr>
-    <tr><td>Claude Sonnet 5</td><td><code>claude-sonnet-5</code></td><td></td></tr>
-    <tr><td>Claude Opus 4.8</td><td><code>claude-opus-4-8</code></td><td></td></tr>
+    <tr><th>Model</th><th>Id</th><th>Where</th></tr>
+    <tr><td>GPT-6 Luna</td><td><code>gpt-6-luna</code></td><td>Chat (the only spec) and the class-agent default</td></tr>
+    <tr><td>GPT-6.1 Sol</td><td><code>gpt-6.1-sol</code></td><td>Class agents; also runs Deck Builder</td></tr>
+    <tr><td>Claude Sonnet 5.5</td><td><code>claude-sonnet-5-5</code></td><td>Class agents</td></tr>
+    <tr><td>Claude Opus 5.5</td><td><code>claude-opus-5-5</code></td><td>Class agents</td></tr>
+    <tr><td>Claude Haiku 5.5</td><td><code>claude-haiku-5-5</code></td><td>Class agents</td></tr>
     <tr><td>Deck Builder</td><td>Azure OpenAI</td><td>Hidden spec on gpt-6.1-sol; uses the PowerPoint MCP</td></tr>
   </table>
+  <p>Do not turn on <code>modelSpecs.enforce</code> to lock chat: it rejects every request without a spec, which includes all agent chats (course tutors, class agents, embeds).</p>
   <p>Every spec shares the Gies baseline prompt: short answers, no emojis, bold headings only, academic integrity. Titles are generated with <code>gpt-5.4-mini</code>.</p>
   <div class="callout"><b>Retiring a model:</b> remove its <code>modelSpecs</code> entry and add its id to <code>RETIRED_MODELS</code> in <span class="path">client/src/utils/endpoints.ts</span>, but <i>keep</i> it in the endpoint's <code>models</code> list. Agents are validated against that list, so agents still pinned to the old model would fail. Retired models stay hidden from every picker except on an agent that still uses one, so it can move off. Give it a <code>FALLBACK_GUIDE</code> label in <span class="path">ModelCards.tsx</span> so it doesn't show as a raw id. The class-dashboard default lives in <code>DASHBOARD_MODEL</code> in <span class="path">client/src/components/Admin/Dashboard.tsx</span>.</div>
 

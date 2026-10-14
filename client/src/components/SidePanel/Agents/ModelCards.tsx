@@ -6,6 +6,12 @@ import { cn, RETIRED_MODELS } from '~/utils';
 
 /** Models with no chat spec to borrow from get their name and line here. */
 const FALLBACK_GUIDE: Record<string, { label: string; description: TranslationKeys }> = {
+  'gpt-6.1-sol': { label: 'GPT-6.1 Sol', description: 'com_ui_model_guide_sol' },
+  'claude-sonnet-5-5': { label: 'Claude Sonnet 5.5', description: 'com_ui_model_guide_sonnet' },
+  'claude-opus-5-5': { label: 'Claude Opus 5.5', description: 'com_ui_model_guide_opus' },
+  'claude-haiku-5-5': { label: 'Claude Haiku 5.5', description: 'com_ui_model_guide_haiku' },
+  'claude-sonnet-5': { label: 'Claude Sonnet 5', description: 'com_ui_model_guide_retired' },
+  'claude-opus-4-8': { label: 'Claude Opus 4.8', description: 'com_ui_model_guide_retired' },
   'gpt-6-sol': { label: 'GPT-6 Sol', description: 'com_ui_model_guide_retired' },
   'gpt-5.6-terra': { label: 'GPT-5.6 Terra', description: 'com_ui_model_guide_retired' },
 };

@@ -2,7 +2,7 @@
 // ponytail: plain script, no fetch, so the site also works opened straight from disk.
 const SECTIONS = [
   ['Using GiesChat', [
-    ['use-start.html', 'Getting started', 'sign in sso welcome model picker tour chat'],
+    ['use-start.html', 'Getting started', 'sign in sso welcome luna model tour chat'],
     ['use-agents.html', 'Building a class agent', 'class dashboard admin create agent instructions documents websites scrape model test support contact course'],
     ['use-collaborators.html', 'Collaborators, drafts & co-admins', 'invite email roles draft post production test link co-admin'],
     ['use-embed.html', 'Embedding an agent', 'embed iframe canvas snippet public illinois guest revoke greeting theme'],

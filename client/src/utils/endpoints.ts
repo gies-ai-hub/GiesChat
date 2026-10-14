@@ -18,6 +18,8 @@ import { getTimestampedValue } from './timestamps';
  * but never offered in a picker. Remove an id here once nothing uses it.
  */
 export const RETIRED_MODELS = new Set([
+  'claude-sonnet-5',
+  'claude-opus-4-8',
   'gpt-6-sol',
   'gpt-5.6-terra',
   'gpt-5.6-luna',

@@ -171,6 +171,8 @@ const anthropicModels = {
   'claude-opus-4-6': 1000000,
   'claude-opus-4-7': 1000000,
   'claude-opus-4-8': 1000000,
+  'claude-opus-5': 1000000,
+  'claude-haiku-5': 200000, // ponytail: Haiku 4.5's window until Azure publishes 5.5's
   'claude-fable-5': 1000000,
   'claude-mythos-5': 1000000,
 };
@@ -472,6 +474,8 @@ const anthropicMaxOutputs = {
   'claude-opus-4-6': 128000,
   'claude-opus-4-7': 128000,
   'claude-opus-4-8': 128000,
+  'claude-opus-5': 128000,
+  'claude-haiku-5': 64000,
   'claude-fable-5': 128000,
   'claude-mythos-5': 128000,
   'claude-3.5-sonnet': 8192,

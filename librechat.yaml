@@ -232,21 +232,6 @@ modelSpecs:
           Formatting: never use emojis. When you structure a reply with headings or subheadings, bold only the heading line itself; write the text beneath it as plain prose — never bold whole sentences or paragraphs.
 
           Support learning and academic integrity: help students understand and think through problems; do not complete graded assignments, quizzes, or exams for them. If you don't know something or lack context, say so briefly rather than guessing.
-    - name: gieschat-general-6-1-sol
-      label: GPT-6.1 Sol
-      iconURL: openAI
-      description: Most capable — tough problem sets, math, long documents, and careful analysis.
-      preset:
-        endpoint: 'Azure OpenAI'
-        model: 'gpt-6.1-sol'
-        promptPrefix: *gieschat_baseline
-    - name: gieschat-claude-sonnet-5
-      label: Claude Sonnet 5
-      description: Quick and sharp — strong at writing, editing, and code.
-      preset:
-        endpoint: 'anthropic'
-        model: 'claude-sonnet-5'
-        promptPrefix: *gieschat_baseline
     - name: gieschat-deck-builder
       label: Deck Builder
       # Reached only through the Work tab (see client/src/hooks/useWorkMode.ts), never the
@@ -361,10 +346,3 @@ modelSpecs:
           whole sentences or paragraphs. Support learning and academic integrity: help
           students think through their material; do not produce graded work for them.
           If you don't know something, say so briefly rather than guessing.
-    - name: gieschat-claude-opus-48
-      label: Claude Opus 4.8
-      description: Most thorough — long documents, complex analysis, and the hardest problems.
-      preset:
-        endpoint: 'anthropic'
-        model: 'claude-opus-4-8'
-        promptPrefix: *gieschat_baseline

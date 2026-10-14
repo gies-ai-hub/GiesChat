@@ -45,6 +45,11 @@ describe('supportsAdaptiveThinking', () => {
     expect(supportsAdaptiveThinking('claude-opus-4-7')).toBe(true);
   });
 
+  test('should return true for claude-haiku-5-5 but not claude-haiku-4-5', () => {
+    expect(supportsAdaptiveThinking('claude-haiku-5-5')).toBe(true);
+    expect(supportsAdaptiveThinking('claude-haiku-4-5')).toBe(false);
+  });
+
   test('should return true for claude-opus-5 (future)', () => {
     expect(supportsAdaptiveThinking('claude-opus-5')).toBe(true);
   });
@@ -689,14 +694,15 @@ describe('bedrockInputParser', () => {
       expect(amrf?.anthropic_beta).toEqual(['context-1m-2025-08-07']);
     });
 
-    test('should match anthropic.claude-haiku-6 model without context beta header', () => {
+    /** Haiku 5.x rejects budgeted thinking (verified 2026-10-13), so later Haikus are adaptive too. */
+    test('should match anthropic.claude-haiku-6 model with adaptive thinking', () => {
       const input = {
         model: 'anthropic.claude-haiku-6',
       };
       const result = bedrockInputParser.parse(input) as Record<string, unknown>;
       const additionalFields = result.additionalModelRequestFields as Record<string, unknown>;
-      expect(additionalFields.thinking).toBe(true);
-      expect(additionalFields.thinkingBudget).toBe(2000);
+      expect((additionalFields.thinking as { type: string }).type).toBe('adaptive');
+      expect(additionalFields.thinkingBudget).toBeUndefined();
       expect(additionalFields.anthropic_beta).toEqual(BEDROCK_CLAUDE_4_BETAS);
     });
 

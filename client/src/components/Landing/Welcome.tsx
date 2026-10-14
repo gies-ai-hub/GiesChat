@@ -107,7 +107,7 @@ const AUDIENCES: Array<{
 ];
 
 const FACTS: Array<[string, TranslationKeys]> = [
-  ['4', 'com_ui_landing_fact_models'],
+  ['5', 'com_ui_landing_fact_models'],
   ['7', 'com_ui_landing_fact_tutors'],
   ['1', 'com_ui_landing_fact_signin'],
 ];

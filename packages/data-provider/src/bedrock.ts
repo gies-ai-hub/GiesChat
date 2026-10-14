@@ -132,6 +132,11 @@ export function supportsAdaptiveThinking(model: string): boolean {
   if (s.isMythosClassModel(model)) {
     return true;
   }
+  /** Haiku 5.x rejects `thinking.type: enabled` ("use adaptive"); verified on Azure 2026-10-13. */
+  const haiku = model.match(/claude-haiku[-.]?(\d+)/);
+  if (haiku != null && parseInt(haiku[1], 10) >= 5) {
+    return true;
+  }
   return false;
 }
 
