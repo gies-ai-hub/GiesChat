@@ -335,10 +335,9 @@ describe('AgentCard', () => {
     );
 
     expect(screen.getByText('Contact:')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Owner User' })).toHaveAttribute(
-      'href',
-      'mailto:owner@example.com',
-    );
+    /** Plain text on the card (it is itself a button); the mailto link is in the detail dialog. */
+    expect(screen.getByText('Owner User')).toBeInTheDocument();
+    expect(screen.queryByRole('link')).toBeNull();
     expect(screen.queryByText('by John Doe')).not.toBeInTheDocument();
   });
 

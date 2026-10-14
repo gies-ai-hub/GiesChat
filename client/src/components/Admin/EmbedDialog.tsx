@@ -22,8 +22,12 @@ interface EmbedDialogProps {
 const defaultGreeting = (agent: AdminAgentUsage) =>
   `Hi! I'm ${agent.name}. ${agent.description?.trim() || 'Ask me anything.'}`;
 
-const snippetFor = (key: string) =>
-  `<iframe src="${window.location.origin}/embed/${key}" width="100%" height="600" style="border:0;border-radius:12px" allow="clipboard-write"></iframe>`;
+const escapeAttribute = (value: string) =>
+  value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+/** The title names the frame for screen readers on the host page (WCAG 4.1.2). */
+const snippetFor = (key: string, name: string) =>
+  `<iframe src="${window.location.origin}/embed/${key}" title="${escapeAttribute(name)}" width="100%" height="600" style="border:0;border-radius:12px" allow="clipboard-write"></iframe>`;
 
 /**
  * Settings first, snippet second. The row's live `embed` decides which view opens;
@@ -56,7 +60,10 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
     setTheme(current?.theme ?? 'light');
   }, [agent]);
 
-  const snippet = useMemo(() => (live ? snippetFor(live.key) : ''), [live]);
+  const snippet = useMemo(
+    () => (live ? snippetFor(live.key, agent?.name ?? 'GiesChat') : ''),
+    [live, agent?.name],
+  );
   const busy = update.isLoading || revoke.isLoading;
 
   const fail = () =>

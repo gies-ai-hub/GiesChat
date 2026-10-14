@@ -62,9 +62,10 @@ const MeasuredRow: FC<MeasuredRowProps> = memo(
           ref={registerChild as React.LegacyRef<HTMLDivElement>}
           style={style}
           className="px-3"
+          role="row"
           data-testid="convo-list-row"
         >
-          {children}
+          <div role="gridcell">{children}</div>
         </div>
       )}
     </CellMeasurer>

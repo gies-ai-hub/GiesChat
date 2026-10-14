@@ -5,9 +5,11 @@ import { cn } from '~/utils';
 type AgentContactProps = {
   agent?: Pick<t.Agent, 'support_contact' | 'owner_contact'> | null;
   className?: string;
+  /** False inside a card that is itself a button: a nested link breaks WCAG 4.1.2. */
+  linked?: boolean;
 };
 
-export default function AgentContact({ agent, className = '' }: AgentContactProps) {
+export default function AgentContact({ agent, className = '', linked = true }: AgentContactProps) {
   const localize = useLocalize();
   const supportName = agent?.support_contact?.name?.trim() ?? '';
   const supportEmail = agent?.support_contact?.email?.trim() ?? '';
@@ -26,7 +28,7 @@ export default function AgentContact({ agent, className = '' }: AgentContactProp
     <div className={cn('flex min-w-0 items-center gap-1 text-text-secondary', className)}>
       <span className="shrink-0">{localize('com_agents_contact')}:</span>
       <span className="min-w-0 truncate">
-        {contact?.email ? (
+        {linked && contact?.email ? (
           <a href={`mailto:${contact.email}`} className="text-primary hover:underline">
             {label}
           </a>

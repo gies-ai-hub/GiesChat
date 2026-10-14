@@ -199,14 +199,14 @@ const AgentGrid: React.FC<AgentGridProps> = ({
           {currentAgents && currentAgents.length > 0 && (
             <div
               className="mx-4 grid grid-cols-1 gap-6 md:grid-cols-2"
-              role="grid"
+              role="list"
               aria-label={localize('com_agents_grid_announcement', {
                 count: currentAgents.length,
                 category: getCategoryDisplayName(category),
               })}
             >
               {currentAgents.map((agent: t.Agent, index: number) => (
-                <div key={`${agent.id}-${index}`} role="gridcell">
+                <div key={`${agent.id}-${index}`} role="listitem">
                   <AgentCard
                     agent={agent}
                     onSelect={onSelectAgent}

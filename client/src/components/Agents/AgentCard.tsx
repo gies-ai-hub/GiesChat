@@ -109,6 +109,7 @@ const AgentCard: React.FC<AgentCardProps> = ({
 
             <AgentContact
               agent={agent}
+              linked={false}
               className="mt-1 text-xs text-text-secondary [&_a]:font-normal [&_a]:text-text-secondary"
             />
           </div>

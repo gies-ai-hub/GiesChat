@@ -159,7 +159,7 @@ const CategoryTabs: React.FC<CategoryTabsProps> = ({
             )}
             role="tab"
             aria-selected={activeTab === category.value}
-            aria-controls={`tabpanel-${category.value}`}
+            aria-controls={`category-panel-${category.value}`}
             tabIndex={activeTab === category.value ? 0 : -1}
             aria-label={localize('com_agents_category_tab_label', {
               category: getCategoryDisplayName(category),

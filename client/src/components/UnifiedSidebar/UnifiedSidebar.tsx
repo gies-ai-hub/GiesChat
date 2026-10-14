@@ -197,6 +197,8 @@ function UnifiedSidebar() {
             onExpand={handleExpand}
             onResizeStart={handleResizeStart}
             onResizeKeyboard={handleResizeKeyboard}
+            width={sidebarWidth}
+            minWidth={EXPANDED_MIN}
           />
         </aside>
       </ActivePanelProvider>

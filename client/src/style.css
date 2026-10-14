@@ -211,7 +211,7 @@ html {
   --text-primary: var(--gray-100);
   --text-secondary: var(--gray-300);
   --text-secondary-alt: var(--gray-400);
-  --text-tertiary: var(--gray-500);
+  --text-tertiary: #adadad; /* WCAG 1.4.3: gray-500 was 2.7:1 on the dark surfaces */
   --text-warning: var(--amber-500);
   --text-destructive: var(--red-600);
   --header-primary: #162f55;

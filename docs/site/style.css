@@ -2,7 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700&family=Roboto+Mono&display=swap');
 
 :root {
-  --blue: #13294b; --blue-soft: #eef3fb; --orange: #ff5f05; --orange-soft: #fff3ec; --orange-border: #ffc7a6;
+  --blue: #13294b; --blue-soft: #eef3fb; --orange: #ff5f05; --orange-text: #c84113; --orange-soft: #fff3ec; --orange-border: #ffc7a6;
   --bg: #fff; --surface: #fff; --surface-2: #eef3fb; --hover: #dfe8f5;
   --text: #212121; --text-2: #424242; --text-3: #595959; --border: #b9c7dc; --header: #fff;
   --link: #13294b; --nav-on-bg: #eef3fb; --nav-on-text: #13294b; --callout-text: #5a2a0a;
@@ -11,13 +11,13 @@
   :root:not([data-theme='light']) {
     --bg: #000; --surface: #0a0a0a; --surface-2: #1a1a1a; --hover: #223a5e;
     --text: #ececec; --text-2: #cdcdcd; --text-3: #8a8a8a; --border: #25466f; --header: #162f55;
-    --link: #ff8a45; --nav-on-bg: #243f68; --nav-on-text: #fff; --orange-soft: #2a1608; --callout-text: #ffd9c2;
+    --link: #ff8a45; --orange-text: #ff8a45; --nav-on-bg: #243f68; --nav-on-text: #fff; --orange-soft: #2a1608; --callout-text: #ffd9c2;
   }
 }
 :root[data-theme='dark'] {
   --bg: #000; --surface: #0a0a0a; --surface-2: #1a1a1a; --hover: #223a5e;
   --text: #ececec; --text-2: #cdcdcd; --text-3: #8a8a8a; --border: #25466f; --header: #162f55;
-  --link: #ff8a45; --nav-on-bg: #243f68; --nav-on-text: #fff; --orange-soft: #2a1608; --callout-text: #ffd9c2;
+  --link: #ff8a45; --orange-text: #ff8a45; --nav-on-bg: #243f68; --nav-on-text: #fff; --orange-soft: #2a1608; --callout-text: #ffd9c2;
 }
 
 * { box-sizing: border-box; }
@@ -29,7 +29,7 @@ header.top {
   padding: 10px 24px; background: var(--header); border-bottom: 1px solid var(--border);
 }
 .logo { font: 700 18px Montserrat, system-ui; color: var(--text); text-decoration: none; white-space: nowrap; }
-.logo span { color: var(--orange); }
+.logo span { color: var(--orange-text); }
 header.top .sp { flex: 1; }
 header.top input, header.top button {
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
@@ -80,7 +80,7 @@ ol li, ul li { margin: 6px 0; }
 .shot .row { display: flex; gap: 10px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
 .shot .hint { color: var(--text-3); font-size: 13px; }
 .shot .btn { background: var(--blue); color: #fff; border-radius: 8px; padding: 5px 12px; font-size: 13px; }
-.shot .btn.alt { background: var(--orange); }
+.shot .btn.alt { background: #c84113; }
 .shot .chip { border: 1px solid var(--border); border-radius: 999px; padding: 1px 10px; font-size: 12px; background: var(--surface); }
 .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--text-3); flex: none; }
 .dot.on { background: var(--orange); border-color: var(--orange); }

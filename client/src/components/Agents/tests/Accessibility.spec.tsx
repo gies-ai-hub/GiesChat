@@ -398,14 +398,13 @@ describe('Accessibility Improvements', () => {
         </Wrapper>,
       );
 
-      // Check grid role
-      const grid = screen.getByRole('grid');
-      expect(grid).toBeInTheDocument();
-      expect(grid).toHaveAttribute('aria-label', 'Showing 2 agents in All category');
+      // A list, not a grid: the cards have no grid keyboard model (WCAG 1.3.1).
+      const list = screen.getByRole('list');
+      expect(list).toBeInTheDocument();
+      expect(list).toHaveAttribute('aria-label', 'Showing 2 agents in All category');
 
-      // Check gridcells
-      const gridcells = screen.getAllByRole('gridcell');
-      expect(gridcells).toHaveLength(2);
+      const items = screen.getAllByRole('listitem');
+      expect(items).toHaveLength(2);
     });
 
     it('announces loading states to screen readers', () => {

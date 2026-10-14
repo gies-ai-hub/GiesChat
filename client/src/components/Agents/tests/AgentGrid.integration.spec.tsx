@@ -565,7 +565,7 @@ describe('AgentGrid Integration with useGetMarketplaceAgentsQuery', () => {
 
         // Wait for initial render
         await waitFor(() => {
-          expect(screen.getAllByRole('gridcell')).toHaveLength(5);
+          expect(screen.getAllByRole('listitem')).toHaveLength(5);
         });
 
         // Wait to ensure no auto-fetch happens
@@ -612,7 +612,7 @@ describe('AgentGrid Integration with useGetMarketplaceAgentsQuery', () => {
 
         // Wait for initial 6 agents
         await waitFor(() => {
-          expect(screen.getAllByRole('gridcell')).toHaveLength(6);
+          expect(screen.getAllByRole('listitem')).toHaveLength(6);
         });
 
         // Wait for ResizeObserver and auto-fetch to trigger
@@ -639,7 +639,7 @@ describe('AgentGrid Integration with useGetMarketplaceAgentsQuery', () => {
 
         // Should now show all 7 agents
         await waitFor(() => {
-          expect(screen.getAllByRole('gridcell')).toHaveLength(7);
+          expect(screen.getAllByRole('listitem')).toHaveLength(7);
         });
       });
 
@@ -668,7 +668,7 @@ describe('AgentGrid Integration with useGetMarketplaceAgentsQuery', () => {
 
         // Wait for initial 6 agents
         await waitFor(() => {
-          expect(screen.getAllByRole('gridcell')).toHaveLength(6);
+          expect(screen.getAllByRole('listitem')).toHaveLength(6);
         });
 
         // Wait to ensure no auto-fetch happens
@@ -723,7 +723,7 @@ describe('AgentGrid Integration with useGetMarketplaceAgentsQuery', () => {
 
         // Wait for initial 6 agents
         await waitFor(() => {
-          expect(screen.getAllByRole('gridcell')).toHaveLength(6);
+          expect(screen.getAllByRole('listitem')).toHaveLength(6);
         });
 
         // Should auto-fetch to fill viewport
@@ -755,7 +755,7 @@ describe('AgentGrid Integration with useGetMarketplaceAgentsQuery', () => {
 
         // Should show 12 agents
         await waitFor(() => {
-          expect(screen.getAllByRole('gridcell')).toHaveLength(12);
+          expect(screen.getAllByRole('listitem')).toHaveLength(12);
         });
 
         // Wait to ensure no additional auto-fetch
@@ -818,7 +818,7 @@ describe('AgentGrid Integration with useGetMarketplaceAgentsQuery', () => {
 
         // Wait for initial 6 agents
         await waitFor(() => {
-          expect(screen.getAllByRole('gridcell')).toHaveLength(6);
+          expect(screen.getAllByRole('listitem')).toHaveLength(6);
         });
 
         // Verify ResizeObserver was set up
@@ -887,7 +887,7 @@ describe('AgentGrid Integration with useGetMarketplaceAgentsQuery', () => {
 
         // Should now show 12 agents after fetching
         await waitFor(() => {
-          expect(screen.getAllByRole('gridcell')).toHaveLength(12);
+          expect(screen.getAllByRole('listitem')).toHaveLength(12);
         });
       });
     });

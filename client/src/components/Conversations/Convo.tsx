@@ -223,7 +223,7 @@ function Conversation({
           ? 'bg-surface-active-alt before:absolute before:bottom-1 before:left-0 before:top-1 before:w-0.5 before:rounded-full before:bg-black dark:before:bg-white'
           : 'hover:bg-surface-active-alt',
       )}
-      role="button"
+      role="link"
       tabIndex={renaming ? -1 : 0}
       aria-label={localize('com_ui_conversation_label', {
         title: title || localize('com_ui_untitled'),

@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Play, Plus, Pause } from 'lucide-react';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { TranslationKeys } from '~/hooks';
@@ -406,6 +406,9 @@ export default function Reel() {
   const activeRef = useRef(0);
   const elapsed = useRef(0);
   const paused = useRef(false);
+  /** WCAG 2.2.2: auto-advancing content needs a control that stops it, not just hover. */
+  const [stopped, setStopped] = useState(false);
+  const stoppedRef = useRef(false);
   const tabsRef = useRef<HTMLDivElement>(null);
   const fills = useRef<Array<HTMLSpanElement | null>>([]);
 
@@ -434,7 +437,7 @@ export default function Reel() {
     const tick = (now: number) => {
       const dt = Math.min(now - last, 100);
       last = now;
-      if (!paused.current) {
+      if (!paused.current && !stoppedRef.current) {
         elapsed.current += dt;
         const progress = Math.min(1, elapsed.current / SCENE_MS);
         fills.current[activeRef.current]?.style.setProperty('--p', String(progress));
@@ -450,6 +453,11 @@ export default function Reel() {
 
   const hold = (value: boolean) => () => {
     paused.current = value;
+  };
+
+  const toggleStopped = () => {
+    stoppedRef.current = !stoppedRef.current;
+    setStopped(stoppedRef.current);
   };
 
   const plays = (i: number) => i === playing || i === previous;
@@ -486,6 +494,23 @@ export default function Reel() {
             />
           </button>
         ))}
+        {!prefersStill() && (
+          <button
+            type="button"
+            className="lp-tab lp-tab-toggle"
+            onClick={toggleStopped}
+            aria-label={localize(
+              stopped ? 'com_ui_landing_reel_play' : 'com_ui_landing_reel_pause',
+            )}
+            title={localize(stopped ? 'com_ui_landing_reel_play' : 'com_ui_landing_reel_pause')}
+          >
+            {stopped ? (
+              <Play className="size-3.5" aria-hidden="true" />
+            ) : (
+              <Pause className="size-3.5" aria-hidden="true" />
+            )}
+          </button>
+        )}
       </div>
       <div className="lp-window">
         <div className="lp-stage">

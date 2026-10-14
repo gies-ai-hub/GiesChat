@@ -43,6 +43,16 @@ describe('Reel', () => {
     expect(pressedTab()).toBe(3);
   });
 
+  it('stops advancing when paused and resumes on play (WCAG 2.2.2)', () => {
+    render(<Reel />);
+    fireEvent.click(screen.getByRole('button', { name: 'com_ui_landing_reel_pause' }));
+    advance(15000);
+    expect(pressedTab()).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'com_ui_landing_reel_play' }));
+    advance(4200);
+    expect(pressedTab()).toBe(1);
+  });
+
   it('stays on the first feature when the visitor prefers reduced motion', () => {
     window.matchMedia = jest.fn().mockReturnValue({ matches: true });
     render(<Reel />);

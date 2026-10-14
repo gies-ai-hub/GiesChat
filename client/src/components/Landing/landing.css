@@ -9,6 +9,9 @@
   --lp-bd2: var(--border-medium);
   --lp-head: var(--illini-blue);
   --lp-orange: var(--illini-orange);
+  /* Text and button orange that passes WCAG 1.4.3: Illinois "Altgeld" (4.97:1 with white). */
+  --lp-accent: #c84113;
+  --lp-good: #15803d;
   min-height: 100svh;
   background: var(--lp-bg);
   color: var(--lp-t1);
@@ -18,6 +21,9 @@
 .dark .lp {
   --lp-bg2: #0a0a0a;
   --lp-head: #ffffff;
+  /* On black the bright orange passes (6.9:1) and Altgeld does not. */
+  --lp-accent: var(--illini-orange);
+  --lp-good: #4ade80;
 }
 .lp a {
   color: inherit;
@@ -58,7 +64,7 @@
 }
 .lp-links a:hover,
 .lp-foot a:hover {
-  color: var(--lp-orange);
+  color: var(--lp-accent);
 }
 .lp-nav-end {
   margin-left: auto;
@@ -91,11 +97,11 @@
   border-radius: 10px;
 }
 .lp .lp-primary {
-  background: var(--lp-orange);
+  background: #c84113;
   color: #fff;
 }
 .lp .lp-primary:hover {
-  background: var(--illini-orange-hover);
+  background: #a8360f;
 }
 .lp-outline {
   border-color: var(--lp-bd2);
@@ -103,7 +109,7 @@
 }
 .lp-outline:hover {
   border-color: var(--lp-orange);
-  color: var(--lp-orange);
+  color: var(--lp-accent);
 }
 .lp-focus:focus-visible,
 .lp-btn:focus-visible,
@@ -133,7 +139,7 @@
   top: 0.75rem;
   right: 1rem;
   font-size: 0.66rem;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.85);
 }
 .lp-news {
   display: inline-flex;
@@ -221,6 +227,11 @@
   background: #fff;
   border-color: #fff;
   color: var(--illini-blue);
+}
+.lp-tab-toggle {
+  display: inline-grid;
+  place-items: center;
+  padding: 0.5rem 0.7rem;
 }
 .lp-fill {
   position: absolute;
@@ -637,7 +648,7 @@
   font-style: normal;
   font-size: 11px;
   font-weight: 600;
-  color: #15803d;
+  color: var(--lp-good);
 }
 .lp-panels {
   display: grid;
@@ -713,7 +724,7 @@
   gap: 6px;
   font-size: 11.5px;
   font-weight: 600;
-  color: #15803d;
+  color: var(--lp-good);
 }
 .lp-live::before {
   content: '';
@@ -765,7 +776,7 @@
 .lp-mini-slots .lp-mini-on {
   border-color: var(--lp-orange);
   background: var(--illini-orange-soft);
-  color: var(--lp-orange);
+  color: var(--lp-accent);
   font-weight: 600;
 }
 .dark .lp-mini-slots .lp-mini-on {
@@ -920,7 +931,7 @@
   margin-bottom: 0.75rem;
   border-radius: 11px;
   background: var(--illini-orange-soft);
-  color: var(--lp-orange);
+  color: var(--lp-accent);
 }
 .dark .lp-icon {
   background: color-mix(in srgb, var(--illini-orange) 18%, transparent);
@@ -940,7 +951,7 @@
 .lp-more {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--lp-orange);
+  color: var(--lp-accent);
 }
 .lp-split {
   display: grid;
@@ -960,7 +971,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lp-orange);
+  color: var(--lp-accent);
 }
 .lp-audience h3 {
   margin: 0.4rem 0 0.9rem;
@@ -984,7 +995,7 @@
 .lp-audience li::before {
   content: '✓';
   font-weight: 800;
-  color: var(--lp-orange);
+  color: var(--lp-accent);
 }
 .lp-facts {
   display: flex;
