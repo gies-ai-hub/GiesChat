@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gies features → code · GiesChat Docs</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="site.js"></script>
+</head>
+<body>
+<main>
+  <div class="crumb">How it works › Gies features → code</div>
+  <h1>Gies features → code</h1>
+  <p class="lede">Everything GiesChat adds on top of LibreChat, and the files that own it. Start here when a bug report names a feature.</p>
+
+  <h3>Class dashboard (<code>/admin</code>)</h3>
+  <p>Professors build agents, see usage per agent and per student, analytics, and "What students ask" topics.</p>
+  <ul>
+    <li>UI: <span class="path">client/src/components/Admin/</span>: <code>Dashboard.tsx</code>, <code>AgentUsageTable.tsx</code>, <code>StudentProgressTable.tsx</code>, <code>Analytics/</code></li>
+    <li>API: <span class="path">api/server/routes/admin/usage.js</span> (<code>/api/admin/usage/*</code>) → <span class="path">packages/api/src/admin/</span> <code>usage.ts</code>, <code>analytics.ts</code>, <code>topics.ts</code></li>
+  </ul>
+
+  <h3>Collaborators, co-admins &amp; invites</h3>
+  <ul>
+    <li>UI: <span class="path">client/src/components/Admin/Drafts/CollaboratorsDialog.tsx</span></li>
+    <li>Emails: <span class="path">api/server/services/AgentInvites.js</span>, template <span class="path">api/server/utils/emails/inviteCollaborator.handlebars</span></li>
+    <li>Role → ACL mapping: <span class="path">api/server/services/AgentAccess.js</span>. Invites are claimed at sign-in in <span class="path">api/strategies/openidStrategy.js</span>.</li>
+  </ul>
+
+  <h3>Agent drafts</h3>
+  <ul>
+    <li>UI: <span class="path">client/src/components/Admin/Drafts/</span> <code>DraftsPanel.tsx</code>, <code>PostDraftDialog.tsx</code></li>
+    <li>API: <code>/api/admin/usage/agents/:id/drafts</code>. Drafts copy documents through <span class="path">api/server/services/Files/copy</span>.</li>
+  </ul>
+
+  <h3>Websites</h3>
+  <ul>
+    <li>UI: <span class="path">client/src/components/SidePanel/Agents/Websites.tsx</span>, <code>WebsitePreview.tsx</code> (dashboard builders only, via <code>showWebsites</code>)</li>
+    <li>API: <code>POST /api/admin/usage/websites/preview</code> (Test) and <code>POST /api/admin/usage/agents/:id/websites</code> (Add/Refresh) → <span class="path">packages/api/src/sites/</span> (<code>crawl.ts</code>, <code>extract.ts</code> runs GPT-6 Luna, <code>store.ts</code>, <code>refresh.ts</code> re-checks nightly)</li>
+    <li>A saved site is one agent document with <code>metadata.sourceUrl</code>; <span class="path">api/server/services/Websites.js</span> stores and swaps it.</li>
+  </ul>
+
+  <h3>Model test &amp; model lock</h3>
+  <ul>
+    <li><span class="path">client/src/components/SidePanel/Agents/ModelTest.tsx</span> → <code>POST /api/admin/usage/model-test</code> → <span class="path">packages/api/src/admin/modelTest.ts</span></li>
+    <li>Dashboard-built agents lock the model in chat: <span class="path">client/src/hooks/Agents/useAgentModelLock.ts</span></li>
+  </ul>
+
+  <h3>Support contact</h3>
+  <ul><li><span class="path">client/src/components/SidePanel/Agents/SupportContact.tsx</span>, <span class="path">packages/api/src/agents/contact.ts</span></li></ul>
+
+  <h3>Embed</h3>
+  <ul>
+    <li>UI: <span class="path">client/src/components/Admin/EmbedDialog.tsx</span>, routes <code>/embed/:embedKey</code> in <span class="path">client/src/routes/EmbedRoute.tsx</span></li>
+    <li>API: <span class="path">api/server/routes/embed.js</span> → <span class="path">packages/api/src/embed/</span> <code>session.ts</code>, <code>guard.ts</code>; limiter <span class="path">api/server/middleware/limiters/embedLimiter.js</span></li>
+  </ul>
+
+  <h3>Report issue</h3>
+  <ul><li><span class="path">client/src/components/Chat/ReportIssueDialog.tsx</span> → <code>/api/issues</code> → <span class="path">packages/api/src/issues/</span> <code>service.ts</code> (diagnosis from recent logs), <code>github.ts</code> (files a GitHub issue via <code>GITHUB_ISSUES_REPO</code> / <code>GITHUB_ISSUES_TOKEN</code>)</li></ul>
+
+  <h3>Onboarding tour</h3>
+  <ul><li><span class="path">client/src/components/Tour/</span> <code>steps.ts</code>, <code>useOnboardingTour.ts</code>; completion is saved via <code>POST /api/user/tour/complete</code>. The replay menu item is in <span class="path">client/src/components/UnifiedSidebar/More.tsx</span>.</li></ul>
+
+  <h3>Course tutors, Career Prep, App Builder</h3>
+  <ul>
+    <li>Seeded agents: <span class="path">config/seed-gies-tutors.js</span> (+ <code>config/gies-tutors/</code> scraper), <span class="path">config/seed-career-prep.js</span>, <span class="path">config/seed-app-builder.js</span></li>
+    <li>App Builder: Replit MCP block in <code>librechat.yaml</code>, <span class="path">api/server/routes/replit.js</span>, <span class="path">packages/api/src/replit</span>. The preview renders through <span class="path">packages/data-provider/src/externalUrl.ts</span>.</li>
+  </ul>
+
+  <h3>Outlook &amp; Deck Builder</h3>
+  <ul>
+    <li>Outlook: <span class="path">infra/ms365-mcp/</span>. The students-only gate is in <span class="path">client/src/hooks/MCP/useMCPServerManager.ts</span>.</li>
+    <li>Deck Builder: <span class="path">infra/pptx-mcp/</span>, question card <span class="path">client/src/components/MCPUIResource/QuestionDock.tsx</span></li>
+  </ul>
+
+  <h3>Brainstorm Rooms / MindForum <span class="disabled">disabled in prod</span></h3>
+  <p>Multi-user rooms with live chat, <code>@ai</code> mentions, polls and catch-up summaries. Behind <code>interface.brainstormRooms</code>, which is currently <code>false</code>.</p>
+  <ul><li><span class="path">client/src/components/Brainstorm/</span>, <span class="path">api/server/routes/rooms.js</span>, <span class="path">packages/api/src/rooms/</span>, the <code>room*</code> collections</li></ul>
+</main>
+</body>
+</html>

@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import ReportIssueDialog from '~/components/Chat/ReportIssueDialog';
 import BackgroundToggle from './BackgroundToggle';
+import DocsButton from './DocsButton';
 
 const ACTIONS_SLOT_ID = 'top-right-actions';
 
@@ -41,6 +42,7 @@ export default function TopRightControls() {
   return (
     <div className="fixed right-3 top-2 z-30 hidden items-center gap-2 md:flex">
       <div id={ACTIONS_SLOT_ID} className="flex items-center gap-2" />
+      <DocsButton />
       <BackgroundToggle />
       <ReportIssueDialog />
     </div>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Architecture · GiesChat Docs</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script defer src="site.js"></script>
+</head>
+<body>
+<main>
+  <div class="crumb">How it works › Architecture</div>
+  <h1>Architecture</h1>
+  <p class="lede">GiesChat is a fork of LibreChat: a Node/Express API and a React client in one npm-workspaces monorepo, with Gies features layered on top (about 280 commits past the upstream merge base). Remote <code>upstream</code> is danny-avila/LibreChat and is synced with merge commits, so keep Gies changes in their own files where you can.</p>
+
+  <h2>The big picture</h2>
+  <div class="diagram"><pre class="mermaid">
+flowchart LR
+  B[Browser · client/ React + Vite] -->|REST + SSE /api/*| API[api/ Express server]
+  API --> P[packages/api · TypeScript logic]
+  P --> DS[packages/data-schemas · Mongoose]
+  DS --> M[(MongoDB)]
+  API --> MS[(Meilisearch)]
+  P --> RAG[RAG API · file search]
+  P --> BL[(Azure Blob · files)]
+  P --> LLM[Azure OpenAI / Anthropic]
+  P --> MCP[MCP servers · Canvas, Outlook, PowerPoint, Replit]
+  B -.shared types.- DP[packages/data-provider]
+  API -.shared types.- DP
+  </pre></div>
+
+  <h2>Workspace map</h2>
+  <table>
+    <tr><th>Folder</th><th>What lives there</th></tr>
+    <tr><td><span class="path">client/</span></td><td>The React app. <code>src/routes</code> (pages), <code>src/components</code>, <code>src/hooks</code>, and <code>src/data-provider</code> (React Query hooks).</td></tr>
+    <tr><td><span class="path">api/</span></td><td>The Express server, in JS. <code>server/index.js</code> mounts every route; then <code>server/routes</code> → <code>controllers</code> → <code>services</code>. <code>strategies/</code> holds the passport login strategies. Increasingly a thin wrapper over <code>packages/api</code>.</td></tr>
+    <tr><td><span class="path">packages/api/</span></td><td>Backend logic in TypeScript, where <b>new backend code should go</b>: <code>agents/</code>, <code>admin/</code> (class dashboard), <code>embed/</code>, <code>rooms/</code>, <code>replit/</code>, <code>issues/</code>, <code>mcp/</code>, <code>stream/</code>, <code>app/</code> (config loading).</td></tr>
+    <tr><td><span class="path">packages/data-provider/</span></td><td>The client/server contract: endpoint URLs (<code>api-endpoints.ts</code>), <code>data-service.ts</code>, request and response types, and the <code>librechat.yaml</code> schema (<code>config.ts</code>).</td></tr>
+    <tr><td><span class="path">packages/data-schemas/</span></td><td>Mongoose schemas, models, DB methods and system capabilities. See <a href="dev-data.html">Data model</a>.</td></tr>
+    <tr><td><span class="path">packages/client/</span></td><td>Shared UI pieces and the theme provider.</td></tr>
+    <tr><td><span class="path">config/</span></td><td>Admin CLI scripts from upstream, plus Gies seed scripts: <code>seed-gies-tutors.js</code>, <code>seed-app-builder.js</code>, <code>seed-career-prep.js</code>.</td></tr>
+    <tr><td><span class="path">infra/</span></td><td>Separately deployed MCP servers: <code>ms365-mcp/</code> (Outlook) and <code>pptx-mcp/</code> (Python PowerPoint server).</td></tr>
+    <tr><td><span class="path">e2e/</span></td><td>Playwright end-to-end tests.</td></tr>
+  </table>
+
+  <div class="callout"><b>Build order matters:</b> the client and API import the built output of <code>packages/*</code>. After pulling changes that touch a package, rebuild the packages (see the README) or you'll run stale code.</div>
+
+  <h2>Where to put a new feature</h2>
+  <ol>
+    <li>Types and the endpoint URL go in <span class="path">packages/data-provider</span>.</li>
+    <li>Schema changes go in <span class="path">packages/data-schemas</span>.</li>
+    <li>Logic goes in <span class="path">packages/api/src/&lt;feature&gt;</span> as a handler factory that takes its DB functions as dependencies (see <code>createAdminUsageHandlers</code>).</li>
+    <li>A thin route goes in <span class="path">api/server/routes</span>, mounted in <code>api/server/index.js</code>.</li>
+    <li>A React Query hook goes in <span class="path">client/src/data-provider</span>, and the UI in <span class="path">client/src/components</span>.</li>
+  </ol>
+</main>
+</body>
+</html>

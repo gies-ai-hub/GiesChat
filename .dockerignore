@@ -13,6 +13,7 @@ librechat*
 !librechat.yaml
 Dockerfile*
 docs
+!docs/site
 
 # Ignore all hidden files
 .*

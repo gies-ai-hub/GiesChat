@@ -1,0 +1,99 @@
+/* Tokens mirror client/src/style.css (Illini blue/orange, Inter + Montserrat). */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700&family=Roboto+Mono&display=swap');
+
+:root {
+  --blue: #13294b; --blue-soft: #eef3fb; --orange: #ff5f05; --orange-soft: #fff3ec; --orange-border: #ffc7a6;
+  --bg: #fff; --surface: #fff; --surface-2: #eef3fb; --hover: #dfe8f5;
+  --text: #212121; --text-2: #424242; --text-3: #595959; --border: #b9c7dc; --header: #fff;
+  --link: #13294b; --nav-on-bg: #eef3fb; --nav-on-text: #13294b; --callout-text: #5a2a0a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #000; --surface: #0a0a0a; --surface-2: #1a1a1a; --hover: #223a5e;
+    --text: #ececec; --text-2: #cdcdcd; --text-3: #8a8a8a; --border: #25466f; --header: #162f55;
+    --link: #ff8a45; --nav-on-bg: #243f68; --nav-on-text: #fff; --orange-soft: #2a1608; --callout-text: #ffd9c2;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #000; --surface: #0a0a0a; --surface-2: #1a1a1a; --hover: #223a5e;
+  --text: #ececec; --text-2: #cdcdcd; --text-3: #8a8a8a; --border: #25466f; --header: #162f55;
+  --link: #ff8a45; --nav-on-bg: #243f68; --nav-on-text: #fff; --orange-soft: #2a1608; --callout-text: #ffd9c2;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.65 Inter, sans-serif; background: var(--bg); color: var(--text); }
+a { color: var(--link); }
+
+header.top {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px;
+  padding: 10px 24px; background: var(--header); border-bottom: 1px solid var(--border);
+}
+.logo { font: 700 18px Montserrat, system-ui; color: var(--text); text-decoration: none; white-space: nowrap; }
+.logo span { color: var(--orange); }
+header.top .sp { flex: 1; }
+header.top input, header.top button {
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  border-radius: 8px; padding: 6px 10px; font: 13px Inter, sans-serif;
+}
+header.top input { width: 220px; }
+header.top button { cursor: pointer; }
+#menu { display: none; }
+
+.shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); }
+nav.side {
+  position: sticky; top: 53px; height: calc(100vh - 53px); overflow-y: auto;
+  border-right: 1px solid var(--border); padding: 16px 12px; background: var(--surface);
+}
+nav.side h4 { font: 700 12px Montserrat, system-ui; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin: 20px 10px 6px; }
+nav.side h4:first-child { margin-top: 0; }
+nav.side a { display: block; padding: 6px 10px; border-radius: 8px; color: var(--text-2); text-decoration: none; font-size: 14px; }
+nav.side a:hover { background: var(--hover); }
+nav.side a.on { background: var(--nav-on-bg); color: var(--nav-on-text); font-weight: 600; box-shadow: inset 3px 0 var(--orange); }
+nav.side a[hidden] { display: none; }
+
+main { padding: 32px 48px 48px; max-width: 880px; }
+.crumb { font-size: 13px; color: var(--text-3); }
+h1 { font: 700 30px/1.25 Montserrat, system-ui; margin: 6px 0 8px; }
+h2 { font: 600 20px Montserrat, system-ui; margin: 32px 0 8px; }
+h3 { font: 600 16px Inter, sans-serif; margin: 20px 0 4px; }
+.lede { color: var(--text-2); font-size: 16px; margin: 0 0 24px; }
+code, .path { font: 12.5px 'Roboto Mono', monospace; }
+.path, :not(pre) > code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+pre:not(.mermaid) { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; overflow-x: auto; }
+.diagram { border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: #fff; margin: 12px 0 20px; overflow-x: auto; }
+.callout { border-left: 4px solid var(--orange); background: var(--orange-soft); color: var(--callout-text); padding: 12px 16px; border-radius: 8px; margin: 16px 0; }
+.disabled { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-3); vertical-align: middle; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 12px 0; display: block; overflow-x: auto; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+th { font-weight: 600; background: var(--surface-2); }
+ol li, ul li { margin: 6px 0; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 12px 0; }
+.cards a { display: block; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--text); background: var(--surface); }
+.cards a:hover { background: var(--hover); }
+.cards b { display: block; font-family: Montserrat, system-ui; }
+.cards span { font-size: 13px; color: var(--text-3); }
+
+/* Mock dialog "screenshots" on the Using pages. */
+.shot { border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--surface-2); margin: 12px 0 20px; font-size: 14px; }
+.shot .title { font: 600 15px Montserrat, system-ui; margin-bottom: 8px; }
+.shot .row { display: flex; gap: 10px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+.shot .hint { color: var(--text-3); font-size: 13px; }
+.shot .btn { background: var(--blue); color: #fff; border-radius: 8px; padding: 5px 12px; font-size: 13px; }
+.shot .btn.alt { background: var(--orange); }
+.shot .chip { border: 1px solid var(--border); border-radius: 999px; padding: 1px 10px; font-size: 12px; background: var(--surface); }
+.dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--text-3); flex: none; }
+.dot.on { background: var(--orange); border-color: var(--orange); }
+
+.pager { display: flex; justify-content: space-between; gap: 12px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 16px; font-size: 14px; }
+
+@media (max-width: 760px) {
+  header.top { padding: 10px 16px; }
+  header.top input { width: 100%; min-width: 0; }
+  #menu { display: inline-block; }
+  .shell { grid-template-columns: 1fr; }
+  nav.side { display: none; position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+  nav.side.open { display: block; }
+  main { padding: 24px 16px 40px; }
+  h1 { font-size: 24px; }
+}

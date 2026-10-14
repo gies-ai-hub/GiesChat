@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Life of a chat message · GiesChat Docs</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script defer src="site.js"></script>
+</head>
+<body>
+<main>
+  <div class="crumb">How it works › Life of a chat message</div>
+  <h1>Life of a chat message</h1>
+  <p class="lede">What happens between a student pressing <b>Send</b> on "Explain WACC for BADM 449" and the streamed answer appearing, and which file owns each step.</p>
+
+  <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+  participant C as Browser (ChatForm)
+  participant R as /api/agents/chat
+  participant J as GenerationJobManager
+  participant A as Agents run (LangGraph)
+  participant M as Azure OpenAI · GPT-6 Luna
+  C->>R: POST message (JWT)
+  R->>R: moderation · PII filter · agent ACL
+  R->>J: start background job, returns streamId
+  C->>J: GET /stream/:streamId (SSE)
+  J->>A: createRun(agent, tools, files)
+  A->>M: Responses API (web search, reasoning)
+  M-->>A: token deltas
+  A-->>J: events
+  J-->>C: SSE deltas, message renders
+  </pre></div>
+
+  <h2>Step by step</h2>
+  <ol>
+    <li><b>Client submits.</b> <span class="path">client/src/components/Chat/Input/ChatForm.tsx</span> → <code>useSubmitMessage</code> → <code>ask()</code> in <span class="path">client/src/hooks/Chat/useChatFunctions.ts</span>, which sets the submission.</li>
+    <li><b>Client opens the stream.</b> <span class="path">client/src/hooks/SSE/useAdaptiveSSE.ts</span> picks <code>useResumableSSE</code>: POST to start, then subscribe with <code>GET /api/agents/chat/stream/:streamId</code>. Events are handled by <code>useEventHandlers</code>, <code>useStepHandler</code> and <code>useContentHandler</code>.</li>
+    <li><b>Middleware chain.</b> <span class="path">api/server/routes/agents/chat.js</span> runs resume context, the PII filter, moderation, agent access and resource ACL, conversation access, then <code>buildEndpointOption</code>, all before anything reaches a model.</li>
+    <li><b>Background job.</b> <span class="path">api/server/controllers/agents/request.js</span> runs the generation as a job in <span class="path">packages/api/src/stream/GenerationJobManager.ts</span>. The job outlives the HTTP request, so a dropped tab can reconnect (<code>useResumeOnLoad</code>).</li>
+    <li><b>Agent setup.</b> <span class="path">packages/api/src/agents/initialize.ts</span> loads the agent, its tools, MCP servers and files. <span class="path">api/server/services/Endpoints/agents/initialize.js</span> builds the <code>AgentClient</code>.</li>
+    <li><b>Run.</b> <span class="path">packages/api/src/agents/run.ts</span> resolves the provider (<code>getProviderConfig</code>) and calls <code>Run.create</code> from <code>@librechat/agents</code>, which is LangGraph-based. Tool calls such as document search and MCP tools happen inside this loop.</li>
+    <li><b>Stream back and save.</b> Deltas flow through the job manager (in memory, or Redis with <code>USE_REDIS</code>) to the SSE stream. Messages are saved to MongoDB, token usage is recorded (<code>usage.ts</code>, <code>transactions.ts</code>) and a title is generated with gpt-5.4-mini.</li>
+  </ol>
+
+  <div class="callout"><b>Gotcha:</b> plain model chats (no agent picked) still go through the agents pipeline as an <i>ephemeral agent</i>. There is no separate "simple chat" path, so debugging a plain GPT-6 chat means reading the agents code.</div>
+
+  <h2>Embed chats</h2>
+  <p>An embedded chat uses exactly this flow. The difference is the user: an embed guest whose JWT only allows their one agent (see <a href="dev-auth.html">Auth &amp; permissions</a>), with its own rate limiter (<span class="path">api/server/middleware/limiters/embedLimiter.js</span>).</p>
+</main>
+</body>
+</html>

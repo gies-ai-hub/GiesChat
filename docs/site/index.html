@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GiesChat Docs</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="site.js"></script>
+</head>
+<body>
+<main>
+  <h1>GiesChat documentation</h1>
+  <p class="lede">GiesChat is the Gies College of Business AI chat platform: a customized <a href="https://github.com/danny-avila/LibreChat">LibreChat</a> with course tutors, a class dashboard for faculty, embeddable class agents and Illinois sign-in. These docs come in two halves.</p>
+
+  <h2>Using GiesChat</h2>
+  <p>For faculty, TAs and students. No code.</p>
+  <div class="cards">
+    <a href="use-start.html"><b>Getting started</b><span>Sign in, pick a model, take the tour.</span></a>
+    <a href="use-agents.html"><b>Building a class agent</b><span>The class dashboard, instructions, documents, model test.</span></a>
+    <a href="use-collaborators.html"><b>Collaborators, drafts &amp; co-admins</b><span>Build an agent with your TAs and co-instructors.</span></a>
+    <a href="use-embed.html"><b>Embedding an agent</b><span>Put your agent on a Canvas page.</span></a>
+    <a href="use-tools.html"><b>Tools</b><span>Canvas, Outlook, Deck Builder, App Builder, tutors.</span></a>
+    <a href="use-issues.html"><b>Reporting an issue</b><span>The bug button and what happens next.</span></a>
+  </div>
+
+  <h2>How it works</h2>
+  <p>For developers taking over or extending the codebase.</p>
+  <div class="cards">
+    <a href="dev-architecture.html"><b>Architecture</b><span>The monorepo and what lives where.</span></a>
+    <a href="dev-chat-flow.html"><b>Life of a chat message</b><span>From Send to streamed answer, file by file.</span></a>
+    <a href="dev-auth.html"><b>Auth &amp; permissions</b><span>Entra SSO, JWTs, ACLs, grants, embed guests.</span></a>
+    <a href="dev-data.html"><b>Data model</b><span>MongoDB collections and the Gies fields.</span></a>
+    <a href="dev-config.html"><b>Configuration</b><span>librechat.yaml, .env, models, MCP servers.</span></a>
+    <a href="dev-features.html"><b>Gies features → code</b><span>Every customization and the files that own it.</span></a>
+    <a href="dev-deploy.html"><b>Deploy</b><span>Push to main → Azure. Read this before pushing.</span></a>
+  </div>
+
+  <div class="callout"><b>Keeping these current:</b> the "How it works" pages name real files. When you move or rename one of them, update the page in <code>docs/site/</code> in the same commit.</div>
+</main>
+</body>
+</html>

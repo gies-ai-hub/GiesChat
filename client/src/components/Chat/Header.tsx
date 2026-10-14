@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useMediaQuery } from '@librechat/client';
 import { getConfigDefaults, PermissionTypes, Permissions } from 'librechat-data-provider';
-import { BackgroundToggle } from '~/components/ui';
+import { BackgroundToggle, DocsButton } from '~/components/ui';
 import { useGetStartupConfig } from '~/data-provider';
 import ExportAndShareMenu from './ExportAndShareMenu';
 import { OpenSidebar, PresetsMenu } from './Menus';
@@ -67,6 +67,7 @@ function Header() {
               {hasAccessToMultiConvo === true && <AddMultiConvo />}
               {isSmallScreen && (
                 <>
+                  <DocsButton />
                   <BackgroundToggle compact className="shrink-0" />
                   <ExportAndShareMenu
                     isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
@@ -82,6 +83,7 @@ function Header() {
         {!isSmallScreen && (
           <div className="flex items-center gap-2">
             <LocalTourButton />
+            <DocsButton />
             <BackgroundToggle />
             <ExportAndShareMenu
               isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}

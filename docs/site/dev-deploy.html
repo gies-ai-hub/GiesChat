@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deploy · GiesChat Docs</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script defer src="site.js"></script>
+</head>
+<body>
+<main>
+  <div class="crumb">How it works › Deploy</div>
+  <h1>Deploy</h1>
+  <p class="lede">Pushing to <code>main</code> deploys to production. There is no manual step in between.</p>
+
+  <div class="diagram"><pre class="mermaid">
+flowchart LR
+  P[git push main or staging] --> GH[GitHub Actions · azure-deploy.yml]
+  GH -->|docker buildx| ACR[ACR · dlacrgieschat.azurecr.io/gieschat/api]
+  ACR --> W{publish profile}
+  W -->|main| PROD[Web App gieschat]
+  W -->|staging| STG[gieschat-staging slot]
+  </pre></div>
+
+  <h2>What triggers it</h2>
+  <p><span class="path">.github/workflows/azure-deploy.yml</span> runs on pushes to <code>main</code> and <code>staging</code> that touch <code>api/</code>, <code>client/</code>, <code>packages/</code>, <code>librechat.yaml</code>, the <code>Dockerfile</code> or a few other paths. Docs-only changes, like this site, don't deploy.</p>
+
+  <h2>What it does</h2>
+  <ol>
+    <li>Builds the image and pushes it to ACR as <code>gieschat/api:&lt;sha&gt;</code>, also tagged <code>latest</code> (main) or <code>staging</code>.</li>
+    <li>Deploys with <code>azure/webapps-deploy@v3</code> to the Web App <b>gieschat</b>. The target slot comes from the publish-profile secret (<code>AZURE_WEBAPP_PUBLISH_PROFILE</code> or <code>AZURE_WEBAPP_STAGING_PUBLISH_PROFILE</code>). Don't add <code>slot-name</code>.</li>
+  </ol>
+  <p>Production: <code>gieschat.azurewebsites.net</code> · Staging: <code>gieschat-staging.azurewebsites.net</code></p>
+
+  <h2>The image</h2>
+  <p>The <span class="path">Dockerfile</span> uses Node on Alpine with jemalloc, plus Python and <code>uv</code>/<code>uvx</code> for the Canvas MCP. It runs <code>npm ci</code>, then <code>npm run frontend</code> (packages + client), prunes dev dependencies and serves on port 3080 with <code>npm run backend</code>. MongoDB, Meilisearch and the RAG API run outside the image.</p>
+
+  <h2>Separate deploys</h2>
+  <p>The MCP servers in <span class="path">infra/</span> deploy on their own: <code>pptx-mcp</code> through <span class="path">.github/workflows/pptx-mcp-deploy.yml</span>, and <code>ms365-mcp</code> as described in its README.</p>
+
+  <div class="callout"><b>Before pushing to main:</b> run the tests for what you touched, try risky changes on <code>staging</code> first, and remember faculty may be mid-class.</div>
+</main>
+</body>
+</html>

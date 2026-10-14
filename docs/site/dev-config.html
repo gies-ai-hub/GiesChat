@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configuration · GiesChat Docs</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="site.js"></script>
+</head>
+<body>
+<main>
+  <div class="crumb">How it works › Configuration</div>
+  <h1>Configuration</h1>
+  <p class="lede">Two files drive the running app: <code>librechat.yaml</code> (what the app offers) and <code>.env</code> (secrets and URLs, never committed).</p>
+
+  <h2>How config loads</h2>
+  <p><code>librechat.yaml</code> is baked into the Docker image, so changing it means a deploy. At startup <span class="path">packages/api/src/app/</span> loads it and validates it against the schema in <span class="path">packages/data-provider/src/config.ts</span>. A typo fails validation at boot, not later. In the YAML, <code>${VAR}</code> pulls a value from <code>.env</code>, and <code>{{VAR}}</code> is filled in per user (e.g. a student's own Canvas token).</p>
+
+  <h2>Models</h2>
+  <p>The <code>agents</code> endpoint allows two providers: the custom <b>Azure OpenAI</b> endpoint (Responses API, web search, medium reasoning) and <b>Anthropic</b> (<code>ANTHROPIC_API_KEY</code>). What users see in the picker comes from <code>modelSpecs</code>:</p>
+  <table>
+    <tr><th>Label</th><th>Model</th><th>Notes</th></tr>
+    <tr><td>GPT-6 Luna</td><td><code>gpt-6-luna</code></td><td>Default</td></tr>
+    <tr><td>GPT-6.1 Sol</td><td><code>gpt-6.1-sol</code></td><td>Also runs Deck Builder</td></tr>
+    <tr><td>Claude Sonnet 5</td><td><code>claude-sonnet-5</code></td><td></td></tr>
+    <tr><td>Claude Opus 4.8</td><td><code>claude-opus-4-8</code></td><td></td></tr>
+    <tr><td>Deck Builder</td><td>Azure OpenAI</td><td>Hidden spec on gpt-6.1-sol; uses the PowerPoint MCP</td></tr>
+  </table>
+  <p>Every spec shares the Gies baseline prompt: short answers, no emojis, bold headings only, academic integrity. Titles are generated with <code>gpt-5.4-mini</code>.</p>
+  <div class="callout"><b>Retiring a model:</b> remove its <code>modelSpecs</code> entry and add its id to <code>RETIRED_MODELS</code> in <span class="path">client/src/utils/endpoints.ts</span>, but <i>keep</i> it in the endpoint's <code>models</code> list. Agents are validated against that list, so agents still pinned to the old model would fail. Retired models stay hidden from every picker except on an agent that still uses one, so it can move off. Give it a <code>FALLBACK_GUIDE</code> label in <span class="path">ModelCards.tsx</span> so it doesn't show as a raw id. The class-dashboard default lives in <code>DASHBOARD_MODEL</code> in <span class="path">client/src/components/Admin/Dashboard.tsx</span>.</div>
+
+  <h2>MCP servers</h2>
+  <table>
+    <tr><th>Server</th><th>Transport</th><th>Auth</th></tr>
+    <tr><td><code>canvas</code></td><td>stdio (<code>uvx canvas-mcp</code>, which is why the image ships <code>uv</code>)</td><td>Each user's Canvas token</td></tr>
+    <tr><td><code>ms365-outlook</code></td><td>HTTP → <code>ms365-mcp.azurewebsites.net</code> (<span class="path">infra/ms365-mcp</span>)</td><td>Per-user Microsoft OAuth; students only, read-only</td></tr>
+    <tr><td><code>powerpoint</code></td><td>HTTP → <code>pptx-mcp.azurewebsites.net</code> (<span class="path">infra/pptx-mcp</span>)</td><td><code>X-Gies-Key</code> / <code>X-Gies-User</code> headers</td></tr>
+    <tr><td><code>replit</code></td><td>Streamable HTTP</td><td>Per-user Replit OAuth</td></tr>
+    <tr><td><code>granola</code></td><td>HTTP</td><td>Per-user; read-only</td></tr>
+  </table>
+
+  <h2>Interface flags</h2>
+  <p>Under <code>interface:</code>. Currently <b>off</b>: <code>brainstormRooms</code>, <code>memories</code>, <code>prompts</code>, <code>parameters</code>, <code>bookmarks</code>, agent sharing and <code>remoteAgents</code>. <b>On</b>: creating agents, the agent marketplace, and adding MCP servers (with a trust checkbox).</p>
+</main>
+</body>
+</html>

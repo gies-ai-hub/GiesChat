@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Data model · GiesChat Docs</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script defer src="site.js"></script>
+</head>
+<body>
+<main>
+  <div class="crumb">How it works › Data model</div>
+  <h1>Data model</h1>
+  <p class="lede">MongoDB is the main store. Schemas live in <span class="path">packages/data-schemas/src/schema</span>, models in <code>src/models</code> and query methods in <code>src/methods</code>.</p>
+
+  <h2>The core collections</h2>
+  <div class="diagram"><pre class="mermaid">
+erDiagram
+  USER ||--o{ CONVO : starts
+  CONVO ||--o{ MESSAGE : contains
+  USER ||--o{ AGENT : authors
+  AGENT ||--o{ AGENT : "draftOf (drafts)"
+  AGENT }o--o{ FILE : "documents"
+  USER ||--o{ ACLENTRY : "is granted"
+  AGENT ||--o{ ACLENTRY : "is shared via"
+  USER ||--o{ SYSTEMGRANT : holds
+  USER ||--o{ TRANSACTION : "token usage"
+  USER ||--o{ ISSUEREPORT : files
+  </pre></div>
+
+  <h2>Gies fields on <code>agent</code></h2>
+  <p>In <span class="path">packages/data-schemas/src/schema/agent.ts</span>:</p>
+  <table>
+    <tr><th>Field</th><th>Purpose</th></tr>
+    <tr><td><code>course</code></td><td>Free-text class label used to group dashboard usage.</td></tr>
+    <tr><td><code>createdVia</code></td><td>Which surface built the agent. A UI filter hint, never an access check.</td></tr>
+    <tr><td><code>embed</code></td><td><code>{ key, audience, greeting, theme }</code>. <code>key</code> is the link credential and is never selected by default.</td></tr>
+    <tr><td><code>collaborators</code> / <code>pendingCollaborators</code></td><td>User ids allowed to draft, and invited emails waiting for a first sign-in.</td></tr>
+    <tr><td><code>coAdmins</code> / <code>pendingCoAdmins</code></td><td>Same, for co-admins.</td></tr>
+    <tr><td><code>draftOf</code>, <code>draftBase</code>, <code>postedVersion</code></td><td>Set on drafts: which production agent it copies, the production version it started from (used to detect "production has changed since"), and the version it became when posted.</td></tr>
+    <tr><td><code>support_contact</code></td><td>Who students should contact.</td></tr>
+  </table>
+  <p>On <code>user</code>: <code>onboardingCompletedAt</code> (tour) and <code>embedAgentId</code> (embed guests).</p>
+
+  <h2>Other Gies collections</h2>
+  <ul>
+    <li><code>issueReport</code>: reports from the bug button.</li>
+    <li><code>tutorSource</code>: scraped course pages behind the course tutors.</li>
+    <li><code>room</code>, <code>roomParticipant</code>, <code>roomMessage</code>, <code>roomPoll</code>: Brainstorm Rooms <span class="disabled">disabled in prod</span>.</li>
+  </ul>
+
+  <h2>Outside MongoDB</h2>
+  <table>
+    <tr><th>Store</th><th>Used for</th><th>Config</th></tr>
+    <tr><td>Meilisearch</td><td>Searching conversations and messages</td><td><code>SEARCH</code>, <code>MEILI_HOST</code></td></tr>
+    <tr><td>RAG API</td><td>Searching agent documents</td><td><code>RAG_API_URL</code></td></tr>
+    <tr><td>Azure Blob</td><td>Uploaded files</td><td><code>fileStrategy: azure_blob</code> in librechat.yaml</td></tr>
+    <tr><td>Redis (optional)</td><td>Cache, rate limits, stream jobs across instances</td><td><code>USE_REDIS</code>, <code>REDIS_URI</code></td></tr>
+  </table>
+</main>
+</body>
+</html>

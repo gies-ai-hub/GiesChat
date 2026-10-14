@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auth &amp; permissions · GiesChat Docs</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script defer src="site.js"></script>
+</head>
+<body>
+<main>
+  <div class="crumb">How it works › Auth &amp; permissions</div>
+  <h1>Auth &amp; permissions</h1>
+  <p class="lede">Who you are comes from Illinois Entra ID. What you can do comes from four layers: role, system grants, per-resource ACLs and, for embed guests, a single allowed agent.</p>
+
+  <h2>Signing in</h2>
+  <div class="diagram"><pre class="mermaid">
+flowchart LR
+  U[User] -->|Sign in with Illinois| E[Entra ID / OpenID]
+  E --> S[api/strategies/openidStrategy.js]
+  S -->|claim pending invites, sync roles| DB[(user, aclEntry)]
+  S --> T[access JWT 15 min + refresh cookie 7 days]
+  </pre></div>
+  <ul>
+    <li><b>OpenID (Entra)</b> in <span class="path">api/strategies/openidStrategy.js</span> is the real login path. Gies added two things to it: syncing roles from claims (<code>OPENID_REQUIRED_ROLE</code>, <code>OPENID_ADMIN_ROLE</code>) and <b>claiming pending agent invites</b> on sign-in, which turns <code>pendingCollaborators</code>/<code>pendingCoAdmins</code> emails into user ids.</li>
+    <li><b>Sessions:</b> a short-lived access JWT (<code>SESSION_EXPIRY</code>) plus a refresh-token cookie (<code>REFRESH_TOKEN_EXPIRY</code>), stored in the <code>session</code> and <code>token</code> collections and checked by <span class="path">api/server/middleware/requireJwtAuth.js</span>.</li>
+    <li><b>Guest auto-login</b> (<code>GIESCHAT_GUEST_LOGIN</code>): <code>refreshController</code> creates a guest user through <code>getOrCreateGuestUser()</code> in <span class="path">api/server/services/AuthService.js</span>. A <code>gieschat_logged_out</code> cookie stops it from logging someone straight back in.</li>
+    <li>Local, LDAP, SAML and the social strategies still exist from upstream but are mostly off.</li>
+  </ul>
+
+  <h2>The permission layers</h2>
+  <table>
+    <tr><th>Layer</th><th>Answers</th><th>Where</th></tr>
+    <tr><td><b>Role</b> (USER / ADMIN)</td><td>Coarse app-wide permissions</td><td><code>role</code> collection</td></tr>
+    <tr><td><b>System grants</b></td><td>"Can this person open the class dashboard?" Needs <code>access:admin</code>, <code>read:usage</code> and <code>read:groups</code>, granted per user to faculty.</td><td><code>systemGrant</code>, <code>/api/admin/grants</code>, <code>requireCapability</code></td></tr>
+    <tr><td><b>Resource ACLs</b></td><td>"Can this person view or edit <i>this</i> agent?"</td><td><code>aclEntry</code>, <code>accessRole</code>, <span class="path">api/server/services/PermissionService</span></td></tr>
+    <tr><td><b>Agent roles</b> (Gies)</td><td>Owner / co-admin / collaborator, mapped onto ACL grants</td><td><span class="path">api/server/services/AgentAccess.js</span></td></tr>
+  </table>
+
+  <h2>Embed guests</h2>
+  <p><span class="path">packages/api/src/embed/session.ts</span> mints a guest user per visitor, pinned to one agent (<code>user.embedAgentId</code>), with a 1-day token. <code>requireJwtAuth</code> then rejects any request from that user that isn't about their agent. For "Illinois accounts only" embeds, the session returns no token until the visitor signs in through the popup.</p>
+
+  <div class="callout"><b>Rule of thumb:</b> never gate an action on <code>createdVia</code> or other UI hints on the agent. Access is always the ACL plus grants.</div>
+</main>
+</body>
+</html>

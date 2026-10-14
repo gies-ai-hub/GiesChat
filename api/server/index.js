@@ -232,6 +232,7 @@ const startServer = async () => {
   app.use(staticCache(appConfig.paths.dist));
   app.use(staticCache(appConfig.paths.fonts));
   app.use(staticCache(appConfig.paths.assets));
+  app.use('/docs', staticCache(appConfig.paths.docs));
 
   if (telemetry.enabled) {
     app.use(telemetry.telemetryMiddleware);
