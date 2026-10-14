@@ -1,3 +1,5 @@
+import { apiBaseUrl, buildLoginRedirectUrl } from 'librechat-data-provider';
+
 export const REDIRECT_PARAM = 'redirect_to';
 export const SESSION_KEY = 'post_login_redirect_to';
 
@@ -38,4 +40,27 @@ export function persistRedirectToSession(value: string): void {
   if (isSafeRedirect(value)) {
     sessionStorage.setItem(SESSION_KEY, value);
   }
+}
+
+/** Plain "opened the app" locations: a signed-out visitor sees the public welcome page there. */
+const DEFAULT_ENTRY_PATHS = new Set(['/', '/c/new']);
+
+/**
+ * Where a signed-out visitor is sent: the welcome page when they just opened the app (or are on it),
+ * otherwise `/login?redirect_to=…` so a deep link survives sign-in. Returns a router path (no base).
+ */
+export function signedOutRedirect(
+  pathname: string = window.location.pathname,
+  search: string = window.location.search,
+  hash: string = window.location.hash,
+): string {
+  const base = apiBaseUrl();
+  const path =
+    base && (pathname === base || pathname.startsWith(`${base}/`))
+      ? pathname.slice(base.length) || '/'
+      : pathname;
+  if (path === '/welcome' || (DEFAULT_ENTRY_PATHS.has(path) && !search && !hash)) {
+    return '/welcome';
+  }
+  return buildLoginRedirectUrl(pathname, search, hash);
 }

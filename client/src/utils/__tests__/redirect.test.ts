@@ -1,6 +1,7 @@
 import {
   persistRedirectToSession,
   getPostLoginRedirect,
+  signedOutRedirect,
   isSafeRedirect,
   SESSION_KEY,
 } from '../redirect';
@@ -180,5 +181,23 @@ describe('persistRedirectToSession', () => {
   it('rejects /login paths', () => {
     persistRedirectToSession('/login?redirect_to=/c/new');
     expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
+  });
+});
+
+describe('signedOutRedirect', () => {
+  it('sends a visitor who just opened the app to the welcome page', () => {
+    expect(signedOutRedirect('/', '', '')).toBe('/welcome');
+    expect(signedOutRedirect('/c/new', '', '')).toBe('/welcome');
+  });
+
+  it('keeps a visitor already on the welcome page there', () => {
+    expect(signedOutRedirect('/welcome', '?ref=canvas', '')).toBe('/welcome');
+  });
+
+  it('keeps deep links on the login redirect so they survive sign-in', () => {
+    expect(signedOutRedirect('/c/new', '?agent_id=agent_abc', '')).toBe(
+      '/login?redirect_to=%2Fc%2Fnew%3Fagent_id%3Dagent_abc',
+    );
+    expect(signedOutRedirect('/admin', '', '')).toBe('/login?redirect_to=%2Fadmin');
   });
 });

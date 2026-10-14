@@ -10,13 +10,7 @@ import {
 import { debounce } from 'lodash';
 import { useRecoilState, useSetRecoilState } from 'recoil';
 import { useNavigate } from 'react-router-dom';
-import {
-  apiBaseUrl,
-  SystemRoles,
-  setTokenHeader,
-  isSystemRoleName,
-  buildLoginRedirectUrl,
-} from 'librechat-data-provider';
+import { apiBaseUrl, SystemRoles, setTokenHeader, isSystemRoleName } from 'librechat-data-provider';
 import type * as t from 'librechat-data-provider';
 import type { ReactNode } from 'react';
 import {
@@ -27,7 +21,7 @@ import {
   useRefreshTokenMutation,
 } from '~/data-provider';
 import { TAuthConfig, TUserContext, TAuthContext, TResError } from '~/common';
-import { SESSION_KEY, isSafeRedirect, getPostLoginRedirect } from '~/utils';
+import { SESSION_KEY, isSafeRedirect, signedOutRedirect, getPostLoginRedirect } from '~/utils';
 import useTimeout from './useTimeout';
 import store from '~/store';
 
@@ -212,7 +206,7 @@ const AuthContextProvider = ({
         if (authConfig?.test === true) {
           return;
         }
-        navigate(buildLoginRedirectUrl());
+        navigate(signedOutRedirect());
       },
       onError: (error) => {
         if (isExternalRedirectRef.current) {
@@ -222,7 +216,7 @@ const AuthContextProvider = ({
         if (authConfig?.test === true) {
           return;
         }
-        navigate(buildLoginRedirectUrl());
+        navigate(signedOutRedirect());
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deps are stable at mount; adding refreshToken causes infinite re-fire
@@ -237,7 +231,7 @@ const AuthContextProvider = ({
     } else if (userQuery.isError) {
       doSetError((userQuery.error as Error).message);
       if (!isEmbedFrameRef.current) {
-        navigate(buildLoginRedirectUrl(), { replace: true });
+        navigate(signedOutRedirect(), { replace: true });
       }
     }
     if (error != null && error && isAuthenticated) {
