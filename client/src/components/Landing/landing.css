@@ -879,10 +879,31 @@
   padding: 4rem 1.75rem;
   scroll-margin-top: 4rem;
 }
-.lp-alt {
-  background: var(--lp-bg2);
-  border-top: 1px solid var(--lp-bd);
-  border-bottom: 1px solid var(--lp-bd);
+/* Gies photos behind sections: faint behind the feature cards, full behind the audience band */
+.lp-soft {
+  background:
+    linear-gradient(
+      180deg,
+      var(--lp-bg) 0%,
+      color-mix(in srgb, var(--lp-bg) 84%, transparent) 25%,
+      color-mix(in srgb, var(--lp-bg) 84%, transparent) 75%,
+      var(--lp-bg) 100%
+    ),
+    var(--lp-section-photo) center / cover no-repeat;
+}
+.lp-band {
+  background:
+    linear-gradient(180deg, rgba(19, 41, 75, 0.78) 0%, rgba(19, 41, 75, 0.9) 100%),
+    var(--lp-section-photo) center 40% / cover no-repeat,
+    var(--illini-blue);
+}
+.lp-band .lp-section-head h2,
+.lp-band .lp-fact strong {
+  color: #fff;
+}
+.lp-band .lp-section-head p,
+.lp-band .lp-fact span {
+  color: #dbe4f3;
 }
 .lp-section-head {
   text-align: center;

@@ -16,6 +16,7 @@ import type { CSSProperties } from 'react';
 import type { TranslationKeys } from '~/hooks';
 import { BackgroundToggle } from '~/components/ui';
 import { useLocalize } from '~/hooks';
+import bifNight from './bif-night.jpg';
 import gies from './gies.jpg';
 import bif from './bif.jpg';
 import Reel from './Reel';
@@ -175,7 +176,7 @@ export default function Welcome() {
           <a href={`${DOCS}index.html`}>{localize('com_ui_landing_nav_docs')}</a>
         </div>
         <div className="lp-nav-end">
-          <BackgroundToggle compact />
+          <BackgroundToggle icon />
           <SignIn label={localize('com_ui_landing_sign_in')} />
         </div>
       </nav>
@@ -202,7 +203,11 @@ export default function Welcome() {
         <Reel />
       </header>
 
-      <section className="lp-section" id="features">
+      <section
+        className="lp-section lp-soft"
+        id="features"
+        style={{ '--lp-section-photo': `url(${gies})` } as CSSProperties}
+      >
         <div className="lp-section-head">
           <h2>{localize('com_ui_landing_features_title')}</h2>
           <p>{localize('com_ui_landing_features_body')}</p>
@@ -221,7 +226,11 @@ export default function Welcome() {
         </div>
       </section>
 
-      <section className="lp-section lp-alt" id="faculty">
+      <section
+        className="lp-section lp-band"
+        id="faculty"
+        style={{ '--lp-section-photo': `url(${bifNight})` } as CSSProperties}
+      >
         <div className="lp-section-head">
           <h2>{localize('com_ui_landing_audience_title')}</h2>
           <p>{localize('com_ui_landing_audience_body')}</p>
