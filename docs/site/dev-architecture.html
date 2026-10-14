@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Architecture · GiesChat Docs</title>
 <link rel="stylesheet" href="style.css">
-<script defer src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <script defer src="site.js"></script>
 </head>
 <body>
@@ -15,20 +14,39 @@
   <p class="lede">GiesChat is a fork of LibreChat: a Node/Express API and a React client in one npm-workspaces monorepo, with Gies features layered on top (about 280 commits past the upstream merge base). Remote <code>upstream</code> is danny-avila/LibreChat and is synced with merge commits, so keep Gies changes in their own files where you can.</p>
 
   <h2>The big picture</h2>
-  <div class="diagram"><pre class="mermaid">
-flowchart LR
-  B[Browser · client/ React + Vite] -->|REST + SSE /api/*| API[api/ Express server]
-  API --> P[packages/api · TypeScript logic]
-  P --> DS[packages/data-schemas · Mongoose]
-  DS --> M[(MongoDB)]
-  API --> MS[(Meilisearch)]
-  P --> RAG[RAG API · file search]
-  P --> BL[(Azure Blob · files)]
-  P --> LLM[Azure OpenAI / Anthropic]
-  P --> MCP[MCP servers · Canvas, Outlook, PowerPoint, Replit]
-  B -.shared types.- DP[packages/data-provider]
-  API -.shared types.- DP
-  </pre></div>
+  <div class="arch" role="img" aria-label="GiesChat at a glance: the web app sends requests to the GiesChat server and gets streamed replies back. The server talks to AI models (Azure OpenAI and Anthropic), to data and file storage, and to tools such as Canvas, Outlook, PowerPoint and Replit.">
+    <div class="arch-layer" style="--c:#2a78d6">
+      <span class="arch-tag">What people use</span>
+      <b>GiesChat web app</b>
+      <small>Chat, course tutors, agents and the class dashboard, in the browser or embedded in Canvas.</small>
+    </div>
+    <div class="arch-link">requests ↓ &nbsp; streamed replies ↑</div>
+    <div class="arch-layer arch-core" style="--c:var(--orange)">
+      <span class="arch-tag">The middle</span>
+      <b>GiesChat server</b>
+      <small>Signs people in with Illinois, checks what they may see, runs agents and saves conversations.</small>
+    </div>
+    <div class="arch-link">talks to</div>
+    <div class="arch-deps">
+      <div class="arch-group">
+        <h4>AI models</h4>
+        <div class="arch-item"><b>Azure OpenAI</b><small>GPT-6 Luna, GPT-6.1 Sol</small></div>
+        <div class="arch-item"><b>Anthropic</b><small>Claude Sonnet 5, Claude Opus 4.8</small></div>
+      </div>
+      <div class="arch-group">
+        <h4>Data &amp; files</h4>
+        <div class="arch-item"><b>Database</b><small>Users, conversations, agents</small></div>
+        <div class="arch-item"><b>File storage</b><small>Uploads and saved documents</small></div>
+        <div class="arch-item"><b>Document search</b><small>Finds the right passage in an agent's files</small></div>
+      </div>
+      <div class="arch-group">
+        <h4>Tools</h4>
+        <div class="arch-item"><b>Canvas &amp; Outlook</b><small>Courses, calendar and mail</small></div>
+        <div class="arch-item"><b>Deck Builder</b><small>Makes PowerPoint decks</small></div>
+        <div class="arch-item"><b>App Builder</b><small>Builds prototypes on Replit</small></div>
+      </div>
+    </div>
+  </div>
 
   <h2>Workspace map</h2>
   <table>
