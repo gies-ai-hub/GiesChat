@@ -10,7 +10,7 @@ const OUTPUT_TOKENS = 16_000;
 const CALL_TIMEOUT_MS = 45_000;
 /** With the crawl's 60 s, keeps an Add well inside Azure's 230 s request limit. */
 const CLEAN_BUDGET_MS = 90_000;
-const CONCURRENCY = 4;
+const CONCURRENCY = 8;
 
 export const EXTRACT_PROMPT: string = [
   'You turn one web page into clean Markdown for a course assistant to read.',
@@ -70,7 +70,7 @@ async function callLuna(
 }
 
 /**
- * Luna rewrites each page as Markdown, four at a time, within one overall time budget. A
+ * Luna rewrites each page as Markdown, eight at a time, within one overall time budget. A
  * page keeps its plain text when Luna is not configured, is missing from the endpoint's
  * model list, fails or truncates on it, or the budget runs out first.
  */

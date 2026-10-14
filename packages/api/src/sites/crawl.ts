@@ -8,7 +8,7 @@ import type {
 } from 'librechat-data-provider';
 import { createSSRFSafeUndiciConnect, isSSRFTarget, resolveHostnameSSRF } from '~/auth';
 
-export const MAX_PAGES = 20;
+export const MAX_PAGES = 50;
 const PAGE_TIMEOUT_MS = 8_000;
 /** Leaves room for Luna inside Azure's 230 s request limit. */
 const CRAWL_DEADLINE_MS = 60_000;
