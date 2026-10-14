@@ -233,7 +233,7 @@ function DeckScene() {
   );
 }
 
-function DashboardScene({ active }: { active: boolean }) {
+export function DashboardScene({ active }: { active: boolean }) {
   const localize = useLocalize();
   const kpis: Array<[TranslationKeys, number, number, TranslationKeys]> = [
     ['com_ui_landing_dash_conversations', 148, 0, 'com_ui_landing_dash_trend'],

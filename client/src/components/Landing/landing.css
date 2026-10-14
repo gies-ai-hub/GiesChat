@@ -113,7 +113,8 @@
 }
 .lp-focus:focus-visible,
 .lp-btn:focus-visible,
-.lp-tab:focus-visible {
+.lp-tab:focus-visible,
+.lp-step:focus-visible {
   outline: 2px solid var(--lp-orange);
   outline-offset: 2px;
 }
@@ -897,12 +898,10 @@
     var(--lp-section-photo) center 40% / cover no-repeat,
     var(--illini-blue);
 }
-.lp-band .lp-section-head h2,
-.lp-band .lp-fact strong {
+.lp-band .lp-section-head h2 {
   color: #fff;
 }
-.lp-band .lp-section-head p,
-.lp-band .lp-fact span {
+.lp-band .lp-section-head p {
   color: #dbe4f3;
 }
 .lp-section-head {
@@ -923,9 +922,30 @@
   line-height: 1.5;
   color: var(--lp-t2);
 }
-.lp-grid {
+.lp-tag {
+  margin-bottom: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lp-accent);
+}
+.lp-band .lp-tag {
+  color: #ff8a47;
+}
+.lp-section-head.lp-start {
+  max-width: 65rem;
+  margin: 0 auto 2rem;
+  text-align: left;
+}
+.lp-start p {
+  margin: 0;
+}
+
+/* students: one lead card (course tutors) and four tiles */
+.lp-bento {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 2fr 1fr 1fr;
   gap: 1rem;
   max-width: 65rem;
   margin: 0 auto;
@@ -974,69 +994,282 @@
   font-weight: 600;
   color: var(--lp-accent);
 }
-.lp-split {
+.lp-lead {
+  grid-row: span 2;
+  display: flex;
+  flex-direction: column;
+  border-color: var(--illini-blue);
+  background: var(--illini-blue);
+  color: #fff;
+}
+.lp-lead h3 {
+  color: #fff;
+  font-size: 1.35rem;
+}
+.lp-lead p {
+  color: #dbe4f3;
+  font-size: 0.95rem;
+}
+.lp-lead .lp-icon,
+.dark .lp-lead .lp-icon {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ff8a47;
+}
+.lp-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0.25rem 0 1rem;
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--lp-bg);
+  color: var(--lp-t1);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.lp-mini .lp-msg-user {
+  max-width: 85%;
+  padding: 7px 11px;
+}
+.lp-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 1rem;
+}
+.lp-lead .lp-more {
+  margin-top: auto;
+  color: #ff8a47;
+}
+.lp-pills span {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  color: #e8eef8;
+}
+
+/* faculty: step buttons swap a dashboard screen */
+.lp-tour {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.1rem;
+  grid-template-columns: 20rem 1fr;
+  gap: 1.75rem;
+  align-items: start;
   max-width: 65rem;
   margin: 0 auto;
 }
-.lp-audience {
-  border: 1px solid var(--lp-bd);
-  border-radius: 18px;
-  padding: 1.6rem;
-  background: var(--lp-bg);
+.lp-steps {
+  display: grid;
+  gap: 0.5rem;
 }
-.lp-audience-tag {
+.lp-step {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  padding: 0.75rem 0.9rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lp-step:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.lp-step b {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+}
+.lp-step b span {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
   font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--lp-accent);
 }
-.lp-audience h3 {
-  margin: 0.4rem 0 0.9rem;
-  font-size: 1.375rem;
-  font-weight: 700;
-  color: var(--lp-head);
+.lp-step p {
+  display: none;
+  margin: 0.4rem 0 0 2.1rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
-.lp-audience ul {
+.lp-step[aria-pressed='true'] {
+  border-color: var(--lp-bg);
+  background: var(--lp-bg);
+  color: var(--lp-t1);
+}
+.lp-step[aria-pressed='true'] b span {
+  background: #c84113;
+  color: #fff;
+}
+.lp-step[aria-pressed='true'] p {
+  display: block;
+  color: var(--lp-t2);
+}
+.lp-tour-ctas {
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+.lp-tour-window {
+  width: 100%;
+  max-width: none;
+  height: 430px;
+  margin: 0;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+}
+.lp-tour-screen {
+  height: 100%;
+}
+.lp .lp-navy {
+  background: var(--illini-blue);
+  color: #fff;
+}
+.lp-form {
   display: grid;
   gap: 0.6rem;
-  margin: 0 0 1.25rem;
-  padding: 0;
-  list-style: none;
+  padding: 14px 18px;
+  font-size: 12.5px;
 }
-.lp-audience li {
-  display: flex;
-  gap: 0.6rem;
-  font-size: 0.9rem;
+.lp-field {
+  display: grid;
+  gap: 5px;
+}
+.lp-field > span {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lp-t2);
+}
+.lp-input,
+.lp-answer,
+.lp-model-card,
+.lp-radio {
+  border: 1px solid var(--lp-bd);
+  border-radius: 10px;
+  padding: 8px 10px;
   line-height: 1.45;
 }
-.lp-audience li::before {
-  content: '✓';
-  font-weight: 800;
+.lp-models,
+.lp-answers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lp-model-card {
+  font-weight: 600;
+}
+.lp-model-card small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--lp-t2);
+}
+.lp-model-card.lp-picked {
+  border: 1.5px solid var(--lp-head);
+}
+.lp-badge {
+  margin-left: 6px;
+  border-radius: 999px;
+  padding: 1px 7px;
+  background: var(--illini-orange-soft);
+  font-size: 10px;
+  font-weight: 700;
   color: var(--lp-accent);
 }
-.lp-facts {
+.dark .lp-badge {
+  background: color-mix(in srgb, var(--illini-orange) 18%, transparent);
+}
+.lp-files {
   display: flex;
-  justify-content: center;
   flex-wrap: wrap;
-  gap: 3.5rem;
-  margin-top: 2.5rem;
+  gap: 6px;
 }
-.lp-fact {
-  text-align: center;
+.lp-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--lp-bd);
+  border-radius: 8px;
+  padding: 4px 9px;
+  background: var(--lp-tert);
+  font-size: 11.5px;
 }
-.lp-fact strong {
-  display: block;
-  font-size: 2.1rem;
-  letter-spacing: -0.02em;
-  color: var(--lp-head);
+.lp-file b {
+  font-size: 9.5px;
+  color: #b91c1c;
 }
-.lp-fact span {
-  font-size: 0.8rem;
+.dark .lp-file b {
+  color: #f87171;
+}
+.lp-saved {
+  color: var(--lp-good);
+}
+.lp-note {
+  margin: 0;
   color: var(--lp-t2);
+}
+.lp-answer b {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 11px;
+  color: var(--lp-t2);
+}
+.lp-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+.lp-radio + .lp-radio {
+  margin-top: 6px;
+}
+.lp-radio::before {
+  content: '';
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--lp-bd2);
+  border-radius: 50%;
+}
+.lp-radio.lp-picked::before {
+  border: 4px solid var(--lp-head);
+}
+.lp-snippet {
+  margin: 0;
+  border-radius: 9px;
+  padding: 10px;
+  background: #0f1b30;
+  color: #cfe0ff;
+  font:
+    11px/1.5 ui-monospace,
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.lp-tas {
+  display: flex;
+}
+.lp-tas i + i {
+  margin-left: -4px;
+}
+.lp-tas i {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--lp-bg);
+  border-radius: 50%;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 700;
+  color: #fff;
 }
 .lp-faq {
   max-width: 45rem;
@@ -1086,11 +1319,13 @@
   margin: 0 0 1.5rem;
   color: #e3eaf5;
 }
+.lp-band .lp-ghost,
 .lp-cta .lp-ghost {
   border-color: rgba(255, 255, 255, 0.55);
   background: transparent;
   color: #fff;
 }
+.lp-band .lp-ghost:hover,
 .lp-cta .lp-ghost:hover {
   border-color: var(--lp-orange);
 }
@@ -1120,8 +1355,15 @@
 }
 
 @media (max-width: 860px) {
-  .lp-grid {
+  .lp-bento {
     grid-template-columns: 1fr 1fr;
+  }
+  .lp-lead {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+  .lp-tour {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1189,12 +1431,13 @@
   .lp-section-head h2 {
     font-size: 1.6rem;
   }
-  .lp-grid,
-  .lp-split {
+  .lp-bento,
+  .lp-models,
+  .lp-answers {
     grid-template-columns: 1fr;
   }
-  .lp-facts {
-    gap: 1.75rem;
+  .lp-tour-window {
+    height: auto;
   }
   .lp-cta {
     padding: 2.5rem 1.1rem;
