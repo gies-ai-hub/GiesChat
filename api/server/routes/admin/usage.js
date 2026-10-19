@@ -14,7 +14,11 @@ const { requireCapability } = require('~/server/middleware/roles/capabilities');
 const { findAccessibleResources } = require('~/server/services/PermissionService');
 const { copyAgentDocuments } = require('~/server/services/Files/copy');
 const { sendCollaboratorInvite, sendRoleChange } = require('~/server/services/AgentInvites');
-const { grantAgentAccess, revokeAgentAccess } = require('~/server/services/AgentAccess');
+const {
+  grantAgentAccess,
+  revokeAgentAccess,
+  grantDashboardAccess,
+} = require('~/server/services/AgentAccess');
 const { siteStore, replaceWebsiteCopy } = require('~/server/services/Websites');
 const { requireJwtAuth } = require('~/server/middleware');
 const { getAppConfig } = require('~/server/services/Config');
@@ -58,6 +62,7 @@ const handlers = createAdminUsageHandlers({
   sendRoleChange,
   grantAgentAccess,
   revokeAgentAccess,
+  grantDashboardAccess,
   crawlWebsite: (url) => crawlSite(url),
   cleanWebsitePages: async (pages) => cleanPages(pages, await siteStore.resolveEndpoint()),
   replaceWebsiteCopy,

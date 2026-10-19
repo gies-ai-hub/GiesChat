@@ -26,7 +26,11 @@ const {
   getLibreChatRolesForOpenIdSync,
 } = require('@librechat/api');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
-const { grantAgentAccess, revokeAgentAccess } = require('~/server/services/AgentAccess');
+const {
+  grantAgentAccess,
+  revokeAgentAccess,
+  grantDashboardAccess,
+} = require('~/server/services/AgentAccess');
 const { resizeAvatar } = require('~/server/services/Files/images/avatar');
 const {
   findUser,
@@ -846,6 +850,7 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
     );
     const total = claimed + coAdminOf.length;
     if (total > 0) {
+      await grantDashboardAccess({ userId: String(user._id) });
       logger.info(`[openidStrategy] ${user.email} claimed ${total} agent invitation(s)`);
     }
   } catch (error) {
