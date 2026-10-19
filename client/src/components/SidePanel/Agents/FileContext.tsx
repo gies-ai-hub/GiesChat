@@ -223,6 +223,9 @@ function FileContext({
         )}
         {addControl}
       </div>
+      <p className="text-[11px] leading-snug text-text-secondary">
+        {localize('com_agents_file_context_images')}
+      </p>
       {files.size > 0 && (
         <FileRow
           files={files}

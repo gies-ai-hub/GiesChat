@@ -22,8 +22,11 @@ const { logger, runAsSystem } = require('@librechat/data-schemas');
 const {
   sanitizeFilename,
   parseText,
+  isReadableImage,
   processAudioFile,
   getStorageMetadata,
+  extractImageMarkdown,
+  modelTestEndpointFromConfig,
   sweepExpiredFiles: sweepExpiredFilesWithDeps,
   startExpiredFileSweep: startExpiredFileSweepWithDeps,
 } = require('@librechat/api');
@@ -838,6 +841,23 @@ const processAgentFileUpload = async ({ req, res, metadata }) => {
         .status(200)
         .json({ message: 'Agent file uploaded and processed successfully', ...result });
     };
+
+    /* An image of tables or charts becomes Markdown, then takes the text path below like any
+     * .md upload. The `.md` name is what lets the RAG API index it as text, not as a picture. */
+    if (!messageAttachment && isReadableImage(file.mimetype)) {
+      const markdown = await extractImageMarkdown({
+        endpoint: modelTestEndpointFromConfig(appConfig),
+        image: await fs.promises.readFile(file.path),
+        mimetype: file.mimetype,
+        filename: file.originalname,
+      });
+      const markdownPath = `${file.path}.md`;
+      await fs.promises.writeFile(markdownPath, markdown, 'utf8');
+      await fs.promises.unlink(file.path).catch(() => undefined);
+      file.path = markdownPath;
+      file.mimetype = 'text/markdown';
+      file.size = Buffer.byteLength(markdown, 'utf8');
+    }
 
     const fileConfig = mergeFileConfig(appConfig.fileConfig);
 

@@ -40,6 +40,9 @@ jest.mock('@librechat/api', () => {
   return {
     sanitizeFilename: jest.fn((n) => n),
     parseText: jest.fn().mockResolvedValue({ text: '', bytes: 0 }),
+    isReadableImage: jest.fn((mime) => mime === 'image/jpeg'),
+    extractImageMarkdown: jest.fn().mockResolvedValue('| Section | Mean |'),
+    modelTestEndpointFromConfig: jest.fn(() => null),
     processAudioFile: jest.fn(),
     getStorageMetadata: jest.fn(() => ({})),
     getRetentionExpiry,
@@ -218,6 +221,52 @@ describe('processAgentFileUpload', () => {
         .mockResolvedValue({ text: 'extracted text', bytes: 42, filepath: 'doc://result' }),
     });
     mergeFileConfig.mockReturnValue(makeFileConfig());
+  });
+
+  describe('image documents', () => {
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+
+    test('reads the image into Markdown and stores it through the text path', async () => {
+      const { extractImageMarkdown, parseText } = require('@librechat/api');
+      mergeFileConfig.mockReturnValue({
+        ...makeFileConfig(),
+        text: { supportedMimeTypes: ['text/markdown'] },
+      });
+      const tmp = path.join(os.tmpdir(), `exam1-${process.pid}.jpg`);
+      fs.writeFileSync(tmp, 'jpeg-bytes');
+      const req = makeReq({ mimetype: 'image/jpeg' });
+      req.file.path = tmp;
+      req.file.originalname = 'exam1.jpg';
+
+      await processAgentFileUpload({ req, res: mockRes, metadata: makeMetadata() });
+
+      expect(extractImageMarkdown).toHaveBeenCalledWith(
+        expect.objectContaining({ image: Buffer.from('jpeg-bytes'), filename: 'exam1.jpg' }),
+      );
+      expect(parseText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          file: expect.objectContaining({ path: `${tmp}.md`, mimetype: 'text/markdown' }),
+        }),
+      );
+      expect(fs.readFileSync(`${tmp}.md`, 'utf8')).toBe('| Section | Mean |');
+      expect(fs.existsSync(tmp)).toBe(false);
+      fs.unlinkSync(`${tmp}.md`);
+    });
+
+    test('leaves chat attachments alone', async () => {
+      const { extractImageMarkdown } = require('@librechat/api');
+      const req = makeReq({ mimetype: 'image/jpeg' });
+
+      await processAgentFileUpload({
+        req,
+        res: mockRes,
+        metadata: { ...makeMetadata(), message_file: true },
+      }).catch(() => undefined);
+
+      expect(extractImageMarkdown).not.toHaveBeenCalled();
+    });
   });
 
   describe('OCR strategy selection', () => {

@@ -68,6 +68,7 @@
   "com_agents_error_timeout_title": "Connection Timeout",
   "com_agents_error_title": "Something went wrong",
   "com_agents_file_context_description": "Includes the full text of these files in the agent's context on every message. Best for a few key documents the agent should always reference.",
+  "com_agents_file_context_images": "PDFs, Word and text files, or photos and screenshots of tables and charts. We read the numbers into text.",
   "com_agents_file_context_label": "File Context",
   "com_agents_file_context_pending": "These files will be attached when you create the agent.",
   "com_agents_file_search_disabled": "Agent must be created before uploading files for File Search.",
