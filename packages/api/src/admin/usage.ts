@@ -1165,10 +1165,10 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       ]);
       await setAgentMeta(agent.id, meta);
       await Promise.all(
-        invites.flatMap((person) =>
-          'id' in person
-            ? grantDashboardAccess({ userId: person.id, grantedBy: callerId }).catch((error) =>
-                logger.error(`[adminUsage] could not grant ${person.email} the dashboard`, error),
+        [...roles].flatMap(([userId, role]) =>
+          before.get(userId) !== role
+            ? grantDashboardAccess({ userId, grantedBy: callerId }).catch((error) =>
+                logger.error(`[adminUsage] could not grant user ${userId} the dashboard`, error),
               )
             : [],
         ),

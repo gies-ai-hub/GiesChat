@@ -3100,6 +3100,24 @@ describe('createAdminUsageHandlers', () => {
         expect(json.mock.calls[0][0]).toMatchObject({ roleChanged: ['cora@illinois.edu'] });
       });
 
+      it('grants the dashboard to a collaborator promoted to co-admin', async () => {
+        const { prod } = world();
+        prod.collaborators = [coId.toString()];
+        const deps = createDeps(baseWorld({ agents: [prod], users: [bob, cora] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res } = createReqRes({
+          params: { agent_id: 'agent_prod' },
+          body: { userIds: [], coAdminIds: [coId.toString()] },
+          user: prof,
+        });
+        await handlers.updateAgentCollaborators(req, res);
+        expect(deps.sendRoleChange).toHaveBeenCalledTimes(1);
+        expect(deps.grantDashboardAccess).toHaveBeenCalledWith({
+          userId: coId.toString(),
+          grantedBy: callerId.toString(),
+        });
+      });
+
       it('promoting an invited address keeps it pending as a co-admin and tells them', async () => {
         const { prod } = world();
         const deps = createDeps(baseWorld({ agents: [prod], users: [bob] }));
