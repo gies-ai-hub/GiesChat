@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>GiesChat Nav Redesign</title>
+<style>
+  :root{
+    --paper:#ffffff;
+    --ground:#f5f7fb;
+    --ink:#16202e;
+    --muted:#5a6675;
+    --faint:#8894a5;
+    --line:#e3e8ef;
+    --navy:#13294b;
+    --navy-soft:#22406e;
+    --orange:#ff5f05;
+    --good:#1f7a52;
+    --good-bg:#e6f3ec;
+    --warn:#b26a00;
+    --warn-bg:#f8efdd;
+    --bad:#b23b28;
+    --bad-bg:#f7e7e3;
+    --rail-bg:#0f1826;
+    --rail-line:#22314a;
+    --rail-ink:#e7ecf3;
+    --rail-muted:#8fa0ba;
+    --rail-hi:#1b2b45;
+    --shadow:0 1px 2px rgba(16,24,40,.06),0 12px 32px -12px rgba(16,24,40,.18);
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#131c28;
+      --ground:#0c131c;
+      --ink:#e8edf4;
+      --muted:#9aa7b8;
+      --faint:#6f7d90;
+      --line:#26313f;
+      --navy:#9fbdf0;
+      --navy-soft:#7fa1d8;
+      --orange:#ff7a2e;
+      --good:#5ec894;
+      --good-bg:#12291f;
+      --warn:#e0a94a;
+      --warn-bg:#2a2213;
+      --bad:#e8836f;
+      --bad-bg:#2c1a16;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 40px -16px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#ffffff;--ground:#f5f7fb;--ink:#16202e;--muted:#5a6675;--faint:#8894a5;--line:#e3e8ef;
+    --navy:#13294b;--navy-soft:#22406e;--orange:#ff5f05;
+    --good:#1f7a52;--good-bg:#e6f3ec;--warn:#b26a00;--warn-bg:#f8efdd;--bad:#b23b28;--bad-bg:#f7e7e3;
+    --shadow:0 1px 2px rgba(16,24,40,.06),0 12px 32px -12px rgba(16,24,40,.18);
+  }
+  :root[data-theme="dark"]{
+    --paper:#131c28;--ground:#0c131c;--ink:#e8edf4;--muted:#9aa7b8;--faint:#6f7d90;--line:#26313f;
+    --navy:#9fbdf0;--navy-soft:#7fa1d8;--orange:#ff7a2e;
+    --good:#5ec894;--good-bg:#12291f;--warn:#e0a94a;--warn-bg:#2a2213;--bad:#e8836f;--bad-bg:#2c1a16;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 40px -16px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0}
+  .wrap{
+    font-family:var(--sans);
+    color:var(--ink);
+    background:
+      radial-gradient(1100px 420px at 50% -140px, color-mix(in srgb,var(--navy) 9%,transparent), transparent 70%),
+      var(--ground);
+    min-height:100vh;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    padding:clamp(20px,4vw,56px) clamp(16px,4vw,32px) 72px;
+  }
+  .page{max-width:1080px;margin:0 auto}
+  .reveal{opacity:0;transform:translateY(10px);animation:rise .6s cubic-bezier(.2,.7,.2,1) forwards}
+  .reveal.d1{animation-delay:.05s}.reveal.d2{animation-delay:.12s}.reveal.d3{animation-delay:.2s}
+  @keyframes rise{to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.reveal{animation:none;opacity:1;transform:none}}
+
+  /* header */
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);font-weight:700}
+  h1{
+    font-family:var(--serif);font-weight:600;letter-spacing:-.01em;text-wrap:balance;
+    font-size:clamp(30px,5.4vw,50px);line-height:1.04;margin:.28em 0 .18em;
+  }
+  .lede{font-size:clamp(16px,2.1vw,19px);color:var(--muted);max-width:60ch;text-wrap:pretty}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:18px;font-size:13px;color:var(--faint)}
+  .meta b{color:var(--muted);font-weight:600}
+  .rule{height:1px;background:var(--line);border:0;margin:34px 0}
+
+  h2{
+    font-family:var(--serif);font-weight:600;letter-spacing:-.01em;font-size:clamp(21px,3vw,27px);
+    margin:0 0 6px;
+  }
+  .sec-sub{color:var(--muted);font-size:15px;margin:0 0 22px;max-width:66ch}
+  section{margin-top:52px}
+
+  /* before/after grid */
+  .ba{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  @media (max-width:760px){.ba{grid-template-columns:1fr}}
+  .col-head{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
+  .col-head h3{font-size:15px;margin:0;font-weight:700;letter-spacing:.02em}
+  .col-head .k{font-size:12px;color:var(--faint)}
+  .verdict{margin-left:auto;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px}
+  .v-bad{color:var(--bad);background:var(--bad-bg)}
+  .v-good{color:var(--good);background:var(--good-bg)}
+
+  /* rail device */
+  .device{
+    background:var(--rail-bg);border:1px solid var(--rail-line);border-radius:16px;
+    padding:12px 12px 14px;box-shadow:var(--shadow);
+  }
+  .device .brandbar{display:flex;align-items:center;gap:8px;padding:4px 6px 12px;border-bottom:1px solid var(--rail-line);margin-bottom:8px}
+  .device .brandbar .dot{width:9px;height:9px;border-radius:50%;background:var(--orange)}
+  .device .brandbar span{color:var(--rail-muted);font-size:12px;font-weight:600;letter-spacing:.02em}
+  .grouplabel{
+    color:var(--rail-muted);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+    padding:12px 8px 6px;display:flex;align-items:center;gap:8px;
+  }
+  .grouplabel::after{content:"";flex:1;height:1px;background:var(--rail-line)}
+  .railrow{
+    display:flex;align-items:center;gap:11px;padding:8px 8px;border-radius:9px;
+  }
+  .railrow + .railrow{margin-top:1px}
+  .railrow.active{background:var(--rail-hi)}
+  .ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;
+    background:color-mix(in srgb,var(--rail-ink) 8%,transparent);color:var(--rail-ink)}
+  .ic svg{width:18px;height:18px}
+  .railrow .name{color:var(--rail-ink);font-size:13.5px;font-weight:600;white-space:nowrap}
+  .railrow .sub{color:var(--rail-muted);font-size:11.5px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .railtext{min-width:0;flex:1}
+  .tag{font-size:10px;font-weight:700;letter-spacing:.03em;padding:2px 7px;border-radius:6px;flex:none;text-transform:uppercase}
+  .t-panel{color:#bcd2f5;background:rgba(60,110,190,.22)}
+  .t-menu{color:#f0c886;background:rgba(190,130,40,.24)}
+  .t-action{color:#9fb0c6;background:rgba(140,160,190,.16)}
+  .divider-note{display:flex;align-items:center;gap:8px;color:#f0c886;font-size:11px;padding:9px 8px 2px}
+  .divider-note svg{width:14px;height:14px}
+  .consol{color:var(--good);font-size:11.5px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .cap{font-size:13px;color:var(--muted);margin:14px 2px 0;text-wrap:pretty}
+  .cap b{color:var(--ink)}
+
+  /* legend */
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:20px;padding:14px 16px;border:1px solid var(--line);
+    border-radius:12px;background:var(--paper);font-size:12.5px;color:var(--muted)}
+  .legend .item{display:flex;align-items:center;gap:8px}
+  .sw{width:26px;text-align:center}
+
+  /* consolidation map */
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  @media (max-width:680px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px;box-shadow:var(--shadow)}
+  .card h4{margin:0 0 10px;font-size:15px;letter-spacing:.01em;display:flex;align-items:center;gap:9px}
+  .card h4 .cic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;background:color-mix(in srgb,var(--navy) 12%,transparent);color:var(--navy)}
+  .card h4 .cic svg{width:16px;height:16px}
+  .from{list-style:none;padding:0;margin:0 0 12px;display:flex;flex-wrap:wrap;gap:6px}
+  .from li{font-size:11.5px;color:var(--bad);background:var(--bad-bg);border-radius:6px;padding:3px 8px;font-weight:600}
+  .arrow{display:flex;align-items:center;gap:9px;font-size:13.5px}
+  .arrow svg{width:16px;height:16px;color:var(--faint);flex:none}
+  .arrow .to{color:var(--good);font-weight:700}
+  .arrow .to em{font-style:normal;color:var(--muted);font-weight:500}
+
+  /* detail trio */
+  .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media (max-width:760px){.trio{grid-template-columns:1fr}}
+  .mini{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 16px 15px;box-shadow:var(--shadow)}
+  .mini .lab{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);font-weight:700}
+  .mini h4{margin:6px 0 6px;font-size:15px}
+  .mini p{margin:0;font-size:13px;color:var(--muted)}
+  .mini .change{margin-top:10px;font-size:12.5px;font-weight:600}
+  .mini .change .old{color:var(--bad);text-decoration:line-through;text-decoration-thickness:1px}
+  .mini .change .new{color:var(--good)}
+
+  /* header-standard wireframe */
+  .hdrwire{margin-top:12px;border:1px solid var(--rail-line);background:var(--rail-bg);border-radius:9px;overflow:hidden}
+  .hdrwire .top{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--rail-line)}
+  .hdrwire .top .ttl{color:var(--rail-ink);font-size:12.5px;font-weight:700;flex:1}
+  .hdrwire .top .b{width:18px;height:18px;border-radius:5px;background:color-mix(in srgb,var(--rail-ink) 12%,transparent);display:grid;place-items:center;color:var(--rail-muted)}
+  .hdrwire .top .b svg{width:12px;height:12px}
+  .hdrwire .body{padding:9px 11px;display:flex;flex-direction:column;gap:6px}
+  .hdrwire .ln{height:8px;border-radius:4px;background:var(--rail-line)}
+  .hdrwire .ln.s{width:70%}.hdrwire .ln.m{width:88%}
+
+  /* tradeoffs */
+  .tw{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:6px 20px;box-shadow:var(--shadow)}
+  .tw details{border-bottom:1px solid var(--line);padding:4px 0}
+  .tw details:last-child{border-bottom:0}
+  .tw summary{cursor:pointer;list-style:none;padding:14px 0;font-weight:600;font-size:14.5px;display:flex;align-items:center;gap:10px}
+  .tw summary::-webkit-details-marker{display:none}
+  .tw summary .chev{width:16px;height:16px;color:var(--faint);transition:transform .2s}
+  .tw details[open] summary .chev{transform:rotate(90deg)}
+  .tw p{margin:0 0 16px 26px;color:var(--muted);font-size:13.5px;max-width:70ch}
+
+  a.focusable:focus-visible,summary:focus-visible{outline:2px solid var(--orange);outline-offset:3px;border-radius:4px}
+
+  footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+  footer b{color:var(--muted);font-weight:600}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="i-collapse"><rect x="3" y="4" width="18" height="16" rx="2.5"/><line x1="9.2" y1="4" x2="9.2" y2="20"/></g>
+    <g id="i-edit"><path d="M4 20.5l1.3-4.4L16 5.4a2 2 0 0 1 2.8 2.8L8.1 18.9 4 20.5z"/><line x1="14.3" y1="7" x2="17.5" y2="10.2"/></g>
+    <g id="i-dots"><circle cx="5.5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.5" fill="currentColor" stroke="none"/></g>
+    <g id="i-chat"><path d="M4 5.5h16v10H9.5L5 19V5.5z"/></g>
+    <g id="i-bulb"><path d="M9.2 18.5h5.6"/><path d="M10 21.2h4"/><path d="M12 3.2a5.6 5.6 0 0 0-3.7 9.8c.9.8 1.2 1.6 1.2 2.6h5a3.9 3.9 0 0 1 1.2-2.6A5.6 5.6 0 0 0 12 3.2z"/></g>
+    <g id="i-users"><circle cx="9" cy="8" r="3.1"/><path d="M3.4 20a5.6 5.6 0 0 1 11.2 0"/><path d="M16.2 5.6a3.1 3.1 0 0 1 0 5.6"/><path d="M15.6 14.2A5.6 5.6 0 0 1 20.6 20"/></g>
+    <g id="i-bot"><rect x="5" y="8.5" width="14" height="9.5" rx="2.4"/><line x1="12" y1="4.4" x2="12" y2="8.5"/><circle cx="12" cy="4" r="1.1" fill="currentColor" stroke="none"/><circle cx="9.4" cy="13.2" r="1.25" fill="currentColor" stroke="none"/><circle cx="14.6" cy="13.2" r="1.25" fill="currentColor" stroke="none"/></g>
+    <g id="i-bolt"><path d="M13 3.2 5.5 13.6H11l-1 7.2 7.6-10.6H12l1-7z"/></g>
+    <g id="i-clip"><path d="M20 11.2l-8.1 8.1a5 5 0 0 1-7-7l8.4-8.4a3.1 3.1 0 0 1 4.4 4.4l-8.3 8.3a1.4 1.4 0 0 1-2-2l7.2-7.2"/></g>
+    <g id="i-plug"><path d="M9 3.5v4.2"/><path d="M15 3.5v4.2"/><path d="M6.8 7.7h10.4v3.1a5.2 5.2 0 0 1-10.4 0V7.7z"/><path d="M12 16v4.5"/></g>
+    <g id="i-sliders"><line x1="4" y1="8.5" x2="20" y2="8.5"/><line x1="4" y1="15.5" x2="20" y2="15.5"/><circle cx="9" cy="8.5" r="2.3"/><circle cx="15" cy="15.5" r="2.3"/></g>
+    <g id="i-user"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></g>
+    <g id="i-grid"><rect x="4" y="4" width="7" height="7" rx="1.4"/><rect x="13" y="4" width="7" height="7" rx="1.4"/><rect x="4" y="13" width="7" height="7" rx="1.4"/><rect x="13" y="13" width="7" height="7" rx="1.4"/></g>
+    <g id="i-arrow"><line x1="4" y1="12" x2="19" y2="12"/><path d="M13.5 6.5 20 12l-6.5 5.5"/></g>
+    <g id="i-warn"><path d="M12 4 21 19.5H3L12 4z"/><line x1="12" y1="10" x2="12" y2="14.5"/><circle cx="12" cy="17" r="1" fill="currentColor" stroke="none"/></g>
+    <g id="i-chev"><path d="M9 6l6 6-6 6"/></g>
+    <g id="i-search"><circle cx="11" cy="11" r="6"/><line x1="15.5" y1="15.5" x2="20" y2="20"/></g>
+    <g id="i-plus"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></g>
+  </defs>
+</svg>
+
+<div class="wrap">
+<div class="page">
+
+  <header class="reveal">
+    <div class="eyebrow">GiesChat · Navigation redesign</div>
+    <h1>A left rail you can predict</h1>
+    <p class="lede">Today ten look-alike icons behave three different ways and the same feature hides in four places. This proposal groups the rail by purpose and gives every concept a single home.</p>
+    <div class="meta">
+      <span><b>Basis:</b> dogfood findings NAV-1 – NAV-7</span>
+      <span><b>Scope:</b> left icon rail &amp; its side panels</span>
+      <span><b>Status:</b> proposal / for discussion</span>
+    </div>
+  </header>
+
+  <hr class="rule">
+
+  <section style="margin-top:8px" class="reveal d1">
+    <h2>The rail, today vs. proposed</h2>
+    <p class="sec-sub">Same icons, regrouped. The tags on the left show the hidden problem: identical-looking icons that actually switch a panel, open a popup menu, or fire an action — with only one divider to tell them apart.</p>
+
+    <div class="ba">
+      <!-- BEFORE -->
+      <div>
+        <div class="col-head">
+          <h3>TODAY</h3><span class="k">10 icons · 2 hidden menus</span>
+          <span class="verdict v-bad">unpredictable</span>
+        </div>
+        <div class="device" aria-label="Current navigation rail">
+          <div class="brandbar"><span class="dot"></span><span>GiesChat</span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-collapse"/></svg></span><span class="railtext"><span class="name">Collapse</span></span><span class="tag t-action">action</span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-edit"/></svg></span><span class="railtext"><span class="name">New chat</span></span><span class="tag t-action">action</span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-dots"/></svg></span><span class="railtext"><span class="name">More</span><span class="sub">→ Marketplace, Plugins</span></span><span class="tag t-menu">menu</span></div>
+          <div class="divider-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-warn"/></svg>the only divider in the whole rail</div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chat"/></svg></span><span class="railtext"><span class="name">Chat History</span></span><span class="tag t-panel">panel</span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bulb"/></svg></span><span class="railtext"><span class="name">Brainstorm</span><span class="sub">actually collaborative rooms</span></span><span class="tag t-panel">panel</span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bot"/></svg></span><span class="railtext"><span class="name">Agent Builder</span><span class="sub">form crammed in 200px</span></span><span class="tag t-panel">panel</span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bolt"/></svg></span><span class="railtext"><span class="name">Skills</span></span><span class="tag t-panel">panel</span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-clip"/></svg></span><span class="railtext"><span class="name">Attach Files</span></span><span class="tag t-panel">panel</span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-plug"/></svg></span><span class="railtext"><span class="name">MCP Settings</span></span><span class="tag t-panel">panel</span></div>
+          <div class="railrow" style="margin-top:10px"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-user"/></svg></span><span class="railtext"><span class="name">Account</span><span class="sub">→ Files, Archived, Settings…</span></span><span class="tag t-menu">menu</span></div>
+        </div>
+        <p class="cap"><b>Three paradigms, no grouping.</b> You can't tell from an icon whether a click swaps the panel, drops a menu, or navigates.</p>
+      </div>
+
+      <!-- AFTER -->
+      <div>
+        <div class="col-head">
+          <h3>PROPOSED</h3><span class="k">6 destinations · 3 groups</span>
+          <span class="verdict v-good">predictable</span>
+        </div>
+        <div class="device" aria-label="Proposed navigation rail">
+          <div class="brandbar"><span class="dot"></span><span>GiesChat</span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-collapse"/></svg></span><span class="railtext"><span class="name">Collapse</span><span class="sub" style="font-family:var(--mono)">⌘⇧S</span></span></div>
+          <div class="railrow"><span class="ic" style="background:color-mix(in srgb,var(--orange) 30%,transparent);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-edit"/></svg></span><span class="railtext"><span class="name">New chat</span></span></div>
+
+          <div class="grouplabel">Your workspace</div>
+          <div class="railrow active"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chat"/></svg></span><span class="railtext"><span class="name">Chats</span><span class="consol">+ history · archived · projects</span></span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-users"/></svg></span><span class="railtext"><span class="name">Rooms</span><span class="consol">renamed from “Brainstorm”</span></span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-clip"/></svg></span><span class="railtext"><span class="name">Files</span><span class="consol">+ my files · manage</span></span></div>
+
+          <div class="grouplabel">Build &amp; extend</div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bot"/></svg></span><span class="railtext"><span class="name">Agents</span><span class="consol">builder + marketplace</span></span></div>
+          <div class="railrow"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-sliders"/></svg></span><span class="railtext"><span class="name">Tools</span><span class="consol">MCP + skills + plugins</span></span></div>
+
+          <div class="railrow" style="margin-top:10px"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-user"/></svg></span><span class="railtext"><span class="name">Account</span><span class="sub">settings · help · log out</span></span><span class="tag t-menu">menu</span></div>
+        </div>
+        <p class="cap"><b>One behavior per zone.</b> Middle icons all open panels; the only menu is Account, where people expect it.</p>
+      </div>
+    </div>
+
+    <div class="legend" aria-label="Legend">
+      <span class="item"><span class="tag t-panel">panel</span> opens a side panel</span>
+      <span class="item"><span class="tag t-menu">menu</span> opens a popup — reads like a tab but isn't</span>
+      <span class="item"><span class="tag t-action">action</span> fires immediately / navigates</span>
+      <span class="item" style="color:var(--good)"><b style="color:var(--good)">green</b>&nbsp;= what this icon now absorbs</span>
+    </div>
+  </section>
+
+  <section class="reveal">
+    <h2>One home per concept</h2>
+    <p class="sec-sub">The same capability is reachable today from several unrelated places. Each card folds those doors into a single destination — usually with tabs inside.</p>
+    <div class="cards">
+      <div class="card">
+        <h4><span class="cic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bot"/></svg></span>Agents</h4>
+        <ul class="from"><li>Agent Builder · rail</li><li>Agent Marketplace · ⋯ menu</li></ul>
+        <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-arrow"/></svg><span class="to">Agents <em>— tabs: Browse · Mine · + Create</em></span></div>
+      </div>
+      <div class="card">
+        <h4><span class="cic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-sliders"/></svg></span>Tools</h4>
+        <ul class="from"><li>MCP · rail</li><li>Skills · rail</li><li>Plugins · ⋯ menu</li><li>composer dropdown</li></ul>
+        <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-arrow"/></svg><span class="to">Tools <em>— tabs: Connections · Skills · Plugins</em></span></div>
+      </div>
+      <div class="card">
+        <h4><span class="cic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-clip"/></svg></span>Files</h4>
+        <ul class="from"><li>Attach Files · rail</li><li>My Files · account</li><li>Manage Files · in-panel</li></ul>
+        <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-arrow"/></svg><span class="to">Files <em>— one list, one “Manage”</em></span></div>
+      </div>
+      <div class="card">
+        <h4><span class="cic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chat"/></svg></span>Conversations</h4>
+        <ul class="from"><li>Chat History · rail</li><li>Archived · account</li><li>Projects · breadcrumb</li></ul>
+        <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-arrow"/></svg><span class="to">Chats <em>— Projects = scope, Archived = toggle</em></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="reveal">
+    <h2>Three supporting fixes</h2>
+    <p class="sec-sub">Smaller moves that come along for the ride.</p>
+    <div class="trio">
+      <div class="mini">
+        <div class="lab">Rename</div>
+        <h4>Brainstorm → Rooms</h4>
+        <p>It already opens shared, multi-user conversations (the list shows member counts). Keep “Brainstorm” as a room template, not the nav label.</p>
+        <div class="change"><span class="old">Brainstorm</span> &nbsp;<span class="new">Rooms</span></div>
+      </div>
+      <div class="mini">
+        <div class="lab">Consistency</div>
+        <h4>One panel header</h4>
+        <p>Every panel invents its own header today. Standardize: <b>title · search · primary “+”</b>, applied to all six.</p>
+        <div class="hdrwire" aria-hidden="true">
+          <div class="top"><span class="ttl">Chats</span><span class="b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-search"/></svg></span><span class="b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-plus"/></svg></span></div>
+          <div class="body"><span class="ln m"></span><span class="ln s"></span><span class="ln m"></span></div>
+        </div>
+      </div>
+      <div class="mini">
+        <div class="lab">Real estate</div>
+        <h4>Builder leaves the rail</h4>
+        <p>A full agent-authoring form doesn’t fit a 200px column. “+ Create” opens in the main content area (or a wide modal); the panel just lists agents.</p>
+        <div class="change"><span class="old">200px panel</span> &nbsp;<span class="new">main area / modal</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="reveal">
+    <h2>Tradeoffs &amp; open questions</h2>
+    <div class="tw">
+      <details open>
+        <summary class="focusable"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chev"/></svg>Should MCP, Skills &amp; Plugins really share one “Tools” home?</summary>
+        <p>This assumes they’re similar enough to co-locate as tabs. If the team sees them as distinct products, keep them separate — but at minimum lift Plugins out of the hidden “⋯” menu onto the rail, so tools aren’t split between visible and buried.</p>
+      </details>
+      <details>
+        <summary class="focusable"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chev"/></svg>Icon rail vs. a full labeled sidebar?</summary>
+        <p>I kept the compact icon rail to preserve the chat’s horizontal space; group labels show when expanded and on hover. If discoverability for a non-technical audience matters more than width, an expandable labeled rail (labels persistent) is the safer default.</p>
+      </details>
+      <details>
+        <summary class="focusable"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-chev"/></svg>Migration order</summary>
+        <p>Low-risk sequence: (1) rename Brainstorm → Rooms and standardize panel headers; (2) group the rail with dividers/labels; (3) consolidate Files and Conversations; (4) merge Agents and Tools (the larger IA change). Each step ships independently.</p>
+      </details>
+    </div>
+  </section>
+
+  <footer>
+    <b>GiesChat · left-nav redesign proposal</b>
+    <span>Derived from dogfood findings NAV-1 – NAV-7</span>
+    <span>Wireframes are indicative, not final visual design</span>
+  </footer>
+
+</div>
+</div>
+</body>
+</html>
