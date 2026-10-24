@@ -10,14 +10,22 @@ const {
 } = require('librechat-data-provider');
 const {
   writeSSE,
+  withModel,
   createRun,
   createChunk,
+  contentText,
   buildToolSet,
   loadSkillStates,
+  lastUserMessage,
+  withoutMcpTools,
   sendFinalChunk,
   createSafeUser,
   validateRequest,
   initializeAgent,
+  saveAgentApiTurn,
+  agentKeyModelList,
+  agentKeyModelEntry,
+  openApiConversation,
   getBalanceConfig,
   injectSkillPrimes,
   extractManualSkills,
@@ -58,6 +66,14 @@ const {
 const { getModelsConfig } = require('~/server/controllers/ModelController');
 const { logViolation } = require('~/cache');
 const db = require('~/models');
+
+/** @type {import('@librechat/api').ApiTurnDeps} */
+const apiTurnDeps = {
+  getConvo: db.getConvo,
+  getMessages: db.getMessages,
+  saveMessage: db.saveMessage,
+  saveConvo: db.saveConvo,
+};
 
 /**
  * Creates a tool loader function for the agent.
@@ -168,8 +184,8 @@ const OpenAIChatCompletionController = async (req, res) => {
   const agentId = request.model;
 
   // Look up the agent
-  const agent = await db.getAgent({ id: agentId });
-  if (!agent) {
+  const storedAgent = await db.getAgent({ id: agentId });
+  if (!storedAgent) {
     return sendErrorResponse(
       res,
       404,
@@ -178,6 +194,9 @@ const OpenAIChatCompletionController = async (req, res) => {
       'model_not_found',
     );
   }
+  const agentKey = req.agentKey;
+  /** Agent keys: the professor's model for this turn, and never MCP. */
+  const agent = agentKey ? withModel(withoutMcpTools(storedAgent), agentKey.model) : storedAgent;
 
   const piiHit = findPiiMatchInMessages(request.messages, appConfig?.messageFilter?.pii);
   if (piiHit != null) {
@@ -215,8 +234,47 @@ const OpenAIChatCompletionController = async (req, res) => {
     }
   });
 
+  /** @type {import('@librechat/api').ApiConversation | null} */
+  let apiConversation = null;
+  let apiUserMessage = null;
+  let apiReplyText = '';
+  /** Saves an agent-key turn, success or failure; never fails the request. */
+  const saveApiTurn = (replyText, extra = {}) =>
+    saveAgentApiTurn(apiTurnDeps, {
+      userId: req.user.id,
+      conversation: apiConversation,
+      agentId,
+      agentName: storedAgent.name ?? '',
+      key: agentKey,
+      model: agent.model,
+      userText: contentText(apiUserMessage.content),
+      replyText,
+      replyMessageId: responseId,
+      ...extra,
+    }).catch((err) => logger.error('[OpenAI API] Error saving API turn:', err));
+
   try {
-    if (request.conversation_id != null) {
+    if (agentKey) {
+      apiUserMessage = lastUserMessage(request.messages);
+      if (!apiUserMessage) {
+        return sendErrorResponse(res, 400, 'messages must include a user message');
+      }
+      apiConversation = await openApiConversation(apiTurnDeps, {
+        userId: req.user.id,
+        keyId: agentKey.id,
+        id: request.conversation_id ?? null,
+      });
+      if (!apiConversation) {
+        return sendErrorResponse(
+          res,
+          404,
+          'Conversation not found for this key',
+          'invalid_request_error',
+          'conversation_not_found',
+        );
+      }
+      res.setHeader('X-GiesChat-Conversation-Id', apiConversation.conversationId);
+    } else if (request.conversation_id != null) {
       if (typeof request.conversation_id !== 'string') {
         return sendErrorResponse(
           res,
@@ -230,7 +288,7 @@ const OpenAIChatCompletionController = async (req, res) => {
       }
     }
 
-    const conversationId = request.conversation_id ?? nanoid();
+    const conversationId = apiConversation?.conversationId ?? request.conversation_id ?? nanoid();
     const parentMessageId = request.parent_message_id ?? null;
 
     const agentsEConfig = appConfig?.endpoints?.[EModelEndpoint.agents];
@@ -422,17 +480,23 @@ const OpenAIChatCompletionController = async (req, res) => {
           ),
         },
         {
-          getAgent: db.getAgent,
+          getAgent: agentKey
+            ? async (query) => {
+                const found = await db.getAgent(query);
+                return found && withoutMcpTools(found);
+              }
+            : db.getAgent,
           // Use `getRemoteAgentPermissions` so sub-agent authorization
           // matches what the route's `createCheckRemoteAgentAccess`
           // middleware does for the primary: AGENT owners with the SHARE
           // bit are treated as remotely authorized even without an
           // explicit REMOTE_AGENT grant.
           checkPermission: async ({ userId, role, resourceId, requiredPermission }) => {
+            /** Agent keys reach the hand-off agents their professor could share, not the student's. */
             const permissions = await getRemoteAgentPermissions(
               { getEffectivePermissions },
-              userId,
-              role,
+              agentKey ? String(storedAgent.author) : userId,
+              agentKey ? undefined : role,
               resourceId,
             );
             return hasPermissions(permissions, requiredPermission);
@@ -521,7 +585,9 @@ const OpenAIChatCompletionController = async (req, res) => {
 
     const summarizationConfig = appConfig?.summarization;
 
-    const openaiMessages = convertMessages(request.messages);
+    const openaiMessages = convertMessages(
+      apiConversation ? [...apiConversation.history, apiUserMessage] : request.messages,
+    );
 
     const toolSet = buildToolSet(primaryConfig);
     const formatted = formatAgentMessages(openaiMessages, {}, toolSet);
@@ -579,6 +645,7 @@ const OpenAIChatCompletionController = async (req, res) => {
       if (!text) {
         return;
       }
+      apiReplyText += text;
       if (isStreaming) {
         tracker.addText();
         writeSSE(res, createChunk(context, { content: text }));
@@ -812,6 +879,11 @@ const OpenAIChatCompletionController = async (req, res) => {
       logger.error('[OpenAI API] Error recording usage:', err);
     });
 
+    if (apiConversation) {
+      /** Before the final chunk: the site's next call must find this turn. */
+      await saveApiTurn(apiReplyText, { model: primaryConfig.model || agent.model });
+    }
+
     // Finalize response
     const duration = Date.now() - requestStartTime;
     if (isStreaming) {
@@ -855,6 +927,9 @@ const OpenAIChatCompletionController = async (req, res) => {
         aggregator.toolCalls,
         usage,
       );
+      if (apiConversation) {
+        response.conversation_id = conversationId;
+      }
       res.json(response);
       logger.debug(
         `[OpenAI API] Response ${responseId} completed in ${duration}ms (non-streaming)`,
@@ -863,6 +938,10 @@ const OpenAIChatCompletionController = async (req, res) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'An error occurred';
     logger.error('[OpenAI API] Error:', error);
+
+    if (apiConversation && apiUserMessage) {
+      await saveApiTurn(errorMessage, { error: true });
+    }
 
     // Check if we already started streaming (headers sent)
     if (res.headersSent) {
@@ -890,6 +969,9 @@ const OpenAIChatCompletionController = async (req, res) => {
  * GET /v1/models
  */
 const ListModelsController = async (req, res) => {
+  if (req.agentKey) {
+    return res.json(agentKeyModelList(req.agentKey));
+  }
   try {
     const userId = req.user?.id;
     const userRole = req.user?.role;
@@ -943,6 +1025,18 @@ const ListModelsController = async (req, res) => {
  * GET /v1/models/:model
  */
 const GetModelController = async (req, res) => {
+  if (req.agentKey) {
+    const entry = agentKeyModelEntry(req.agentKey, req.params.model);
+    return entry
+      ? res.json(entry)
+      : sendErrorResponse(
+          res,
+          404,
+          `Model not found: ${req.params.model}`,
+          'invalid_request_error',
+          'model_not_found',
+        );
+  }
   try {
     const { model } = req.params;
     const userId = req.user?.id;
