@@ -13,20 +13,8 @@ import type * as t from 'librechat-data-provider';
 import type { LocalizeFunction, IconsRecord } from '~/common';
 import { getTimestampedValue } from './timestamps';
 
-/**
- * Still in `librechat.yaml`'s model list so agents pinned to them keep validating,
- * but never offered in a picker. Remove an id here once nothing uses it.
- */
-export const RETIRED_MODELS = new Set([
-  'claude-sonnet-5',
-  'claude-opus-4-8',
-  'gpt-6-sol',
-  'gpt-5.6-terra',
-  'gpt-5.6-luna',
-  'gpt-5.5',
-  'gpt-5.4',
-  'gpt-5.4-mini',
-]);
+/** Shared with the server, which refuses these models on the agent API. */
+export { RETIRED_MODELS } from 'librechat-data-provider';
 
 /**
  * Clears model for non-ephemeral agent conversations.

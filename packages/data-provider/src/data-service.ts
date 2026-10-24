@@ -1313,6 +1313,21 @@ export function revokeAdminAgentEmbed(agentId: string): Promise<q.AdminAgentEmbe
   return request.delete(endpoints.adminAgentEmbed(agentId));
 }
 
+export function getAdminApiKeys(): Promise<q.AdminApiKeysResponse> {
+  return request.get(endpoints.adminApiKeys());
+}
+
+export function createAdminAgentApiKey(
+  agentId: string,
+  params: q.AdminApiKeyCreateParams,
+): Promise<q.AdminApiKeyCreateResponse> {
+  return request.post(endpoints.adminAgentApiKeys(agentId), params);
+}
+
+export function revokeAdminApiKey(keyId: string): Promise<{ deleted: boolean }> {
+  return request.delete(endpoints.adminApiKey(keyId));
+}
+
 export function getAdminAgentDrafts(agentId: string): Promise<q.AdminAgentDraftsResponse> {
   return request.get(endpoints.adminAgentDrafts(agentId));
 }

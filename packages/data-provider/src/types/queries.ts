@@ -230,13 +230,35 @@ export type AdminGroupListResponse = {
   offset: number;
 };
 
-/** Shared filters for the admin usage endpoints; both are optional and unset means unfiltered. */
+/** Shared filters for the admin usage endpoints; all are optional and unset means unfiltered. */
 export type AdminUsageParams = {
   /** Restrict activity to members of this group. */
   groupId?: string;
   /** Only count activity from the last `days` days. */
   days?: number;
+  /** `gieschat`, `embed`, `api`, or one API key's id. Read by the analytics and topics endpoints. */
+  source?: string;
 };
+
+export type AdminAgentApiKey = {
+  id: string;
+  agentId: string;
+  name: string;
+  /** First characters of the key, for recognising it; the key itself is never stored. */
+  keyPrefix: string;
+  /** The site's Entra app (client) id; the key accepts only student ID tokens issued to it. */
+  audience: string;
+  lastUsedAt: string | null;
+  requestCount: number;
+  createdAt: string;
+};
+
+export type AdminApiKeysResponse = { keys: AdminAgentApiKey[] };
+
+export type AdminApiKeyCreateParams = { name: string; audience: string };
+
+/** `key` is the full secret. It is returned here, once, and never again. */
+export type AdminApiKeyCreateResponse = { key: string; apiKey: AdminAgentApiKey };
 
 /** Activity counters common to every admin usage row. */
 export type AdminUsageCounts = {

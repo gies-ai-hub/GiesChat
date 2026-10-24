@@ -510,6 +510,13 @@ export const adminDashboardLayout = () => `${BASE_URL}/api/admin/usage/layout`;
 export const adminAgentEmbed = (agentId: string) =>
   `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/embed`;
 
+export const adminApiKeys = () => `${BASE_URL}/api/admin/usage/api-keys`;
+
+export const adminApiKey = (keyId: string) => `${adminApiKeys()}/${encodeURIComponent(keyId)}`;
+
+export const adminAgentApiKeys = (agentId: string) =>
+  `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/api-keys`;
+
 export const adminAgentCollaborators = (agentId: string) =>
   `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/collaborators`;
 

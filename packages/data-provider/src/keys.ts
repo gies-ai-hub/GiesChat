@@ -99,6 +99,8 @@ export enum QueryKeys {
   adminDashboardLayout = 'adminDashboardLayout',
   /* Drafts of one production agent */
   adminAgentDrafts = 'adminAgentDrafts',
+  /* API keys on the agents the caller authors or co-runs */
+  adminApiKeys = 'adminApiKeys',
 }
 
 // Dynamic query keys that require parameters
@@ -134,6 +136,8 @@ export enum MutationKeys {
   updateMemoryPreferences = 'updateMemoryPreferences',
   updateAdminDashboardLayout = 'updateAdminDashboardLayout',
   updateAdminAgentEmbed = 'updateAdminAgentEmbed',
+  createAdminApiKey = 'createAdminApiKey',
+  revokeAdminApiKey = 'revokeAdminApiKey',
   updateAdminAgentCollaborators = 'updateAdminAgentCollaborators',
   openAdminAgentDraft = 'openAdminAgentDraft',
   runAdminModelTest = 'runAdminModelTest',

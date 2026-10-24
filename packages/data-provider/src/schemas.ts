@@ -1029,6 +1029,8 @@ export const tConversationSchema = z.object({
   assistant_id: z.string().optional(),
   /* agents */
   agent_id: z.string().optional(),
+  /* agent API: the key's name, shown as "via …" in the sidebar */
+  apiKeyName: z.string().optional(),
   /* AWS Bedrock */
   region: z.string().optional(),
   maxTokens: coerceNumber.optional(),

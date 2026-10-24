@@ -62,3 +62,5 @@ export * from './feedback';
 export * from './parameterSettings';
 /* code-execution sandbox */
 export * from './codeEnvRef';
+/* models no longer offered anywhere */
+export * from './retiredModels';
