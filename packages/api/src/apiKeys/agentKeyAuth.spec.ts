@@ -36,7 +36,7 @@ function makeDeps(overrides: Partial<AgentKeyAuthDeps> = {}): AgentKeyAuthDeps {
       .fn()
       .mockResolvedValue({ oid: 'oid-1', email: 'sam@illinois.edu', name: 'Sam' }),
     findUser: jest.fn(async (filter: Record<string, unknown>) =>
-      filter.idOnTheSource === 'oid-1' ? { ...student } : null,
+      filter.idOnTheSource === 'oid-1' ? ({ ...student } as IUser) : null,
     ),
     createUser: jest.fn(async (data: Partial<IUser>) => ({ _id: 'new', ...data }) as IUser),
     grantAgentView: jest.fn().mockResolvedValue(undefined),

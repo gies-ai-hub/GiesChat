@@ -113,8 +113,12 @@ async function findOrCreateStudent(
  * Per-agent keys only. Anything else (no bearer, an unknown key, an upstream per-user key)
  * falls through to upstream auth, which `interface.remoteAgents` keeps switched off.
  */
-export function createAgentKeyAuth(deps: AgentKeyAuthDeps): RequestHandler {
-  return async (req: AgentKeyRequest, res: Response, next: NextFunction) => {
+export function createAgentKeyAuth(deps: AgentKeyAuthDeps) {
+  return async (
+    req: AgentKeyRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<Response | void> => {
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) {
       return next();
@@ -230,8 +234,12 @@ export function resolveAllowedModels(
 /** Runs after `configMiddleware`, which the models config needs. */
 export function createAgentKeyModel(deps: {
   getModelsConfig: (req: Request) => Promise<Record<string, string[] | undefined>>;
-}): RequestHandler {
-  return async (req: AgentKeyRequest, res: Response, next: NextFunction) => {
+}) {
+  return async (
+    req: AgentKeyRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<Response | void> => {
     const agentKey = req.agentKey;
     if (agentKey == null) {
       return next();
