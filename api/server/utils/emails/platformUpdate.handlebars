@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{subject}}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f6f7f9;">
+    <div style="display:none;max-height:0;overflow:hidden;">{{preheader}}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f9;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">
+            <tr>
+              <td style="background:#13294b;padding:22px 32px;font-family:Helvetica,Arial,sans-serif;">
+                <div style="font-size:19px;font-weight:bold;color:#ffffff;">{{appName}}</div>
+                <div style="font-size:13px;color:#c7d2e3;margin-top:2px;">What's new · {{edition}}</div>
+              </td>
+            </tr>
+            <tr><td style="height:4px;background:#ff5f05;font-size:0;line-height:0;">&nbsp;</td></tr>
+            <tr>
+              <td style="padding:26px 32px 6px 32px;font-family:Helvetica,Arial,sans-serif;color:#222222;">
+                <h1 style="margin:0 0 10px 0;font-size:22px;line-height:1.3;color:#13294b;">{{headline}}</h1>
+                <p style="margin:0;font-size:15px;line-height:1.55;">{{intro}}</p>
+              </td>
+            </tr>
+            {{#if clip}}
+            <tr>
+              <td style="padding:14px 32px 4px 32px;font-family:Helvetica,Arial,sans-serif;">
+                <a href="{{clip.mp4Url}}" style="text-decoration:none;">
+                  <img src="{{clip.gifUrl}}" width="536" alt="{{clip.alt}}" style="display:block;width:100%;max-width:536px;height:auto;border:1px solid #e5e7eb;border-radius:8px;" />
+                </a>
+                <p style="margin:8px 0 0 0;font-size:13px;line-height:1.5;color:#555555;">{{clip.caption}} <a href="{{clip.mp4Url}}" style="color:#13294b;font-weight:bold;">Watch the clip</a></p>
+              </td>
+            </tr>
+            {{/if}}
+            <tr>
+              <td style="padding:8px 32px 0 32px;font-family:Helvetica,Arial,sans-serif;color:#222222;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  {{#each changes}}
+                  <tr>
+                    <td style="padding:16px 0 12px 0;{{#unless last}}border-bottom:1px solid #eeeeee;{{/unless}}">
+                      <div style="font-size:16px;font-weight:bold;color:#13294b;">{{number}}. {{title}}{{#if tagged}} <span style="display:inline-block;font-size:11px;font-weight:bold;color:#9a3412;background:#fff3ec;border:1px solid #ffc7a6;border-radius:999px;padding:0 8px;vertical-align:middle;">Faculty</span>{{/if}}</div>
+                      <p style="margin:6px 0 0 0;font-size:14px;line-height:1.55;">{{body}}</p>
+                    </td>
+                  </tr>
+                  {{/each}}
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:12px 32px 28px 32px;font-family:Helvetica,Arial,sans-serif;">
+                <a href="{{appUrl}}" style="display:inline-block;background:#ff5f05;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 20px;border-radius:8px;">Open {{appName}}</a>
+                <a href="{{docsUrl}}" style="display:inline-block;color:#13294b;text-decoration:underline;font-weight:bold;font-size:15px;padding:12px 8px;">Read the docs</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:14px 32px 24px 32px;border-top:1px solid #eeeeee;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#666666;">
+                You are receiving this because you have a {{appName}} account. We only send these for major changes. Sent by {{appName}}, Gies College of Business, University of Illinois Urbana-Champaign.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
