@@ -409,6 +409,15 @@ async function verifyOidcBearer(token: string, oidcConfig: EnabledOidcConfig): P
   return verifyWithSigningKeys(token, await client.getSigningKeys(), oidcConfig);
 }
 
+/** Verifies a bearer JWT from `issuer` (JWKS by discovery, cached) for one `audience`. Throws when invalid. */
+export function verifyIssuerToken(
+  token: string,
+  issuer: string,
+  audience: string,
+): Promise<JwtPayload> {
+  return verifyOidcBearer(token, { enabled: true, issuer, audience } as EnabledOidcConfig);
+}
+
 async function resolveUser(
   token: string,
   payload: JwtPayload,

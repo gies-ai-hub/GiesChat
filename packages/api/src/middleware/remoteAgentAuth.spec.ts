@@ -54,7 +54,11 @@ import jwksRsa from 'jwks-rsa';
 import { SystemRoles } from 'librechat-data-provider';
 import { fetch as undiciFetch } from 'undici';
 import { logger, tenantStorage } from '@librechat/data-schemas';
-import { clearRemoteAgentAuthCache, createRemoteAgentAuth } from './remoteAgentAuth';
+import {
+  verifyIssuerToken,
+  createRemoteAgentAuth,
+  clearRemoteAgentAuthCache,
+} from './remoteAgentAuth';
 import { findOpenIDUser, getOpenIdEmail } from '../auth/openid';
 import { isEnabled, math } from '~/utils';
 import { getEnvProxyDispatcher, getHttpsProxyAgent } from '~/utils/proxy';
@@ -1766,6 +1770,32 @@ describe('createRemoteAgentAuth', () => {
       );
 
       expect(mockNext).toHaveBeenCalled();
+    });
+  });
+});
+
+describe('verifyIssuerToken', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    deleteEnvKeys();
+    clearRemoteAgentAuthCache();
+    mockMath.mockReturnValue(60000);
+    process.env.OPENID_JWKS_URL = 'https://auth.example.com/jwks';
+  });
+
+  afterEach(() => {
+    deleteEnvKeys();
+    clearRemoteAgentAuthCache();
+  });
+
+  it('checks a token against one issuer and one audience', async () => {
+    setupOidcMocks({ sub: 'site-sub', oid: 'oid-1' });
+    await expect(verifyIssuerToken(FAKE_TOKEN, BASE_ISSUER, 'site-app-id')).resolves.toMatchObject({
+      oid: 'oid-1',
+    });
+    expect((jwt.verify as jest.Mock).mock.calls[0][2]).toMatchObject({
+      audience: 'site-app-id',
+      issuer: BASE_ISSUER,
     });
   });
 });
