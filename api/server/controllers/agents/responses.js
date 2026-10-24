@@ -46,6 +46,15 @@ const {
   sendResponsesErrorResponse,
   createResponsesEventHandlers,
   createAggregatorEventHandlers,
+  // Agent API keys
+  withModel,
+  outputText,
+  contentText,
+  lastUserMessage,
+  withoutMcpTools,
+  saveAgentApiTurn,
+  agentKeyModelList,
+  openApiConversation,
 } = require('@librechat/api');
 const {
   createResponsesToolEndCallback,
@@ -72,6 +81,14 @@ const { resolveConfigServers } = require('~/server/services/MCP');
 const { getMCPManager } = require('~/config');
 const { logViolation } = require('~/cache');
 const db = require('~/models');
+
+/** @type {import('@librechat/api').ApiTurnDeps} */
+const apiTurnDeps = {
+  getConvo: db.getConvo,
+  getMessages: db.getMessages,
+  saveMessage: db.saveMessage,
+  saveConvo: db.saveConvo,
+};
 
 /**
  * Creates a tool loader function for the agent.
@@ -305,8 +322,8 @@ const createResponse = async (req, res) => {
   const summarizationConfig = appConfig?.summarization;
 
   // Look up the agent
-  const agent = await db.getAgent({ id: agentId });
-  if (!agent) {
+  const storedAgent = await db.getAgent({ id: agentId });
+  if (!storedAgent) {
     return sendResponsesErrorResponse(
       res,
       404,
@@ -315,6 +332,9 @@ const createResponse = async (req, res) => {
       'model_not_found',
     );
   }
+  const agentKey = req.agentKey;
+  /** Agent keys: the professor's model for this turn, and never MCP. */
+  const agent = agentKey ? withModel(withoutMcpTools(storedAgent), agentKey.model) : storedAgent;
 
   // Generate IDs
   const responseId = generateResponseId();
@@ -335,8 +355,45 @@ const createResponse = async (req, res) => {
     }
   });
 
+  /** @type {import('@librechat/api').ApiConversation | null} */
+  let apiConversation = null;
+  let apiUserMessage = null;
+  /** Saves an agent-key turn, success or failure; never fails the request. */
+  const saveApiTurn = (replyText, extra = {}) =>
+    saveAgentApiTurn(apiTurnDeps, {
+      userId: req.user.id,
+      conversation: apiConversation,
+      agentId,
+      agentName: storedAgent.name ?? '',
+      key: agentKey,
+      model: agent.model,
+      userText: contentText(apiUserMessage.content),
+      replyText,
+      replyMessageId: responseId,
+      ...extra,
+    }).catch((err) => logger.error('[Responses API] Error saving API turn:', err));
+
   try {
-    if (request.previous_response_id != null) {
+    if (agentKey) {
+      apiUserMessage = lastUserMessage(convertToInternalMessages(request.input));
+      if (!apiUserMessage) {
+        return sendResponsesErrorResponse(res, 400, 'input must include a user message');
+      }
+      apiConversation = await openApiConversation(apiTurnDeps, {
+        userId: req.user.id,
+        keyId: agentKey.id,
+        id: request.previous_response_id ?? null,
+      });
+      if (!apiConversation) {
+        return sendResponsesErrorResponse(
+          res,
+          404,
+          'Conversation not found for this key',
+          'not_found',
+          'conversation_not_found',
+        );
+      }
+    } else if (request.previous_response_id != null) {
       if (typeof request.previous_response_id !== 'string') {
         return sendResponsesErrorResponse(
           res,
@@ -350,7 +407,8 @@ const createResponse = async (req, res) => {
       }
     }
 
-    const conversationId = request.previous_response_id ?? uuidv4();
+    const conversationId =
+      apiConversation?.conversationId ?? request.previous_response_id ?? uuidv4();
     const parentMessageId = null;
 
     // Build allowed providers set
@@ -546,17 +604,23 @@ const createResponse = async (req, res) => {
           ),
         },
         {
-          getAgent: db.getAgent,
+          getAgent: agentKey
+            ? async (query) => {
+                const found = await db.getAgent(query);
+                return found && withoutMcpTools(found);
+              }
+            : db.getAgent,
           // Use `getRemoteAgentPermissions` so sub-agent authorization
           // matches what the route's `createCheckRemoteAgentAccess`
           // middleware does for the primary: AGENT owners with the SHARE
           // bit are treated as remotely authorized even without an
           // explicit REMOTE_AGENT grant.
           checkPermission: async ({ userId, role, resourceId, requiredPermission }) => {
+            /** Agent keys reach the hand-off agents their professor could share, not the student's. */
             const permissions = await getRemoteAgentPermissions(
               { getEffectivePermissions },
-              userId,
-              role,
+              agentKey ? String(storedAgent.author) : userId,
+              agentKey ? undefined : role,
               resourceId,
             );
             return hasPermissions(permissions, requiredPermission);
@@ -604,15 +668,17 @@ const createResponse = async (req, res) => {
 
     // Load previous messages if previous_response_id is provided
     let previousMessages = [];
-    if (request.previous_response_id) {
+    if (apiConversation) {
+      previousMessages = apiConversation.history;
+    } else if (request.previous_response_id) {
       const userId = req.user?.id ?? 'api-user';
       previousMessages = await loadPreviousMessages(request.previous_response_id, userId);
     }
 
     // Convert input to internal messages
-    const inputMessages = convertToInternalMessages(
-      typeof request.input === 'string' ? request.input : request.input,
-    );
+    const inputMessages = apiConversation
+      ? [apiUserMessage]
+      : convertToInternalMessages(typeof request.input === 'string' ? request.input : request.input);
 
     const piiHit = findPiiMatchInMessages(inputMessages, appConfig?.messageFilter?.pii);
     if (piiHit != null) {
@@ -847,6 +913,11 @@ const createResponse = async (req, res) => {
         logger.error('[Responses API] Error recording usage:', err);
       });
 
+      if (apiConversation) {
+        /** Before the stream ends: the site's next call must find this turn. */
+        await saveApiTurn(outputText(buildResponse(context, tracker, 'completed')));
+      }
+
       // Finalize the stream
       finalizeStream();
       res.end();
@@ -855,7 +926,7 @@ const createResponse = async (req, res) => {
       logger.debug(`[Responses API] Request ${responseId} completed in ${duration}ms (streaming)`);
 
       // Save to database if store: true
-      if (request.store === true) {
+      if (!apiConversation && request.store === true) {
         try {
           // Save conversation
           await saveConversation(req, conversationId, agentId, agent);
@@ -1035,7 +1106,9 @@ const createResponse = async (req, res) => {
 
       const response = buildAggregatedResponse(context, aggregator);
 
-      if (request.store === true) {
+      if (apiConversation) {
+        await saveApiTurn(outputText(response));
+      } else if (request.store === true) {
         try {
           await saveConversation(req, conversationId, agentId, agent);
 
@@ -1063,6 +1136,10 @@ const createResponse = async (req, res) => {
     const errorMessage = error instanceof Error ? error.message : 'An error occurred';
     logger.error('[Responses API] Error:', error);
 
+    if (apiConversation && apiUserMessage) {
+      await saveApiTurn(errorMessage, { error: true });
+    }
+
     // Check if we already started streaming (headers sent)
     if (res.headersSent) {
       // Headers already sent, write error event and close
@@ -1089,6 +1166,9 @@ const createResponse = async (req, res) => {
  * @param {import('express').Response} res
  */
 const listModels = async (req, res) => {
+  if (req.agentKey) {
+    return res.json(agentKeyModelList(req.agentKey));
+  }
   try {
     const userId = req.user?.id;
     const userRole = req.user?.role;
@@ -1149,6 +1229,25 @@ const listModels = async (req, res) => {
  */
 const getResponse = async (req, res) => {
   try {
+    if (req.agentKey) {
+      /** Agent keys read back only what they started, never the student's own chats. */
+      const scoped = await openApiConversation(apiTurnDeps, {
+        userId: req.user.id,
+        keyId: req.agentKey.id,
+        id: req.params.id,
+      });
+      if (!scoped) {
+        return sendResponsesErrorResponse(
+          res,
+          404,
+          `Response not found: ${req.params.id}`,
+          'not_found',
+          'response_not_found',
+        );
+      }
+      req.params.id = scoped.conversationId;
+    }
+
     const responseId = req.params.id;
     const userId = req.user?.id;
 
