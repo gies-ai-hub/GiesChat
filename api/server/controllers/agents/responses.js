@@ -52,6 +52,7 @@ const {
   contentText,
   lastUserMessage,
   withoutMcpTools,
+  withoutMcpToolNames,
   saveAgentApiTurn,
   agentKeyModelList,
   openApiConversation,
@@ -107,7 +108,9 @@ function createToolLoader(signal, definitionsOnly = true) {
     tool_options,
     tool_resources,
   }) {
-    const agent = { id: agentId, tools, provider, model, tool_options };
+    /** Agent keys: also drops MCP tools a skill's `allowed-tools` adds after `withoutMcpTools`. */
+    const loadable = req.agentKey ? withoutMcpToolNames(tools ?? []) : tools;
+    const agent = { id: agentId, tools: loadable, provider, model, tool_options };
     try {
       return await loadAgentTools({
         req,
@@ -761,8 +764,11 @@ const createResponse = async (req, res) => {
       emitResponseInProgress(handlerConfig);
 
       // Create event handlers
-      const { handlers: responsesHandlers, finalizeStream } =
-        createResponsesEventHandlers(handlerConfig);
+      const {
+        handlers: responsesHandlers,
+        closeOpenStreams,
+        finalizeStream,
+      } = createResponsesEventHandlers(handlerConfig);
 
       // Collect usage for balance tracking
       const collectedUsage = [];
@@ -786,7 +792,7 @@ const createResponse = async (req, res) => {
           const result = await loadToolsForExecution({
             req,
             res,
-            toolNames,
+            toolNames: agentKey ? withoutMcpToolNames(toolNames) : toolNames,
             agent: ctx.agent ?? agent,
             signal: abortController.signal,
             toolRegistry: ctx.toolRegistry,
@@ -916,7 +922,11 @@ const createResponse = async (req, res) => {
       });
 
       if (apiConversation) {
-        /** Before the stream ends: the site's next call must find this turn. */
+        /**
+         * Before the stream ends, so the site's next call finds this turn. Closing first
+         * writes the streamed text into the response; `finalizeStream` then skips it.
+         */
+        closeOpenStreams();
         await saveApiTurn(outputText(buildResponse(context, tracker, 'completed')));
       }
 
@@ -972,7 +982,7 @@ const createResponse = async (req, res) => {
           const result = await loadToolsForExecution({
             req,
             res,
-            toolNames,
+            toolNames: agentKey ? withoutMcpToolNames(toolNames) : toolNames,
             agent: ctx.agent ?? agent,
             signal: abortController.signal,
             toolRegistry: ctx.toolRegistry,

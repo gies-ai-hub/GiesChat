@@ -1,6 +1,7 @@
 const {
   Permissions,
   ResourceType,
+  PermissionBits,
   PrincipalType,
   AccessRoleIds,
   PermissionTypes,
@@ -17,7 +18,11 @@ const {
   createRemoteAgentAuth,
   createCheckRemoteAgentAccess,
 } = require('@librechat/api');
-const { grantPermission, getEffectivePermissions } = require('~/server/services/PermissionService');
+const {
+  checkPermission,
+  grantPermission,
+  getEffectivePermissions,
+} = require('~/server/services/PermissionService');
 const { getModelsConfig } = require('~/server/controllers/ModelController');
 const { getAppConfig } = require('~/server/services/Config');
 const db = require('~/models');
@@ -57,6 +62,14 @@ const agentKeyAuth = createAgentKeyAuth({
     verifyIssuerToken(token, process.env.OPENID_ISSUER ?? '', audience),
   findUser: db.findUser,
   createUser: (data) => db.createUser(data, undefined, true, true),
+  canViewAgent: ({ userId, role, agentDbId }) =>
+    checkPermission({
+      userId,
+      role,
+      resourceType: ResourceType.AGENT,
+      resourceId: agentDbId,
+      requiredPermission: PermissionBits.VIEW,
+    }),
   grantAgentView: ({ userId, agentDbId, grantedBy }) =>
     grantPermission({
       principalType: PrincipalType.USER,

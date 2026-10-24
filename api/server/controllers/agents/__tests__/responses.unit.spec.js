@@ -188,6 +188,7 @@ jest.mock('@librechat/api', () => ({
   contentText: jest.fn((content) => (typeof content === 'string' ? content : '')),
   outputText: jest.fn(() => 'Reply text'),
   withoutMcpTools: jest.fn((agent) => ({ ...agent, mcpStripped: true })),
+  withoutMcpToolNames: jest.fn((names) => names.filter((name) => !name.includes('_mcp_'))),
   withModel: jest.fn((agent, override) => (override ? { ...agent, model: override.model } : agent)),
   agentKeyModelList: jest.fn(() => ({ object: 'list', data: [{ id: 'gpt-6-luna' }] })),
 }));
@@ -822,15 +823,45 @@ describe('createResponse controller', () => {
     it('saves a streamed turn before the stream finishes', async () => {
       const api = require('@librechat/api');
       const order = [];
+      /** mockReset drops once-values earlier tests may have left queued; they beat mockReturnValue. */
+      api.validateResponseRequest.mockReset();
       api.validateResponseRequest.mockReturnValue({
         request: { model: 'agent-123', input: 'Hello', stream: true },
+      });
+      api.createResponsesEventHandlers.mockReset();
+      api.createResponsesEventHandlers.mockReturnValue({
+        handlers: {
+          on_message_delta: { handle: jest.fn() },
+          on_reasoning_delta: { handle: jest.fn() },
+          on_run_step: { handle: jest.fn() },
+          on_run_step_delta: { handle: jest.fn() },
+          on_chat_model_end: { handle: jest.fn() },
+        },
+        closeOpenStreams: jest.fn(() => order.push('close')),
+        finalizeStream: jest.fn(() => order.push('finalize')),
       });
       res.end.mockImplementation(() => order.push('end'));
       mockSaveAgentApiTurn.mockImplementationOnce(async () => order.push('save'));
 
       await createResponse(req, res);
 
-      expect(order).toEqual(['save', 'end']);
+      /** Closing writes the streamed text into the response the save reads. */
+      expect(order).toEqual(['close', 'save', 'finalize', 'end']);
+    });
+
+    it('never loads MCP tools, including ones a skill adds', async () => {
+      const { initializeAgent, createToolExecuteHandler } = require('@librechat/api');
+      const { loadAgentTools, loadToolsForExecution } = require('~/server/services/ToolService');
+
+      await createResponse(req, res);
+
+      const { loadTools } = initializeAgent.mock.calls[0][0];
+      await loadTools({ req, res, tools: ['web_search', 'mail_mcp_ms365-outlook'] });
+      expect(loadAgentTools.mock.calls.at(-1)[0].agent.tools).toEqual(['web_search']);
+
+      const toolExecuteOptions = createToolExecuteHandler.mock.calls.at(-1)[0];
+      await toolExecuteOptions.loadTools(['grades_mcp_canvas', 'read_file'], 'agent-123');
+      expect(loadToolsForExecution.mock.calls.at(-1)[0].toolNames).toEqual(['read_file']);
     });
 
     it('saves a failed turn so the dashboard counts the error', async () => {

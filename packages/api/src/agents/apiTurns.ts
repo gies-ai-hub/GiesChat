@@ -112,6 +112,10 @@ export async function openApiConversation(
       parentMessageId: NO_PARENT,
     };
   }
+  /** Request bodies are JSON: an array or object here would reach Mongo as `$in`/an operator. */
+  if (typeof id !== 'string') {
+    return null;
+  }
   const [response] = await deps.getMessages({ user: userId, messageId: id }, 'conversationId');
   const conversationId = response?.conversationId ?? id;
   const convo = await deps.getConvo(userId, conversationId);
@@ -147,11 +151,12 @@ export function lastUserMessage<T extends { role?: unknown }>(messages: T[]): T 
 }
 
 /** Agent-key calls never connect MCP servers: several run on the student's own accounts. */
+export function withoutMcpToolNames(names: string[]): string[] {
+  return names.filter((name) => !name.includes(Constants.mcp_delimiter));
+}
+
 export function withoutMcpTools<T extends { tools?: string[] }>(agent: T): T {
-  return {
-    ...agent,
-    tools: (agent.tools ?? []).filter((tool) => !tool.includes(Constants.mcp_delimiter)),
-  };
+  return { ...agent, tools: withoutMcpToolNames(agent.tools ?? []) };
 }
 
 /** Runs the agent on `override` for this turn. A provider switch drops provider-specific settings. */

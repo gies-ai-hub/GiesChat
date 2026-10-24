@@ -57,7 +57,12 @@ export interface AgentKeyAuthDeps {
   verifyUserToken: (token: string, audience: string) => Promise<JwtPayload>;
   findUser: (filter: Record<string, unknown>) => Promise<IUser | null>;
   createUser: (data: Partial<IUser>) => Promise<IUser>;
-  /** Idempotent AGENT_VIEWER grant, as /embed gives its guests: lets the student open the chat. */
+  /** Whether the user can already open the agent, through any grant (owner, co-admin, class share). */
+  canViewAgent: (params: { userId: string; role?: string; agentDbId: unknown }) => Promise<boolean>;
+  /**
+   * AGENT_VIEWER grant, as /embed gives its guests: lets the student open the chat. It is an
+   * upsert that replaces the user's bits, so it runs only when `canViewAgent` says no.
+   */
   grantAgentView: (params: {
     userId: string;
     agentDbId: unknown;
@@ -81,6 +86,17 @@ const isDuplicateKey = (error: unknown): boolean =>
   (error as { code?: number } | null)?.code === 11000;
 
 /**
+ * An email match is the same person only on an SSO account not tied to another directory
+ * object. A password account that registered the address could belong to anyone.
+ */
+const sameStudent = (user: IUser | null, oid: string): IUser | null =>
+  user != null &&
+  user.provider === 'openid' &&
+  (user.idOnTheSource == null || user.idOnTheSource === oid)
+    ? user
+    : null;
+
+/**
  * Matches by `oid`, the directory object id, which is the same for every Entra app; `sub`
  * differs per app, so it can never link a site's token to the GiesChat account.
  */
@@ -99,8 +115,7 @@ async function findOrCreateStudent(
   }
   const byEmail = await deps.findUser({ email });
   if (byEmail != null) {
-    /** Same address on a different directory object is a different person: never merge. */
-    return byEmail.idOnTheSource != null && byEmail.idOnTheSource !== oid ? null : byEmail;
+    return sameStudent(byEmail, oid);
   }
   try {
     /** No `openidId`: it is per app, so the student's first real sign-in fills in GiesChat's own. */
@@ -116,7 +131,7 @@ async function findOrCreateStudent(
     });
   } catch (error) {
     if (isDuplicateKey(error)) {
-      return deps.findUser({ email });
+      return sameStudent(await deps.findUser({ email }), oid);
     }
     throw error;
   }
@@ -192,16 +207,24 @@ export function createAgentKeyAuth(deps: AgentKeyAuthDeps): AgentKeyMiddleware {
         );
       }
       const userId = String(user._id);
-      await deps.grantAgentView({
-        userId,
-        agentDbId: agent._id,
-        grantedBy: String(agent.author ?? userId),
-      });
+      if (!(await deps.canViewAgent({ userId, role: user.role, agentDbId: agent._id }))) {
+        await deps.grantAgentView({
+          userId,
+          agentDbId: agent._id,
+          grantedBy: String(agent.author ?? userId),
+        });
+      }
 
       user.id = userId;
       req.user = user as IUser & { id: string };
-      /** The controllers keep reading the agent id from `model`; the override travels separately. */
-      req.body = { ...body, model: key.agentId };
+      /**
+       * The controllers keep reading the agent id from `model`; the override travels
+       * separately. `manualSkills` and `ephemeralAgent` would let a site prime the student's
+       * own skills (and their tools) into the turn, so they never pass through.
+       */
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { manualSkills, ephemeralAgent, ...callerBody } = body;
+      req.body = { ...callerBody, model: key.agentId };
       req.agentKey = {
         id: String(key.keyId),
         name: key.name,

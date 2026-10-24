@@ -7,6 +7,7 @@ import {
   contentText,
   outputText,
   withoutMcpTools,
+  withoutMcpToolNames,
   withModel,
 } from './apiTurns';
 
@@ -93,6 +94,13 @@ describe('openApiConversation', () => {
       id: 'resp_1',
     });
     expect(result?.conversationId).toBe('c1');
+  });
+
+  it('refuses an id that is not a string, which Mongo would read as an operator', async () => {
+    const deps = makeDeps(convos, messages);
+    const id = ['c1', 'plain'] as unknown as string;
+    expect(await openApiConversation(deps, { userId: 'u1', keyId: 'k1', id })).toBeNull();
+    expect(deps.getMessages).not.toHaveBeenCalled();
   });
 
   it.each([['plain'], ['c2'], ['missing']])('never opens %s for this key', async (id) => {
@@ -193,6 +201,13 @@ describe('turn helpers', () => {
         output: [{ type: 'message', content: [{ type: 'output_text', text: 'done' }] }],
       }),
     ).toBe('done');
+  });
+
+  it('strips MCP names from any tool list', () => {
+    expect(withoutMcpToolNames(['web_search', 'grades_mcp_canvas', 'read_file'])).toEqual([
+      'web_search',
+      'read_file',
+    ]);
   });
 
   it('strips MCP tools only', () => {

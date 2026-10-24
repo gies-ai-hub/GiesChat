@@ -149,6 +149,7 @@ jest.mock('@librechat/api', () => ({
   ),
   contentText: jest.fn((content) => (typeof content === 'string' ? content : '')),
   withoutMcpTools: jest.fn((agent) => ({ ...agent, mcpStripped: true })),
+  withoutMcpToolNames: jest.fn((names) => names.filter((name) => !name.includes('_mcp_'))),
   withModel: jest.fn((agent, override) => (override ? { ...agent, model: override.model } : agent)),
   agentKeyModelList: jest.fn(() => ({ object: 'list', data: [{ id: 'gpt-6-luna' }] })),
   agentKeyModelEntry: jest.fn(() => null),
@@ -626,6 +627,21 @@ describe('OpenAIChatCompletionController', () => {
         mcpStripped: true,
         model: 'gpt-6.1-sol',
       });
+    });
+
+    it('never loads MCP tools, including ones a skill adds', async () => {
+      const { initializeAgent, createToolExecuteHandler } = require('@librechat/api');
+      const { loadAgentTools, loadToolsForExecution } = require('~/server/services/ToolService');
+
+      await OpenAIChatCompletionController(req, res);
+
+      const { loadTools } = initializeAgent.mock.calls[0][0];
+      await loadTools({ req, res, tools: ['web_search', 'mail_mcp_ms365-outlook'] });
+      expect(loadAgentTools.mock.calls.at(-1)[0].agent.tools).toEqual(['web_search']);
+
+      const toolExecuteOptions = createToolExecuteHandler.mock.calls.at(-1)[0];
+      await toolExecuteOptions.loadTools(['grades_mcp_canvas', 'read_file'], 'agent-123');
+      expect(loadToolsForExecution.mock.calls.at(-1)[0].toolNames).toEqual(['read_file']);
     });
 
     it('saves a failed turn so the dashboard counts the error', async () => {

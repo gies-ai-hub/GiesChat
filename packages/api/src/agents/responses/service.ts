@@ -335,6 +335,8 @@ interface StreamState {
 export function createResponsesEventHandlers(config: StreamHandlerConfig): {
   handlers: Record<string, { handle: (event: string, data: unknown) => void }>;
   state: StreamState;
+  /** Writes each open part's final text into the tracker; `finalizeStream` calls it too (idempotent). */
+  closeOpenStreams: () => void;
   finalizeStream: () => void;
 } {
   const state: StreamState = {
@@ -586,7 +588,7 @@ export function createResponsesEventHandlers(config: StreamHandlerConfig): {
     writeDone(config.res);
   };
 
-  return { handlers, state, finalizeStream };
+  return { handlers, state, closeOpenStreams, finalizeStream };
 }
 
 /* =============================================================================

@@ -39,6 +39,7 @@ function makeDeps(overrides: Partial<AgentKeyAuthDeps> = {}): AgentKeyAuthDeps {
       filter.idOnTheSource === 'oid-1' ? ({ ...student } as IUser) : null,
     ),
     createUser: jest.fn(async (data: Partial<IUser>) => ({ _id: 'new', ...data }) as IUser),
+    canViewAgent: jest.fn().mockResolvedValue(false),
     grantAgentView: jest.fn().mockResolvedValue(undefined),
     openidIssuer: 'https://login.microsoftonline.com/tenant/v2.0',
     ...overrides,
@@ -111,6 +112,30 @@ describe('createAgentKeyAuth', () => {
     });
   });
 
+  it('never rewrites the grant of someone who can already open the agent', async () => {
+    /** The professor testing their own site: an upsert to VIEW would demote their OWNER entry. */
+    const deps = makeDeps({ canViewAgent: jest.fn().mockResolvedValue(true) });
+    const next = jest.fn();
+    await createAgentKeyAuth(deps)(makeReq(), makeRes(), next);
+    expect(next).toHaveBeenCalled();
+    expect(deps.canViewAgent).toHaveBeenCalledWith({
+      userId: 'u1',
+      role: undefined,
+      agentDbId: 'db-a',
+    });
+    expect(deps.grantAgentView).not.toHaveBeenCalled();
+  });
+
+  it('drops caller fields that would prime skills or reconfigure the agent', async () => {
+    const req = makeReq({
+      input: 'hi',
+      manualSkills: ['read-my-mail'],
+      ephemeralAgent: { skills: true, mcp: ['ms365-outlook'] },
+    });
+    await createAgentKeyAuth(makeDeps())(req, makeRes(), jest.fn());
+    expect(req.body).toEqual({ input: 'hi', model: 'agent_a' });
+  });
+
   it("treats the key agent id in `model` as the agent's own model", async () => {
     const req = makeReq({ model: 'agent_a' });
     await createAgentKeyAuth(makeDeps())(req, makeRes(), jest.fn());
@@ -179,11 +204,43 @@ describe('createAgentKeyAuth', () => {
     expect(deps.createUser).not.toHaveBeenCalled();
   });
 
+  it('never attaches a student to a password account that registered their address', async () => {
+    const deps = makeDeps({
+      findUser: jest.fn(async (filter: Record<string, unknown>) =>
+        filter.email ? ({ _id: 'squatter', provider: 'local' } as unknown as IUser) : null,
+      ),
+    });
+    const res = makeRes();
+    await createAgentKeyAuth(deps)(makeReq(), res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(deps.createUser).not.toHaveBeenCalled();
+  });
+
+  it('applies the same rule when a racing create finds the address taken', async () => {
+    let created = false;
+    const deps = makeDeps({
+      findUser: jest.fn(async (filter: Record<string, unknown>) =>
+        created && filter.email
+          ? ({ _id: 'squatter', provider: 'local' } as unknown as IUser)
+          : null,
+      ),
+      createUser: jest.fn(async () => {
+        created = true;
+        throw Object.assign(new Error('E11000 duplicate key'), { code: 11000 });
+      }),
+    });
+    const res = makeRes();
+    await createAgentKeyAuth(deps)(makeReq(), res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
   it('survives two first requests racing to create the same student', async () => {
     let created = false;
     const deps = makeDeps({
       findUser: jest.fn(async (filter: Record<string, unknown>) =>
-        created && filter.email ? ({ _id: 'raced' } as unknown as IUser) : null,
+        created && filter.email
+          ? ({ _id: 'raced', provider: 'openid', idOnTheSource: 'oid-1' } as unknown as IUser)
+          : null,
       ),
       createUser: jest.fn(async () => {
         created = true;

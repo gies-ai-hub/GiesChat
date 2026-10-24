@@ -18,6 +18,7 @@ const {
   loadSkillStates,
   lastUserMessage,
   withoutMcpTools,
+  withoutMcpToolNames,
   sendFinalChunk,
   createSafeUser,
   validateRequest,
@@ -92,7 +93,9 @@ function createToolLoader(signal, definitionsOnly = true) {
     tool_options,
     tool_resources,
   }) {
-    const agent = { id: agentId, tools, provider, model, tool_options };
+    /** Agent keys: also drops MCP tools a skill's `allowed-tools` adds after `withoutMcpTools`. */
+    const loadable = req.agentKey ? withoutMcpToolNames(tools ?? []) : tools;
+    const agent = { id: agentId, tools: loadable, provider, model, tool_options };
     try {
       return await loadAgentTools({
         req,
@@ -562,7 +565,7 @@ const OpenAIChatCompletionController = async (req, res) => {
         const result = await loadToolsForExecution({
           req,
           res,
-          toolNames,
+          toolNames: agentKey ? withoutMcpToolNames(toolNames) : toolNames,
           agent: ctx.agent ?? agent,
           signal: abortController.signal,
           toolRegistry: ctx.toolRegistry,
