@@ -10,6 +10,9 @@ export interface IAgentApiKey extends Document {
   createdAt: Date;
   updatedAt: Date;
   tenantId?: string;
+  agentId?: string;
+  audience?: string;
+  requestCount?: number;
 }
 
 const agentApiKeySchema: Schema<IAgentApiKey> = new Schema(
@@ -46,6 +49,19 @@ const agentApiKeySchema: Schema<IAgentApiKey> = new Schema(
     tenantId: {
       type: String,
       index: true,
+    },
+    /** Set on per-agent keys made in the dashboard; absent on upstream per-user keys. */
+    agentId: {
+      type: String,
+      index: true,
+    },
+    /** The site's Entra app (client) id; the key accepts only student ID tokens issued to it. */
+    audience: {
+      type: String,
+    },
+    requestCount: {
+      type: Number,
+      default: 0,
     },
   },
   { timestamps: true },

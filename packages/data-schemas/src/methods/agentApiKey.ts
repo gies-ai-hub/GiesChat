@@ -2,6 +2,7 @@ import type { Types } from 'mongoose';
 import type {
   AgentApiKeyCreateResult,
   AgentApiKeyCreateData,
+  AgentApiKeyValidation,
   AgentApiKeyListItem,
   IAgentApiKey,
 } from '~/types';
@@ -11,11 +12,26 @@ import logger from '~/config/winston';
 const API_KEY_PREFIX = 'sk-';
 const API_KEY_LENGTH = 32;
 
+/** Upstream's per-user reads must never see a dashboard agent's keys. */
+const PER_USER = { agentId: { $exists: false } };
+
+function toListItem(key: IAgentApiKey): AgentApiKeyListItem {
+  return {
+    id: (key._id as Types.ObjectId).toString(),
+    name: key.name,
+    keyPrefix: key.keyPrefix,
+    lastUsedAt: key.lastUsedAt,
+    expiresAt: key.expiresAt,
+    createdAt: key.createdAt,
+    agentId: key.agentId,
+    audience: key.audience,
+    requestCount: key.requestCount ?? 0,
+  };
+}
+
 export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
   createAgentApiKey: (data: AgentApiKeyCreateData) => Promise<AgentApiKeyCreateResult>;
-  validateAgentApiKey: (
-    apiKey: string,
-  ) => Promise<{ userId: Types.ObjectId; keyId: Types.ObjectId } | null>;
+  validateAgentApiKey: (apiKey: string) => Promise<AgentApiKeyValidation | null>;
   listAgentApiKeys: (userId: string | Types.ObjectId) => Promise<AgentApiKeyListItem[]>;
   deleteAgentApiKey: (
     keyId: string | Types.ObjectId,
@@ -26,6 +42,8 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
     keyId: string | Types.ObjectId,
     userId: string | Types.ObjectId,
   ) => Promise<AgentApiKeyListItem | null>;
+  listAgentApiKeysForAgents: (agentIds: string[]) => Promise<AgentApiKeyListItem[]>;
+  deleteAgentApiKeyForAgents: (keyId: string, agentIds: string[]) => Promise<boolean>;
 } {
   async function generateApiKey(): Promise<{ key: string; keyHash: string; keyPrefix: string }> {
     const randomPart = await getRandomValues(API_KEY_LENGTH);
@@ -46,6 +64,8 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
         keyHash,
         keyPrefix,
         expiresAt: data.expiresAt || undefined,
+        agentId: data.agentId,
+        audience: data.audience,
       });
 
       return {
@@ -55,6 +75,8 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
         key,
         createdAt: apiKeyDoc.createdAt,
         expiresAt: apiKeyDoc.expiresAt,
+        agentId: apiKeyDoc.agentId,
+        audience: apiKeyDoc.audience,
       };
     } catch (error) {
       logger.error('[createAgentApiKey] Error creating API key:', error);
@@ -62,9 +84,7 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
     }
   }
 
-  async function validateAgentApiKey(
-    apiKey: string,
-  ): Promise<{ userId: Types.ObjectId; keyId: Types.ObjectId } | null> {
+  async function validateAgentApiKey(apiKey: string): Promise<AgentApiKeyValidation | null> {
     try {
       const AgentApiKey = mongoose.models.AgentApiKey;
       const keyHash = await hashToken(apiKey);
@@ -79,11 +99,17 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
         return null;
       }
 
-      await AgentApiKey.updateOne({ _id: keyDoc._id }, { $set: { lastUsedAt: new Date() } });
+      await AgentApiKey.updateOne(
+        { _id: keyDoc._id },
+        { $set: { lastUsedAt: new Date() }, $inc: { requestCount: 1 } },
+      );
 
       return {
         userId: keyDoc.userId,
         keyId: keyDoc._id as Types.ObjectId,
+        name: keyDoc.name,
+        agentId: keyDoc.agentId,
+        audience: keyDoc.audience,
       };
     } catch (error) {
       logger.error('[validateAgentApiKey] Error validating API key:', error);
@@ -94,18 +120,11 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
   async function listAgentApiKeys(userId: string | Types.ObjectId): Promise<AgentApiKeyListItem[]> {
     try {
       const AgentApiKey = mongoose.models.AgentApiKey;
-      const keys = (await AgentApiKey.find({ userId })
+      const keys = (await AgentApiKey.find({ userId, ...PER_USER })
         .sort({ createdAt: -1 })
         .lean()) as unknown as IAgentApiKey[];
 
-      return keys.map((key) => ({
-        id: (key._id as Types.ObjectId).toString(),
-        name: key.name,
-        keyPrefix: key.keyPrefix,
-        lastUsedAt: key.lastUsedAt,
-        expiresAt: key.expiresAt,
-        createdAt: key.createdAt,
-      }));
+      return keys.map(toListItem);
     } catch (error) {
       logger.error('[listAgentApiKeys] Error listing API keys:', error);
       throw error;
@@ -118,7 +137,7 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
   ): Promise<boolean> {
     try {
       const AgentApiKey = mongoose.models.AgentApiKey;
-      const result = await AgentApiKey.deleteOne({ _id: keyId, userId });
+      const result = await AgentApiKey.deleteOne({ _id: keyId, userId, ...PER_USER });
       return result.deletedCount > 0;
     } catch (error) {
       logger.error('[deleteAgentApiKey] Error deleting API key:', error);
@@ -146,24 +165,32 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
       const keyDoc = (await AgentApiKey.findOne({
         _id: keyId,
         userId,
+        ...PER_USER,
       }).lean()) as IAgentApiKey | null;
 
-      if (!keyDoc) {
-        return null;
-      }
-
-      return {
-        id: (keyDoc._id as Types.ObjectId).toString(),
-        name: keyDoc.name,
-        keyPrefix: keyDoc.keyPrefix,
-        lastUsedAt: keyDoc.lastUsedAt,
-        expiresAt: keyDoc.expiresAt,
-        createdAt: keyDoc.createdAt,
-      };
+      return keyDoc ? toListItem(keyDoc) : null;
     } catch (error) {
       logger.error('[getAgentApiKeyById] Error getting API key:', error);
       throw error;
     }
+  }
+
+  async function listAgentApiKeysForAgents(agentIds: string[]): Promise<AgentApiKeyListItem[]> {
+    if (agentIds.length === 0) {
+      return [];
+    }
+    const AgentApiKey = mongoose.models.AgentApiKey;
+    const keys = (await AgentApiKey.find({ agentId: { $in: agentIds } })
+      .sort({ createdAt: -1 })
+      .lean()) as unknown as IAgentApiKey[];
+    return keys.map(toListItem);
+  }
+
+  /** `keyId` must already be a valid ObjectId string; the caller checks. */
+  async function deleteAgentApiKeyForAgents(keyId: string, agentIds: string[]): Promise<boolean> {
+    const AgentApiKey = mongoose.models.AgentApiKey;
+    const result = await AgentApiKey.deleteOne({ _id: keyId, agentId: { $in: agentIds } });
+    return result.deletedCount > 0;
   }
 
   return {
@@ -173,6 +200,8 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
     deleteAgentApiKey,
     deleteAllAgentApiKeys,
     getAgentApiKeyById,
+    listAgentApiKeysForAgents,
+    deleteAgentApiKeyForAgents,
   };
 }
 

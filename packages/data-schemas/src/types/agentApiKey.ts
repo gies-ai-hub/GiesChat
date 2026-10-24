@@ -1,6 +1,13 @@
 import { Document, Types } from 'mongoose';
 
-export interface IAgentApiKey extends Document {
+/** Present on per-agent keys made in the dashboard; absent on upstream per-user keys. */
+interface AgentKeyScope {
+  agentId?: string;
+  /** The site's Entra app (client) id; the key accepts only student ID tokens issued to it. */
+  audience?: string;
+}
+
+export interface IAgentApiKey extends Document, AgentKeyScope {
   userId: Types.ObjectId;
   name: string;
   keyHash: string;
@@ -10,15 +17,16 @@ export interface IAgentApiKey extends Document {
   createdAt: Date;
   updatedAt: Date;
   tenantId?: string;
+  requestCount?: number;
 }
 
-export interface AgentApiKeyCreateData {
+export interface AgentApiKeyCreateData extends AgentKeyScope {
   userId: Types.ObjectId | string;
   name: string;
   expiresAt?: Date | null;
 }
 
-export interface AgentApiKeyCreateResult {
+export interface AgentApiKeyCreateResult extends AgentKeyScope {
   id: string;
   name: string;
   keyPrefix: string;
@@ -27,13 +35,20 @@ export interface AgentApiKeyCreateResult {
   expiresAt?: Date;
 }
 
-export interface AgentApiKeyListItem {
+export interface AgentApiKeyListItem extends AgentKeyScope {
   id: string;
   name: string;
   keyPrefix: string;
   lastUsedAt?: Date;
   expiresAt?: Date;
   createdAt: Date;
+  requestCount?: number;
+}
+
+export interface AgentApiKeyValidation extends AgentKeyScope {
+  userId: Types.ObjectId;
+  keyId: Types.ObjectId;
+  name: string;
 }
 
 export interface AgentApiKeyQuery {

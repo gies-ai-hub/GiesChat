@@ -768,6 +768,13 @@ export function createAgentMethods(
       } catch (error) {
         logger.error('[deleteAgent] Error removing agent from user favorites', error);
       }
+      try {
+        await mongoose.models.AgentApiKey?.deleteMany({
+          agentId: (agent as unknown as { id: string }).id,
+        });
+      } catch (error) {
+        logger.error('[deleteAgent] Error removing agent API keys', error);
+      }
     }
     return agent ? (agent.toObject() as IAgent) : null;
   }

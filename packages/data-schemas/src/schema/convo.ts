@@ -29,6 +29,16 @@ const convoSchema: Schema<IConversation> = new Schema(
     agent_id: {
       type: String,
     },
+    /** The agent API key that started this conversation; absent for chats started in GiesChat. */
+    apiKeyId: {
+      type: String,
+      index: true,
+      sparse: true,
+    },
+    /** The key's name when the conversation started, so the sidebar tag outlives a revoked key. */
+    apiKeyName: {
+      type: String,
+    },
     tags: {
       type: [String],
       default: [],

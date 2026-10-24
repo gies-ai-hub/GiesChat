@@ -35,6 +35,9 @@ export interface IConversation extends Document {
   resendFiles?: boolean;
   imageDetail?: string;
   agent_id?: string;
+  /** Set when an agent API key started the conversation. */
+  apiKeyId?: string;
+  apiKeyName?: string;
   assistant_id?: string;
   instructions?: string;
   stop?: string[];
