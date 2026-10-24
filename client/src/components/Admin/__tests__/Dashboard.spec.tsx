@@ -483,7 +483,9 @@ describe('AdminDashboard', () => {
       await userEvent.click(screen.getByTestId('admin-source-select'));
       await userEvent.click(await screen.findByRole('option', { name: 'API: BADM 350 site' }));
 
-      await userEvent.click(screen.getByRole('button', { name: 'API access for Case Study Coach' }));
+      await userEvent.click(
+        screen.getByRole('button', { name: 'API access for Case Study Coach' }),
+      );
       const revokeButton = await screen.findByRole('button', { name: 'Revoke key BADM 350 site' });
       mockGetAdminApiKeys.mockResolvedValue({ keys: [] });
       await userEvent.click(revokeButton);

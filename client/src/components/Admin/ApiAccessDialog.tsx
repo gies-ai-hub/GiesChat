@@ -145,7 +145,9 @@ export default function ApiAccessDialog({ agent, onOpenChange }: ApiAccessDialog
                 <Button variant="outline" onClick={() => copy(snippet)}>
                   {localize('com_ui_admin_api_copy_snippet')}
                 </Button>
-                <Button onClick={() => setCreated(null)}>{localize('com_ui_admin_api_done')}</Button>
+                <Button onClick={() => setCreated(null)}>
+                  {localize('com_ui_admin_api_done')}
+                </Button>
               </div>
             </div>
           ) : (
@@ -251,7 +253,9 @@ export default function ApiAccessDialog({ agent, onOpenChange }: ApiAccessDialog
                 </form>
               ) : (
                 <div className="flex justify-end">
-                  <Button onClick={() => setAdding(true)}>{localize('com_ui_admin_api_new')}</Button>
+                  <Button onClick={() => setAdding(true)}>
+                    {localize('com_ui_admin_api_new')}
+                  </Button>
                 </div>
               )}
             </>

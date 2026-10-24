@@ -17,10 +17,7 @@ const {
   createRemoteAgentAuth,
   createCheckRemoteAgentAccess,
 } = require('@librechat/api');
-const {
-  grantPermission,
-  getEffectivePermissions,
-} = require('~/server/services/PermissionService');
+const { grantPermission, getEffectivePermissions } = require('~/server/services/PermissionService');
 const { getModelsConfig } = require('~/server/controllers/ModelController');
 const { getAppConfig } = require('~/server/services/Config');
 const db = require('~/models');

@@ -38,13 +38,16 @@ describe('agent API limiters', () => {
     await request(app).get('/?key=k2&user=a').expect(200);
     await request(app).get('/?key=k2&user=b').expect(200);
     await request(app).get('/?key=k2&user=c').expect(200);
-    await request(app).get('/?key=k2&user=d').expect(429);
+    const limited = await request(app).get('/?key=k2&user=d');
+    expect(limited.status).toBe(429);
   });
 
   it('never limits requests without an agent key', async () => {
     const app = makeApp();
+    const statuses = [];
     for (let index = 0; index < 5; index++) {
-      await request(app).get('/').expect(200);
+      statuses.push((await request(app).get('/')).status);
     }
+    expect(statuses).toEqual([200, 200, 200, 200, 200]);
   });
 });

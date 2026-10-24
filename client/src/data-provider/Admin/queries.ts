@@ -116,12 +116,7 @@ export const useAdminAgentAnalyticsQuery = (
   config?: UseQueryOptions<AdminAnalyticsResponse>,
 ): QueryObserverResult<AdminAnalyticsResponse> =>
   useQuery<AdminAnalyticsResponse>(
-    [
-      QueryKeys.adminAgentAnalytics,
-      params?.groupId ?? '',
-      params?.days ?? 0,
-      params?.source ?? '',
-    ],
+    [QueryKeys.adminAgentAnalytics, params?.groupId ?? '', params?.days ?? 0, params?.source ?? ''],
     () => dataService.getAdminAgentAnalytics(params),
     { ...adminQueryConfig, retry: false, ...config },
   );

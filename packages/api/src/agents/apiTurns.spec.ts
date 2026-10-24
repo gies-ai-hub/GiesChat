@@ -189,7 +189,9 @@ describe('turn helpers', () => {
       ]),
     ).toBe('ab');
     expect(
-      outputText({ output: [{ type: 'message', content: [{ type: 'output_text', text: 'done' }] }] }),
+      outputText({
+        output: [{ type: 'message', content: [{ type: 'output_text', text: 'done' }] }],
+      }),
     ).toBe('done');
   });
 

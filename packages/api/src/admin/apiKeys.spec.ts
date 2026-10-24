@@ -128,7 +128,10 @@ describe('admin API key handlers', () => {
     expect(res.status).toHaveBeenCalledWith(200);
 
     const bad = makeRes();
-    await createAdminApiKeyHandlers(deps).revokeApiKey(makeReq({ params: { key_id: 'nope' } }), bad);
+    await createAdminApiKeyHandlers(deps).revokeApiKey(
+      makeReq({ params: { key_id: 'nope' } }),
+      bad,
+    );
     expect(bad.status).toHaveBeenCalledWith(404);
     expect(deps.deleteAgentApiKeyForAgents).toHaveBeenCalledTimes(1);
   });

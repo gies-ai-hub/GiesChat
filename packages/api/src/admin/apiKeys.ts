@@ -131,10 +131,7 @@ export function createAdminApiKeyHandlers(deps: AdminApiKeyDeps): AdminApiKeyHan
       return res.status(404).json({ error: 'API key not found' });
     }
     try {
-      const deleted = await deps.deleteAgentApiKeyForAgents(
-        keyId,
-        await managedAgentIds(req.user),
-      );
+      const deleted = await deps.deleteAgentApiKeyForAgents(keyId, await managedAgentIds(req.user));
       return deleted
         ? res.status(200).json({ deleted: true })
         : res.status(404).json({ error: 'API key not found' });

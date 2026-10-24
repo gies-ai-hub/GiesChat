@@ -678,7 +678,9 @@ const createResponse = async (req, res) => {
     // Convert input to internal messages
     const inputMessages = apiConversation
       ? [apiUserMessage]
-      : convertToInternalMessages(typeof request.input === 'string' ? request.input : request.input);
+      : convertToInternalMessages(
+          typeof request.input === 'string' ? request.input : request.input,
+        );
 
     const piiHit = findPiiMatchInMessages(inputMessages, appConfig?.messageFilter?.pii);
     if (piiHit != null) {
