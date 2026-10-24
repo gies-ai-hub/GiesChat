@@ -18,6 +18,8 @@ const mockGetAdminGroups = jest.fn();
 const mockGetAdminAgentUsage = jest.fn();
 const mockGetAdminAgentStudentUsage = jest.fn();
 const mockGetAdminAgentAnalytics = jest.fn();
+const mockGetAdminApiKeys = jest.fn();
+const mockRevokeAdminApiKey = jest.fn();
 const mockGetAgentById = jest.fn();
 const mockDeleteAgent = jest.fn();
 const mockGetAdminAgentDrafts = jest.fn();
@@ -34,6 +36,8 @@ jest.mock('librechat-data-provider', () => {
       getAdminAgentUsage: (params?: unknown) => mockGetAdminAgentUsage(params),
       getAdminAgentStudentUsage: () => mockGetAdminAgentStudentUsage(),
       getAdminAgentAnalytics: (params?: unknown) => mockGetAdminAgentAnalytics(params),
+      getAdminApiKeys: () => mockGetAdminApiKeys(),
+      revokeAdminApiKey: (keyId: string) => mockRevokeAdminApiKey(keyId),
       getAgentCategories: () => Promise.resolve([{ value: 'course', label: 'Course' }]),
       getAgentById: () => mockGetAgentById(),
       deleteAgent: (body: unknown) => mockDeleteAgent(body),
@@ -193,6 +197,17 @@ const ChatLocation = () => {
   return <div data-testid="chat-location">{location.pathname + location.search}</div>;
 };
 
+const siteKey = {
+  id: 'k1',
+  agentId: 'agent_1',
+  name: 'BADM 350 site',
+  keyPrefix: 'sk-abcde',
+  audience: '11111111-2222-3333-4444-555555555555',
+  lastUsedAt: null,
+  requestCount: 0,
+  createdAt: '2026-10-24T12:00:00.000Z',
+};
+
 const renderDashboard = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -220,6 +235,7 @@ describe('AdminDashboard', () => {
     mockGetAdminAgentUsage.mockResolvedValue(agentUsage);
     mockGetAdminAgentStudentUsage.mockResolvedValue(studentUsage);
     mockGetAdminAgentAnalytics.mockResolvedValue(analytics);
+    mockGetAdminApiKeys.mockResolvedValue({ keys: [siteKey] });
     mockGetAgentById.mockResolvedValue({ _id: 'db-id-1', id: 'agent_1', name: 'Case Study Coach' });
     mockDeleteAgent.mockResolvedValue(undefined);
   });
@@ -422,6 +438,62 @@ describe('AdminDashboard', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(await screen.findByRole('table')).toBeInTheDocument();
+  });
+
+  describe('agent API', () => {
+    it('filters analytics by one API key', async () => {
+      renderDashboard();
+      await screen.findByRole('table');
+
+      await userEvent.click(screen.getByTestId('admin-source-select'));
+      await userEvent.click(await screen.findByRole('option', { name: 'API: BADM 350 site' }));
+
+      await waitFor(() =>
+        expect(mockGetAdminAgentAnalytics).toHaveBeenLastCalledWith(
+          expect.objectContaining({ source: 'k1' }),
+        ),
+      );
+    });
+
+    it('opens API access from the agent row for its author', async () => {
+      renderDashboard();
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'API access for Case Study Coach' }),
+      );
+      expect(
+        await screen.findByRole('heading', { name: 'API access: Case Study Coach' }),
+      ).toBeInTheDocument();
+    });
+
+    it('hides API access from a collaborator', async () => {
+      mockGetAdminAgentUsage.mockResolvedValue({
+        agents: [{ ...agentUsage.agents[0], isAuthor: false, isCollaborator: true }],
+      });
+      renderDashboard();
+      await screen.findByRole('table');
+      expect(
+        screen.queryByRole('button', { name: 'API access for Case Study Coach' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('falls back to every source when the selected key is revoked', async () => {
+      mockRevokeAdminApiKey.mockResolvedValue({ deleted: true });
+      renderDashboard();
+      await screen.findByRole('table');
+      await userEvent.click(screen.getByTestId('admin-source-select'));
+      await userEvent.click(await screen.findByRole('option', { name: 'API: BADM 350 site' }));
+
+      await userEvent.click(screen.getByRole('button', { name: 'API access for Case Study Coach' }));
+      const revokeButton = await screen.findByRole('button', { name: 'Revoke key BADM 350 site' });
+      mockGetAdminApiKeys.mockResolvedValue({ keys: [] });
+      await userEvent.click(revokeButton);
+
+      await waitFor(() =>
+        expect(mockGetAdminAgentAnalytics).toHaveBeenLastCalledWith(
+          expect.not.objectContaining({ source: expect.anything() }),
+        ),
+      );
+    });
   });
 
   it('defaults to an unfiltered 30-day window and filters usage by the selected class', async () => {

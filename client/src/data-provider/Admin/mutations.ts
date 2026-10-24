@@ -4,6 +4,8 @@ import type { UseMutationResult } from '@tanstack/react-query';
 import type {
   AdminAgentPeople,
   AgentEmbedSettings,
+  AdminApiKeyCreateParams,
+  AdminApiKeyCreateResponse,
   AdminDashboardPanel,
   AdminModelTestRequest,
   AdminOpenDraftResponse,
@@ -72,6 +74,38 @@ export const useRevokeAdminAgentEmbedMutation = (): UseMutationResult<
     onSuccess: () => {
       queryClient.invalidateQueries([QueryKeys.adminAgentUsage]);
       queryClient.invalidateQueries([QueryKeys.adminAgentDrafts]);
+    },
+  });
+};
+
+/** The full key is only in this response; the list query never sees it. */
+export const useCreateAdminApiKeyMutation = (): UseMutationResult<
+  AdminApiKeyCreateResponse,
+  unknown,
+  AdminApiKeyCreateParams & { agentId: string }
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    ({ agentId, ...params }) => dataService.createAdminAgentApiKey(agentId, params),
+    {
+      mutationKey: [MutationKeys.createAdminApiKey],
+      onSuccess: () => {
+        queryClient.invalidateQueries([QueryKeys.adminApiKeys]);
+      },
+    },
+  );
+};
+
+export const useRevokeAdminApiKeyMutation = (): UseMutationResult<
+  { deleted: boolean },
+  unknown,
+  string
+> => {
+  const queryClient = useQueryClient();
+  return useMutation((keyId: string) => dataService.revokeAdminApiKey(keyId), {
+    mutationKey: [MutationKeys.revokeAdminApiKey],
+    onSuccess: () => {
+      queryClient.invalidateQueries([QueryKeys.adminApiKeys]);
     },
   });
 };

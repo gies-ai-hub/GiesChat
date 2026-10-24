@@ -10,6 +10,8 @@ interface AnalyticsSectionProps {
   /** Empty string means unfiltered, matching how the tables read the class filter. */
   groupId: string;
   days: number;
+  /** Empty string means every source: GiesChat, embeds, and API keys together. */
+  source: string;
 }
 
 /**
@@ -20,9 +22,9 @@ interface AnalyticsSectionProps {
  * the default, which packs to exactly the grid this section used before it became
  * customizable — a display preference must never be able to take the analytics down.
  */
-export default function AnalyticsSection({ groupId, days }: AnalyticsSectionProps) {
+export default function AnalyticsSection({ groupId, days, source }: AnalyticsSectionProps) {
   const localize = useLocalize();
-  const params = { days, ...(groupId ? { groupId } : {}) };
+  const params = { days, ...(groupId ? { groupId } : {}), ...(source ? { source } : {}) };
   const { data, isLoading, error, refetch } = useAdminAgentAnalyticsQuery(params);
   const { data: layoutData } = useAdminDashboardLayoutQuery();
 

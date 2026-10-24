@@ -1,5 +1,5 @@
 import React, { Fragment, useState, useCallback } from 'react';
-import { Code, Pencil, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react';
+import { Code, Pencil, KeyRound, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys } from 'librechat-data-provider';
 import {
@@ -28,6 +28,8 @@ interface AgentUsageTableProps {
   onSelectAgent: (agent: AdminAgentUsage) => void;
   onEditAgent: (agent: AdminAgentUsage) => void;
   onEmbedAgent: (agent: AdminAgentUsage) => void;
+  /** Opens the agent's API keys; offered to its author and co-admins only. */
+  onApiAccess: (agent: AdminAgentUsage) => void;
   onOpenAgent: (agent: AdminAgentUsage) => void;
   onEditDraft: (draftId: string, agent: AdminAgentUsage) => void;
   /** A collaborator's pencil: opens their own draft, creating it on first use. */
@@ -43,6 +45,7 @@ export default function AgentUsageTable({
   onSelectAgent,
   onEditAgent,
   onEmbedAgent,
+  onApiAccess,
   onOpenAgent,
   onEditDraft,
   onEditOwnDraft,
@@ -229,6 +232,22 @@ export default function AgentUsageTable({
                         </Button>
                       }
                     />
+                    {(agent.isAuthor || agent.isCoAdmin) && (
+                      <TooltipAnchor
+                        description={localize('com_ui_admin_tip_api')}
+                        render={
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            type="button"
+                            onClick={() => onApiAccess(agent)}
+                            aria-label={localize('com_ui_admin_api_agent', { name: agent.name })}
+                          >
+                            <KeyRound className="size-4" aria-hidden="true" />
+                          </Button>
+                        }
+                      />
+                    )}
                     {(agent.isAuthor || agent.isCoAdmin || agent.isCollaborator) && (
                       <TooltipAnchor
                         description={localize(

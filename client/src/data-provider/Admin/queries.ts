@@ -5,6 +5,7 @@ import { SystemCapabilities, hasImpliedCapability } from '@librechat/data-schema
 import type { QueryObserverResult, UseQueryOptions } from '@tanstack/react-query';
 import type {
   AdminUsageParams,
+  AdminApiKeysResponse,
   AdminGroupListParams,
   AdminTopicsResponse,
   AdminAnalyticsResponse,
@@ -115,7 +116,12 @@ export const useAdminAgentAnalyticsQuery = (
   config?: UseQueryOptions<AdminAnalyticsResponse>,
 ): QueryObserverResult<AdminAnalyticsResponse> =>
   useQuery<AdminAnalyticsResponse>(
-    [QueryKeys.adminAgentAnalytics, params?.groupId ?? '', params?.days ?? 0],
+    [
+      QueryKeys.adminAgentAnalytics,
+      params?.groupId ?? '',
+      params?.days ?? 0,
+      params?.source ?? '',
+    ],
     () => dataService.getAdminAgentAnalytics(params),
     { ...adminQueryConfig, retry: false, ...config },
   );
@@ -126,10 +132,20 @@ export const useAdminAgentTopicsQuery = (
   config?: UseQueryOptions<AdminTopicsResponse>,
 ): QueryObserverResult<AdminTopicsResponse> =>
   useQuery<AdminTopicsResponse>(
-    [QueryKeys.adminAgentTopics, params?.groupId ?? '', params?.days ?? 0],
+    [QueryKeys.adminAgentTopics, params?.groupId ?? '', params?.days ?? 0, params?.source ?? ''],
     () => dataService.getAdminAgentTopics(params),
     { ...adminQueryConfig, retry: false, staleTime: 5 * 60 * 1000, ...config },
   );
+
+/** Keys on every agent the caller authors or co-runs; the dialog and Source filter share it. */
+export const useAdminApiKeysQuery = (
+  config?: UseQueryOptions<AdminApiKeysResponse>,
+): QueryObserverResult<AdminApiKeysResponse> =>
+  useQuery<AdminApiKeysResponse>([QueryKeys.adminApiKeys], () => dataService.getAdminApiKeys(), {
+    ...adminQueryConfig,
+    retry: false,
+    ...config,
+  });
 
 /**
  * The caller's own panel layout. `retry: false` and a silent failure are deliberate:

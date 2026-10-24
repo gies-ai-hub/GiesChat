@@ -12,6 +12,7 @@ import { CollaboratorsDialog } from './Drafts';
 import {
   useAdminAccess,
   useAdminGroupsQuery,
+  useAdminApiKeysQuery,
   useOpenAdminAgentDraftMutation,
 } from '~/data-provider';
 import { useHasAccess, useLocalize } from '~/hooks';
@@ -19,12 +20,15 @@ import StudentProgressTable from './StudentProgressTable';
 import AgentUsageTable from './AgentUsageTable';
 import ShareWithClass from './ShareWithClass';
 import EmbedDialog from './EmbedDialog';
+import ApiAccessDialog from './ApiAccessDialog';
 import AgentCards from './AgentCards';
 import AnalyticsSection from './Analytics';
 
 const DAY_WINDOWS = [7, 30, 90] as const;
 /** Sentinel for "no class filter". Must be non-empty — `Dropdown` renders an empty label for `''`. */
 const ALL_CLASSES = 'all';
+/** Sentinel for "no source filter"; the analytics endpoint reads it as unfiltered too. */
+const ALL_SOURCES = 'all';
 const GROUP_PAGE_SIZE = 200;
 /** Stamped on agents built here; the usage endpoint lists only these. Must match the server. */
 const DASHBOARD_ORIGIN = 'dashboard';
@@ -54,6 +58,8 @@ export default function AdminDashboard() {
   const [selectedAgent, setSelectedAgent] = useState<AdminAgentUsage | null>(null);
   const [editingAgent, setEditingAgent] = useState<AdminAgentUsage | null>(null);
   const [embeddingAgent, setEmbeddingAgent] = useState<AdminAgentUsage | null>(null);
+  const [apiAgent, setApiAgent] = useState<AdminAgentUsage | null>(null);
+  const [source, setSource] = useState<string>(ALL_SOURCES);
   const [isBuilding, setIsBuilding] = useState(false);
   const [collaboratorsFor, setCollaboratorsFor] = useState<{
     agent: AdminAgentUsage;
@@ -72,6 +78,27 @@ export default function AdminDashboard() {
       ...groups.map((group) => ({ value: group._id, label: group.name })),
     ];
   }, [groupData, localize]);
+
+  const { data: apiKeyData } = useAdminApiKeysQuery({ enabled: hasAdminAccess });
+
+  const sourceOptions = useMemo<Option[]>(
+    () => [
+      { value: ALL_SOURCES, label: localize('com_ui_admin_source_all') },
+      { value: 'gieschat', label: localize('com_ui_admin_source_gieschat') },
+      { value: 'embed', label: localize('com_ui_admin_source_embed') },
+      { value: 'api', label: localize('com_ui_admin_source_api') },
+      ...(apiKeyData?.keys ?? []).map((key) => ({
+        value: key.id,
+        label: localize('com_ui_admin_source_key', { name: key.name }),
+      })),
+    ],
+    [apiKeyData, localize],
+  );
+
+  /** A revoked key leaves the list; fall back to every source rather than a blank label. */
+  const sourceValue = sourceOptions.some((option) => option.value === source)
+    ? source
+    : ALL_SOURCES;
 
   /** ponytail: a hint, not pagination — add paging if anyone actually teaches 200+ classes. */
   const hasMoreClasses = (groupData?.total ?? 0) > (groupData?.groups.length ?? 0);
@@ -242,6 +269,13 @@ export default function AdminDashboard() {
             ariaLabel={localize('com_ui_admin_time_window')}
             testId="admin-days-select"
           />
+          <Dropdown
+            value={sourceValue}
+            options={sourceOptions}
+            onChange={setSource}
+            ariaLabel={localize('com_ui_admin_source')}
+            testId="admin-source-select"
+          />
           <div className="ml-auto flex items-center gap-2">
             {selectedAgent != null && (
               <Button variant="outline" onClick={() => handleOpenAgent(selectedAgent)}>
@@ -282,7 +316,13 @@ export default function AdminDashboard() {
         )}
 
         {/* Class-wide, so it belongs with the agent list rather than a single student's drill-down. */}
-        {selectedAgent == null && <AnalyticsSection groupId={groupFilter} days={days} />}
+        {selectedAgent == null && (
+          <AnalyticsSection
+            groupId={groupFilter}
+            days={days}
+            source={sourceValue === ALL_SOURCES ? '' : sourceValue}
+          />
+        )}
 
         <section aria-labelledby="admin-agents-heading">
           <h2 id="admin-agents-heading" className="mb-3 text-lg font-medium text-text-primary">
@@ -301,6 +341,7 @@ export default function AdminDashboard() {
               onSelectAgent={setSelectedAgent}
               onEditAgent={setEditingAgent}
               onEmbedAgent={setEmbeddingAgent}
+              onApiAccess={setApiAgent}
               onOpenAgent={handleOpenAgent}
               onEditDraft={handleEditDraft}
               onEditOwnDraft={handleEditOwnDraft}
@@ -350,6 +391,15 @@ export default function AdminDashboard() {
           onOpenChange={(open) => {
             if (!open) {
               setEmbeddingAgent(null);
+            }
+          }}
+        />
+
+        <ApiAccessDialog
+          agent={apiAgent}
+          onOpenChange={(open) => {
+            if (!open) {
+              setApiAgent(null);
             }
           }}
         />
