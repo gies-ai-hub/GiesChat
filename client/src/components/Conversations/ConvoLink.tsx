@@ -9,6 +9,8 @@ interface ConvoLinkProps {
   isSmallScreen: boolean;
   localize: (key: any, options?: any) => string;
   children: React.ReactNode;
+  /** Short visible label after the title, e.g. "via BADM 350 site". */
+  tag?: string;
 }
 
 const ConvoLink: React.FC<ConvoLinkProps> = ({
@@ -19,6 +21,7 @@ const ConvoLink: React.FC<ConvoLinkProps> = ({
   isSmallScreen,
   localize,
   children,
+  tag,
 }) => {
   return (
     <div
@@ -55,6 +58,11 @@ const ConvoLink: React.FC<ConvoLinkProps> = ({
           aria-hidden="true"
         />
       </div>
+      {tag != null && (
+        <span className="max-w-[45%] shrink-0 truncate rounded border border-border-light px-1 text-[11px] leading-4 text-text-secondary">
+          {tag}
+        </span>
+      )}
     </div>
   );
 };

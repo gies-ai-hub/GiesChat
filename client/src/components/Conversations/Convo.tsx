@@ -271,6 +271,11 @@ function Conversation({
           onRename={handleRename}
           isSmallScreen={isSmallScreen}
           localize={localize}
+          tag={
+            conversation.apiKeyName
+              ? localize('com_ui_api_via', { name: conversation.apiKeyName })
+              : undefined
+          }
         >
           <ConversationEndpointIcon conversation={conversation} size={20} context="menu-item" />
         </ConvoLink>

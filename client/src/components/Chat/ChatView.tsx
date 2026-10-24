@@ -21,6 +21,7 @@ import { useOnboardingTour } from '~/components/Tour';
 import { useGetMessagesByConvoId } from '~/data-provider';
 import ProjectLandingChip from './ProjectLandingChip';
 import CareerIntake from './CareerIntake';
+import ApiSourceBanner from './ApiSourceBanner';
 import MessagesView from './Messages/MessagesView';
 import Presentation from './Presentation';
 import ChatForm from './Input/ChatForm';
@@ -111,6 +112,7 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
             <div className="relative flex h-full w-full flex-col">
               <Header />
               <CareerIntake />
+              <ApiSourceBanner conversationId={conversationId} />
               <>
                 <div
                   className={cn(
