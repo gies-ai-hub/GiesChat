@@ -3,8 +3,10 @@ import { ResourceType, PermissionBits, sanitizeLayout } from 'librechat-data-pro
 import { logger, isValidObjectIdString } from '@librechat/data-schemas';
 import type {
   AdminAgentRole,
+  AdminDraftChoice,
   AdminDashboardPanel,
   AdminModelTestAnswer,
+  AdminDraftUpdatePreview,
   AdminCollaboratorsResponse,
   WebsitePage,
 } from 'librechat-data-provider';
@@ -21,11 +23,13 @@ import type {
 import type { FilterQuery, Types } from 'mongoose';
 import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
+import type { DraftDocument, DraftUpdatePlan } from './merge';
 import type { ModelTestEndpoint } from './modelTest';
 import type { TopicsModel, TopicsResult } from './topics';
 import type { CrawlResult } from '~/sites/crawl';
 import { parseModelTestBody, runModelTest } from './modelTest';
 import { summarizeTopics, TOPIC_SAMPLE_LIMIT } from './topics';
+import { planDraftUpdate } from './merge';
 import { splitAgentDocuments } from '~/agents/resources';
 import { toWebsiteItem } from '~/sites/store';
 import { WebsiteError } from '~/sites/crawl';
@@ -374,6 +378,31 @@ export function parseCollaboratorIds(
   return [...new Set(ids)];
 }
 
+const DRAFT_CHOICES: AdminDraftChoice[] = ['mine', 'theirs'];
+
+/** Untrusted body → the preview's version and one pick per conflict, or `null` when malformed. */
+export function parseDraftUpdateBody(
+  body: unknown,
+): { to: number; choices: Record<string, AdminDraftChoice> } | null {
+  if (body == null || typeof body !== 'object') {
+    return null;
+  }
+  const { to, choices = {} } = body as { to?: unknown; choices?: unknown };
+  if (
+    typeof to !== 'number' ||
+    !Number.isInteger(to) ||
+    choices == null ||
+    typeof choices !== 'object'
+  ) {
+    return null;
+  }
+  const entries = Object.entries(choices as Record<string, unknown>);
+  if (entries.some(([, choice]) => !DRAFT_CHOICES.includes(choice as AdminDraftChoice))) {
+    return null;
+  }
+  return { to, choices: Object.fromEntries(entries) as Record<string, AdminDraftChoice> };
+}
+
 /** Untrusted body → validated settings, or `null` when the body is malformed. */
 export function parseEmbedSettings(body: unknown): Omit<IAgentEmbed, 'key'> | null {
   if (typeof body !== 'object' || body == null) {
@@ -507,6 +536,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   listAgentDrafts: (req: ServerRequest, res: Response) => Promise<Response>;
   openAgentDraft: (req: ServerRequest, res: Response) => Promise<Response>;
   postAgentDraft: (req: ServerRequest, res: Response) => Promise<Response>;
+  previewDraftUpdate: (req: ServerRequest, res: Response) => Promise<Response>;
+  updateAgentDraft: (req: ServerRequest, res: Response) => Promise<Response>;
   testAgentModels: (req: ServerRequest, res: Response) => Promise<Response>;
   previewWebsite: (req: ServerRequest, res: Response) => Promise<Response>;
   saveAgentWebsite: (req: ServerRequest, res: Response) => Promise<Response>;
@@ -1280,13 +1311,15 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     req: ServerRequest,
     fields: Partial<DraftFields>,
     agentId: string,
+    only?: string[],
   ): Promise<Partial<DraftFields>> {
     const context = fields.tool_resources?.context;
     const fileIds = context?.file_ids ?? [];
-    if (fileIds.length === 0) {
+    const wanted = only == null ? fileIds : fileIds.filter((id) => only.includes(id));
+    if (wanted.length === 0) {
       return fields;
     }
-    const files = (await getFiles({ file_id: { $in: fileIds } }, null, DOCUMENT_FIELDS)) ?? [];
+    const files = (await getFiles({ file_id: { $in: wanted } }, null, DOCUMENT_FIELDS)) ?? [];
     const searched = files.filter((file) => file.embedded === true);
     if (searched.length === 0) {
       return fields;
@@ -1421,6 +1454,160 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     } catch (error) {
       logger.error('[adminUsage] postAgentDraft error:', error);
       return res.status(500).json({ error: 'Failed to post draft' });
+    }
+  }
+
+  /** Copies of one file share its stored path, so the path (or a website's address) is its identity. */
+  async function describeDocuments(
+    sides: Partial<DraftFields>[],
+  ): Promise<Map<string, DraftDocument>> {
+    const ids = [
+      ...new Set(
+        sides.flatMap((side) =>
+          Object.values(side.tool_resources ?? {}).flatMap((resource) => resource?.file_ids ?? []),
+        ),
+      ),
+    ];
+    if (ids.length === 0) {
+      return new Map();
+    }
+    const files =
+      (await getFiles({ file_id: { $in: ids } }, null, {
+        file_id: 1,
+        filename: 1,
+        filepath: 1,
+        metadata: 1,
+      })) ?? [];
+    return new Map(
+      files.map((file) => [
+        file.file_id,
+        {
+          key:
+            file.metadata?.sourceUrl ??
+            (file.filepath && file.filepath !== 'text' ? file.filepath : file.file_id),
+          name: file.filename,
+        },
+      ]),
+    );
+  }
+
+  interface DraftUpdateContext {
+    draft: IAgent;
+    from: number;
+    to: number;
+    plan: DraftUpdatePlan;
+  }
+
+  /**
+   * The draft's owner only, on an open draft of an agent in their scope. Answers the error
+   * itself and returns `null`, so both handlers stay flat. The merge base is production's
+   * own snapshot at the version the draft is based on.
+   */
+  async function loadDraftUpdate(
+    req: ServerRequest,
+    res: Response,
+  ): Promise<DraftUpdateContext | null> {
+    const { agent_id: rawAgentId, draft_id: rawDraftId } = req.params as DraftParams;
+    if (typeof rawAgentId !== 'string' || typeof rawDraftId !== 'string') {
+      res.status(400).json({ error: 'agent_id and draft_id are required' });
+      return null;
+    }
+    const caller = req.user;
+    if (caller == null) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return null;
+    }
+    const [scoped] = await findScopedAgents(caller, rawAgentId);
+    if (!scoped || scoped.draftOf != null) {
+      res.status(404).json({ error: 'Agent not found' });
+      return null;
+    }
+    const [production, draft] = await Promise.all([
+      getAgent({ id: scoped.id }),
+      getAgent({ id: rawDraftId, draftOf: scoped.id }),
+    ]);
+    if (!production || !draft) {
+      res.status(404).json({ error: 'Draft not found' });
+      return null;
+    }
+    if (!isAuthor(caller, draft)) {
+      res.status(403).json({ error: "Only the draft's owner can update it" });
+      return null;
+    }
+    if (draft.postedVersion != null) {
+      res.status(409).json({ error: 'Draft already posted' });
+      return null;
+    }
+    const from = draft.draftBase ?? 0;
+    const to = production.versions?.length ?? 0;
+    const snapshot = production.versions?.[from - 1];
+    if (snapshot == null) {
+      res.status(409).json({ error: 'no_base' });
+      return null;
+    }
+    const base = pickDraftFields(snapshot as IAgent);
+    const mine = pickDraftFields(draft);
+    const theirs = pickDraftFields(production);
+    const documents = await describeDocuments([base, mine, theirs]);
+    const plan = planDraftUpdate({ fields: DRAFT_FIELDS_TO_COPY, base, mine, theirs, documents });
+    return { draft, from, to, plan };
+  }
+
+  /** What updating would bring in, keep and ask about. Writes nothing. */
+  async function previewDraftUpdate(req: ServerRequest, res: Response): Promise<Response> {
+    try {
+      const context = await loadDraftUpdate(req, res);
+      if (context == null) {
+        return res;
+      }
+      const { from, to, plan } = context;
+      const body: AdminDraftUpdatePreview = {
+        from,
+        to,
+        changes: plan.changes,
+        conflicts: plan.conflicts,
+      };
+      return res.status(200).json(body);
+    } catch (error) {
+      logger.error('[adminUsage] previewDraftUpdate error:', error);
+      return res.status(500).json({ error: 'Failed to preview the update' });
+    }
+  }
+
+  /**
+   * Rebuilds the merge (the client sends picks, never content), writes it onto the draft as
+   * one version, and moves `draftBase` to production's current count. A `to` that no longer
+   * matches means production moved since the preview, so nothing is written.
+   */
+  async function updateAgentDraft(req: ServerRequest, res: Response): Promise<Response> {
+    const request = parseDraftUpdateBody(req.body);
+    if (request == null) {
+      return res.status(400).json({ error: 'to and choices are required' });
+    }
+    try {
+      const context = await loadDraftUpdate(req, res);
+      if (context == null) {
+        return res;
+      }
+      const { draft, to, plan } = context;
+      if (request.to !== to) {
+        return res.status(409).json({ error: 'production_changed', to });
+      }
+      const resolved = plan.resolve(request.choices);
+      if (resolved == null) {
+        return res.status(400).json({ error: 'unresolved_conflicts' });
+      }
+      const fields = await withOwnDocuments(req, resolved, draft.id, plan.incomingDocuments);
+      if (Object.keys(fields).length > 0) {
+        await updateAgent({ id: draft.id }, fields, {
+          updatingUserId: String(req.user?._id),
+        });
+      }
+      await setAgentMeta(draft.id, { draftBase: to });
+      return res.status(200).json({ draft_id: draft.id, draftBase: to });
+    } catch (error) {
+      logger.error('[adminUsage] updateAgentDraft error:', error);
+      return res.status(500).json({ error: 'Failed to update the draft' });
     }
   }
 
@@ -1579,6 +1766,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     listAgentDrafts,
     openAgentDraft,
     postAgentDraft,
+    previewDraftUpdate,
+    updateAgentDraft,
     listAgentStudentUsage: listAgentStudentUsageHandler,
     listAgentAnalytics: listAgentAnalyticsHandler,
     listAgentTopics: listAgentTopicsHandler,

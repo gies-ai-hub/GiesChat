@@ -112,13 +112,16 @@ router.post('/websites/preview', handlers.previewWebsite);
 router.post('/agents/:agent_id/websites', handlers.saveAgentWebsite);
 
 /**
- * Draft collaboration. All four resolve the agent through the usage scope; the
- * handlers themselves narrow "author only" where the design says so.
+ * Draft collaboration. All of these resolve the agent through the usage scope; the
+ * handlers themselves narrow "author only" or "draft owner only" where the design says so.
  */
 router.put('/agents/:agent_id/collaborators', handlers.updateAgentCollaborators);
 router.get('/agents/:agent_id/drafts', handlers.listAgentDrafts);
 router.post('/agents/:agent_id/drafts', handlers.openAgentDraft);
 router.post('/agents/:agent_id/drafts/:draft_id/post', handlers.postAgentDraft);
+/** The draft's owner brings it up to date with production: preview, then apply with their picks. */
+router.get('/agents/:agent_id/drafts/:draft_id/update', handlers.previewDraftUpdate);
+router.post('/agents/:agent_id/drafts/:draft_id/update', handlers.updateAgentDraft);
 
 /**
  * Compares two models on an agent the caller can edit (usage scope) or on a new agent's

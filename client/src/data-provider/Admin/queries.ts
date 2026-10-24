@@ -10,6 +10,7 @@ import type {
   AdminAnalyticsResponse,
   AdminAgentUsageResponse,
   AdminAgentDraftsResponse,
+  AdminDraftUpdatePreview,
   AdminGroupListResponse,
   AdminDashboardLayoutResponse,
   AdminAgentStudentUsageResponse,
@@ -159,6 +160,18 @@ export const useAdminAgentDraftsQuery = (
       ...config,
       enabled: !!agentId && (config?.enabled ?? true),
     },
+  );
+
+/** What bringing a draft up to date would do; fetched when the owner opens the update dialog. */
+export const useAdminDraftUpdateQuery = (
+  agentId: string,
+  draftId: string,
+  config?: UseQueryOptions<AdminDraftUpdatePreview>,
+): QueryObserverResult<AdminDraftUpdatePreview> =>
+  useQuery<AdminDraftUpdatePreview>(
+    [QueryKeys.adminDraftUpdate, agentId, draftId],
+    () => dataService.getAdminDraftUpdate(agentId, draftId),
+    { ...adminQueryConfig, retry: false, ...config },
   );
 
 export const useAdminAgentStudentUsageQuery = (

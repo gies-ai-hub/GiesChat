@@ -350,6 +350,49 @@ export type AdminCollaboratorsResponse = {
 export type AdminOpenDraftResponse = { draft_id: string; created: boolean };
 export type AdminPostDraftResponse = { agent_id: string; version: number };
 
+/** Where a field's new value comes from when a draft is brought up to date. */
+export type AdminDraftChangeSource = 'production' | 'draft';
+
+/** One field that differs from the version the draft started from, and needs no choice. */
+export type AdminDraftChange = {
+  field: string;
+  from: AdminDraftChangeSource;
+  /** The value at the shared starting version; `null` when `after` lists added lines or documents. */
+  before: string | null;
+  after: string;
+};
+
+/** A field (or, for instructions, one block of lines) both sides changed differently. */
+export type AdminDraftConflict = {
+  /** The field name, or `instructions:<n>` for the nth clashing block of lines. */
+  id: string;
+  field: string;
+  /** Instructions only: the unchanged line just above the clash. */
+  context: string | null;
+  mine: string;
+  theirs: string;
+};
+
+export type AdminDraftUpdatePreview = {
+  /** Production's version count the draft is based on. */
+  from: number;
+  /** Production's version count now. */
+  to: number;
+  changes: AdminDraftChange[];
+  conflicts: AdminDraftConflict[];
+};
+
+export type AdminDraftChoice = 'mine' | 'theirs';
+
+export type AdminDraftUpdateRequest = {
+  /** The `to` the preview showed; a mismatch means production moved again. */
+  to: number;
+  /** One pick per conflict id. */
+  choices: Record<string, AdminDraftChoice>;
+};
+
+export type AdminDraftUpdateResponse = { draft_id: string; draftBase: number };
+
 export type EmbedSessionAgent = {
   id: string;
   name: string;

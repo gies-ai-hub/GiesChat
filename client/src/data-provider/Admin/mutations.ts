@@ -8,6 +8,8 @@ import type {
   AdminModelTestRequest,
   AdminOpenDraftResponse,
   AdminPostDraftResponse,
+  AdminDraftUpdateRequest,
+  AdminDraftUpdateResponse,
   AdminModelTestResponse,
   AdminAgentEmbedResponse,
   AdminCollaboratorsResponse,
@@ -132,6 +134,29 @@ export const usePostAdminAgentDraftMutation = (): UseMutationResult<
       queryClient.invalidateQueries([QueryKeys.adminAgentUsage]);
     },
   });
+};
+
+/**
+ * Rewrites the draft, so its builder form, its row in the drafts list and the cached
+ * preview all refetch; production is untouched.
+ */
+export const useUpdateAdminAgentDraftMutation = (): UseMutationResult<
+  AdminDraftUpdateResponse,
+  unknown,
+  { agentId: string; draftId: string; payload: AdminDraftUpdateRequest }
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    ({ agentId, draftId, payload }) => dataService.updateAdminAgentDraft(agentId, draftId, payload),
+    {
+      mutationKey: [MutationKeys.updateAdminAgentDraft],
+      onSettled: (_data, _error, { agentId, draftId }) => {
+        queryClient.invalidateQueries([QueryKeys.adminAgentDrafts, agentId]);
+        queryClient.invalidateQueries([QueryKeys.adminDraftUpdate, agentId, draftId]);
+        queryClient.invalidateQueries([QueryKeys.agent, draftId]);
+      },
+    },
+  );
 };
 
 /** Test writes nothing, so nothing is cached or invalidated. */

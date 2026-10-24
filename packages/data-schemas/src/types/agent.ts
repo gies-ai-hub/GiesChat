@@ -29,7 +29,13 @@ export interface IAgentEmbed {
 export type IAgentMeta = Partial<
   Pick<
     IAgent,
-    'collaborators' | 'pendingCollaborators' | 'coAdmins' | 'pendingCoAdmins' | 'postedVersion'
+    | 'collaborators'
+    | 'pendingCollaborators'
+    | 'coAdmins'
+    | 'pendingCoAdmins'
+    | 'postedVersion'
+    | 'draftBase'
+    | 'notifiedBase'
   >
 >;
 
@@ -81,8 +87,10 @@ export interface IAgent extends Omit<Document, 'model'> {
   pendingCoAdmins?: string[];
   /** On a draft: the production agent id it was cloned from. */
   draftOf?: string;
-  /** On a draft: production's version count at clone time. */
+  /** On a draft: production's version count at clone time, moved forward when the owner updates it. */
   draftBase?: number;
+  /** On a draft: the `draftBase` its owner was last emailed about. */
+  notifiedBase?: number;
   /** On a draft: the production version it became when posted. */
   postedVersion?: number;
   support_contact?: ISupportContact;
