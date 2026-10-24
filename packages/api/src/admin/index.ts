@@ -6,6 +6,8 @@ export { createAdminSkillsSyncAccess, createAdminSkillsSyncHandlers } from './sk
 export { createAdminUsersHandlers } from './users';
 export { createAdminAuditLogHandlers } from './auditLog';
 export { createAdminUsageHandlers, setCoAdminAccess } from './usage';
+export { createAdminApiKeyHandlers } from './apiKeys';
+export type { AdminApiKeyDeps, AdminApiKeyHandlers } from './apiKeys';
 export type { AdminConfigDeps } from './config';
 export type { AdminGrantsDeps, GrantPrincipalType } from './grants';
 export type { AdminGroupsDeps } from './groups';

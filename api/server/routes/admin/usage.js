@@ -7,6 +7,7 @@ const {
   topicsModelFromConfig,
   searchAgentDocuments,
   createAdminUsageHandlers,
+  createAdminApiKeyHandlers,
   modelTestEndpointFromConfig,
 } = require('@librechat/api');
 const { SystemCapabilities } = require('@librechat/data-schemas');
@@ -68,6 +69,13 @@ const handlers = createAdminUsageHandlers({
   replaceWebsiteCopy,
 });
 
+const apiKeyHandlers = createAdminApiKeyHandlers({
+  findAgents: db.getAgents,
+  createAgentApiKey: db.createAgentApiKey,
+  listAgentApiKeysForAgents: db.listAgentApiKeysForAgents,
+  deleteAgentApiKeyForAgents: db.deleteAgentApiKeyForAgents,
+});
+
 router.use(requireJwtAuth, requireAdminAccess);
 
 /**
@@ -102,6 +110,14 @@ router.get(
  */
 router.put('/agents/:agent_id/embed', handlers.updateAgentEmbed);
 router.delete('/agents/:agent_id/embed', handlers.revokeAgentEmbed);
+
+/**
+ * Agent API keys: an author/co-admin decision about an agent; no roster is read, so
+ * `access:admin` is the gate, as for embedding.
+ */
+router.get('/api-keys', apiKeyHandlers.listApiKeys);
+router.post('/agents/:agent_id/api-keys', apiKeyHandlers.createApiKey);
+router.delete('/api-keys/:key_id', apiKeyHandlers.revokeApiKey);
 
 /**
  * Websites. Test reads a public site and stores nothing; Add/Refresh writes a document onto
