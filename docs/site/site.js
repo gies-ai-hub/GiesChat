@@ -3,7 +3,7 @@
 const SECTIONS = [
   ['Using GiesChat', [
     ['use-start.html', 'Getting started', 'sign in sso welcome luna model tour chat'],
-    ['use-agents.html', 'Building a class agent', 'class dashboard admin create agent instructions documents websites scrape model test support contact course'],
+    ['use-agents.html', 'Building a class agent', 'agent dashboard admin create agent instructions documents websites scrape model test support contact course'],
     ['use-collaborators.html', 'Collaborators, drafts & co-admins', 'invite email roles draft post production test link co-admin'],
     ['use-embed.html', 'Embedding an agent', 'embed iframe canvas snippet public illinois guest revoke greeting theme'],
     ['use-tools.html', 'Tools', 'mcp canvas outlook ms365 deck builder powerpoint pptx app builder replit tutors career prep'],
@@ -15,7 +15,7 @@ const SECTIONS = [
     ['dev-auth.html', 'Auth & permissions', 'openid entra sso jwt refresh session roles acl grants guest embed capability'],
     ['dev-data.html', 'Data model', 'mongodb mongoose schema collections meilisearch rag redis azure blob'],
     ['dev-config.html', 'Configuration', 'librechat.yaml env endpoints models model specs mcp servers interface flags'],
-    ['dev-features.html', 'Gies features → code', 'class dashboard embed drafts collaborators websites crawl luna model test support contact rooms mindforum tour report issue'],
+    ['dev-features.html', 'Gies features → code', 'agent dashboard embed drafts collaborators websites crawl luna model test support contact rooms mindforum tour report issue'],
     ['dev-deploy.html', 'Deploy', 'github actions azure web app acr docker staging slot'],
   ]],
 ];

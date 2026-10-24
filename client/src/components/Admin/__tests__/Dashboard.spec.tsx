@@ -236,7 +236,7 @@ describe('AdminDashboard', () => {
     expect(await screen.findByTestId('agent-panel-switch')).toBeInTheDocument();
     /** The modal aria-hides the page behind it, so "never left" is proved on close. */
     await userEvent.keyboard('{Escape}');
-    expect(await screen.findByRole('heading', { name: /class dashboard/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /agent dashboard/i })).toBeInTheDocument();
   });
 
   /**
@@ -314,7 +314,7 @@ describe('AdminDashboard', () => {
     renderDashboard();
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      "You don't have access to the class dashboard",
+      "You don't have access to the agent dashboard",
     );
     expect(mockGetAdminAgentUsage).not.toHaveBeenCalled();
   });
@@ -335,7 +335,7 @@ describe('AdminDashboard', () => {
     renderDashboard();
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      "You don't have access to the class dashboard",
+      "You don't have access to the agent dashboard",
     );
     expect(mockGetAdminAgentUsage).not.toHaveBeenCalled();
     expect(mockGetAdminGroups).not.toHaveBeenCalled();
@@ -616,7 +616,7 @@ describe('AdminDashboard', () => {
       await screen.findByTestId('agent-panel-switch');
       await userEvent.keyboard('{Escape}');
 
-      expect(await screen.findByRole('heading', { name: /class dashboard/i })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: /agent dashboard/i })).toBeInTheDocument();
     });
 
     it('refetches usage when the edit dialog closes so a rename shows up', async () => {

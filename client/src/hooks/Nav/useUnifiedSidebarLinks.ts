@@ -14,6 +14,9 @@ import store from '~/store';
 
 const defaultInterface = getConfigDefaults().interface;
 
+/** The Agents (marketplace) sidebar link is switched off for now (2026-10-24). Flip to `true` to restore it; `/agents` itself stays reachable. */
+const AGENTS_LINK_ENABLED = false;
+
 export default function useUnifiedSidebarLinks() {
   const conversation = useRecoilValue(store.conversationByIndex(0));
   const endpoint = conversation?.endpoint;
@@ -78,15 +81,16 @@ export default function useUnifiedSidebarLinks() {
           Component: BrainstormPanel,
         }
       : null;
-    const agentsLink: NavLink | null = showAgentMarketplace
-      ? {
-          title: 'com_ui_agents',
-          label: '',
-          icon: Bot,
-          id: 'agents-home',
-          href: '/agents',
-        }
-      : null;
+    const agentsLink: NavLink | null =
+      AGENTS_LINK_ENABLED && showAgentMarketplace
+        ? {
+            title: 'com_ui_agents',
+            label: '',
+            icon: Bot,
+            id: 'agents-home',
+            href: '/agents',
+          }
+        : null;
     /** Only rendered for capability holders — the route it points at 403s for everyone else. */
     const adminLink: NavLink | null = hasAdminAccess
       ? {

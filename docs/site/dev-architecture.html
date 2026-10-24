@@ -18,7 +18,7 @@
     <div class="arch-layer" style="--c:#2a78d6">
       <span class="arch-tag">What people use</span>
       <b>GiesChat web app</b>
-      <small>Chat, course tutors, agents and the class dashboard, in the browser or embedded in Canvas.</small>
+      <small>Chat, course tutors, agents and the agent dashboard, in the browser or embedded in Canvas.</small>
     </div>
     <div class="arch-link">requests ↓ &nbsp; streamed replies ↑</div>
     <div class="arch-layer arch-core" style="--c:var(--orange)">
@@ -53,7 +53,7 @@
     <tr><th>Folder</th><th>What lives there</th></tr>
     <tr><td><span class="path">client/</span></td><td>The React app. <code>src/routes</code> (pages), <code>src/components</code>, <code>src/hooks</code>, and <code>src/data-provider</code> (React Query hooks).</td></tr>
     <tr><td><span class="path">api/</span></td><td>The Express server, in JS. <code>server/index.js</code> mounts every route; then <code>server/routes</code> → <code>controllers</code> → <code>services</code>. <code>strategies/</code> holds the passport login strategies. Increasingly a thin wrapper over <code>packages/api</code>.</td></tr>
-    <tr><td><span class="path">packages/api/</span></td><td>Backend logic in TypeScript, where <b>new backend code should go</b>: <code>agents/</code>, <code>admin/</code> (class dashboard), <code>embed/</code>, <code>rooms/</code>, <code>replit/</code>, <code>issues/</code>, <code>mcp/</code>, <code>stream/</code>, <code>app/</code> (config loading).</td></tr>
+    <tr><td><span class="path">packages/api/</span></td><td>Backend logic in TypeScript, where <b>new backend code should go</b>: <code>agents/</code>, <code>admin/</code> (agent dashboard), <code>embed/</code>, <code>rooms/</code>, <code>replit/</code>, <code>issues/</code>, <code>mcp/</code>, <code>stream/</code>, <code>app/</code> (config loading).</td></tr>
     <tr><td><span class="path">packages/data-provider/</span></td><td>The client/server contract: endpoint URLs (<code>api-endpoints.ts</code>), <code>data-service.ts</code>, request and response types, and the <code>librechat.yaml</code> schema (<code>config.ts</code>).</td></tr>
     <tr><td><span class="path">packages/data-schemas/</span></td><td>Mongoose schemas, models, DB methods and system capabilities. See <a href="dev-data.html">Data model</a>.</td></tr>
     <tr><td><span class="path">packages/client/</span></td><td>Shared UI pieces and the theme provider.</td></tr>
