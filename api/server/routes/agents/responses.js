@@ -25,8 +25,11 @@ const {
   getResponse,
   listModels,
 } = require('~/server/controllers/agents/responses');
-const { configMiddleware } = require('~/server/middleware');
+const { configMiddleware, agentApiLimiters } = require('~/server/middleware');
 const {
+  agentKeyAuth,
+  agentKeyModel,
+  skipIfAgentKey,
   checkAgentPermission,
   preAuthTenantMiddleware,
   requireRemoteAgentAuth,
@@ -36,9 +39,13 @@ const {
 const router = express.Router();
 
 router.use(preAuthTenantMiddleware);
-router.use(requireRemoteAgentAuth);
+/** Per-agent keys authenticate here as the student; upstream auth sees everything else. */
+router.use(agentKeyAuth);
+router.use(agentApiLimiters);
+router.use(skipIfAgentKey(requireRemoteAgentAuth));
 router.use(configMiddleware);
-router.use(checkRemoteAgentsFeature);
+router.use(skipIfAgentKey(checkRemoteAgentsFeature));
+router.use(agentKeyModel);
 
 /**
  * @route POST /v1/responses
@@ -81,7 +88,7 @@ router.use(checkRemoteAgentsFeature);
  *   "usage": { ... }
  * }
  */
-router.post('/', checkAgentPermission, createResponse);
+router.post('/', skipIfAgentKey(checkAgentPermission), createResponse);
 
 /**
  * @route GET /v1/responses/models

@@ -32,6 +32,19 @@ export interface AgentKeyRequest extends Request {
   config?: AppConfig;
 }
 
+export type AgentKeyMiddleware = (
+  req: AgentKeyRequest,
+  res: Response,
+  next: NextFunction,
+) => Promise<Response | void>;
+
+export interface AgentKeyModelEntry {
+  id: string;
+  object: 'model';
+  created: number;
+  owned_by: string;
+}
+
 export interface AgentKeyAuthDeps {
   validateAgentApiKey: (apiKey: string) => Promise<AgentApiKeyValidation | null>;
   getAgent: (filter: { id: string }) => Promise<{
@@ -113,12 +126,8 @@ async function findOrCreateStudent(
  * Per-agent keys only. Anything else (no bearer, an unknown key, an upstream per-user key)
  * falls through to upstream auth, which `interface.remoteAgents` keeps switched off.
  */
-export function createAgentKeyAuth(deps: AgentKeyAuthDeps) {
-  return async (
-    req: AgentKeyRequest,
-    res: Response,
-    next: NextFunction,
-  ): Promise<Response | void> => {
+export function createAgentKeyAuth(deps: AgentKeyAuthDeps): AgentKeyMiddleware {
+  return async (req, res, next) => {
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) {
       return next();
@@ -234,12 +243,8 @@ export function resolveAllowedModels(
 /** Runs after `configMiddleware`, which the models config needs. */
 export function createAgentKeyModel(deps: {
   getModelsConfig: (req: Request) => Promise<Record<string, string[] | undefined>>;
-}) {
-  return async (
-    req: AgentKeyRequest,
-    res: Response,
-    next: NextFunction,
-  ): Promise<Response | void> => {
+}): AgentKeyMiddleware {
+  return async (req, res, next) => {
     const agentKey = req.agentKey;
     if (agentKey == null) {
       return next();
@@ -274,19 +279,25 @@ export function skipIfAgentKey(handler: RequestHandler): RequestHandler {
     (req as AgentKeyRequest).agentKey != null ? next() : handler(req, res, next);
 }
 
-const toModelEntry = (entry: AllowedModel) => ({
+const toModelEntry = (entry: AllowedModel): AgentKeyModelEntry => ({
   id: entry.model,
-  object: 'model' as const,
+  object: 'model',
   created: 0,
   owned_by: entry.provider,
 });
 
 /** `GET /v1/models` for an agent key: the models it may pick, never other agents. */
-export function agentKeyModelList(agentKey: AgentKeyContext) {
-  return { object: 'list' as const, data: agentKey.allowedModels.map(toModelEntry) };
+export function agentKeyModelList(agentKey: AgentKeyContext): {
+  object: 'list';
+  data: AgentKeyModelEntry[];
+} {
+  return { object: 'list', data: agentKey.allowedModels.map(toModelEntry) };
 }
 
-export function agentKeyModelEntry(agentKey: AgentKeyContext, model: string) {
+export function agentKeyModelEntry(
+  agentKey: AgentKeyContext,
+  model: string,
+): AgentKeyModelEntry | null {
   const found = agentKey.allowedModels.find((entry) => entry.model === model);
   return found ? toModelEntry(found) : null;
 }

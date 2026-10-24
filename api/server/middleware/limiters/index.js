@@ -3,6 +3,7 @@ const createSTTLimiters = require('./sttLimiters');
 
 const loginLimiter = require('./loginLimiter');
 const embedLimiter = require('./embedLimiter');
+const agentApiLimiters = require('./agentApiLimiter');
 const importLimiters = require('./importLimiters');
 const uploadLimiters = require('./uploadLimiters');
 const forkLimiters = require('./forkLimiters');
@@ -24,6 +25,7 @@ module.exports = {
   ...promptUsageLimiter,
   loginLimiter,
   embedLimiter,
+  agentApiLimiters,
   registerLimiter,
   toolCallLimiter,
   createTTSLimiters,
