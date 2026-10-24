@@ -29,6 +29,8 @@ interface ConvoFixture {
   tenantId?: string;
   /** Pre-tenancy data: the conversation carries a tenant but its messages do not. */
   untenantedMessages?: boolean;
+  /** Set on conversations an agent API key started. */
+  apiKeyId?: string;
 }
 
 /**
@@ -47,6 +49,7 @@ async function seed(fixtures: ConvoFixture[]): Promise<void> {
     createdAt: fixture.updatedAt,
     updatedAt: fixture.updatedAt,
     ...(fixture.tenantId === undefined ? {} : { tenantId: fixture.tenantId }),
+    ...(fixture.apiKeyId === undefined ? {} : { apiKeyId: fixture.apiKeyId }),
   }));
 
   const messages = fixtures.flatMap((fixture) => {
@@ -617,6 +620,43 @@ describe('tenant scoping of the message join', () => {
 });
 
 describe('aggregateAgentAnalytics', () => {
+  it('narrows every count to a source match, alongside a roster', async () => {
+    await seed([
+      {
+        conversationId: 'api-1',
+        user: 'alice',
+        agentId: 'agent_a',
+        updatedAt: ago(HOUR),
+        apiKeyId: 'key-1',
+        userMessages: [ago(HOUR)],
+      },
+      {
+        conversationId: 'chat-1',
+        user: 'bob',
+        agentId: 'agent_a',
+        updatedAt: ago(HOUR),
+        userMessages: [ago(HOUR)],
+      },
+      {
+        conversationId: 'api-2',
+        user: 'carol',
+        agentId: 'agent_a',
+        updatedAt: ago(HOUR),
+        apiKeyId: 'key-1',
+        userMessages: [ago(HOUR)],
+      },
+    ]);
+
+    const raw = await aggregateAgentAnalytics({
+      agentIds: ['agent_a'],
+      userIds: ['alice', 'bob'],
+      since,
+      match: { apiKeyId: 'key-1', user: { $nin: ['nobody'] } },
+    });
+    expect(raw.conversationCount).toBe(1);
+    expect(raw.activeStudents).toBe(1);
+  });
+
   it('returns distributions, totals, and error counts for the scoped window', async () => {
     await seed([
       {

@@ -26,6 +26,7 @@ import type { TopicsModel, TopicsResult } from './topics';
 import type { CrawlResult } from '~/sites/crawl';
 import { parseModelTestBody, runModelTest } from './modelTest';
 import { summarizeTopics, TOPIC_SAMPLE_LIMIT } from './topics';
+import { resolveSourceMatch } from './source';
 import { splitAgentDocuments } from '~/agents/resources';
 import { toWebsiteItem } from '~/sites/store';
 import { WebsiteError } from '~/sites/crawl';
@@ -95,6 +96,8 @@ export interface AgentAnalyticsScope {
   /** `null` means every user; `[]` means no user (an empty group). */
   userIds: string[] | null;
   since: Date;
+  /** Extra conversation conditions from the Source filter; see `resolveSourceMatch`. */
+  match?: Record<string, unknown>;
 }
 
 /** Raw distributions from the pipeline. Buckets, medians, and zero-fill happen here. */
@@ -837,6 +840,12 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     return denominator === 0 ? 0 : numerator / denominator;
   }
 
+  /** Embed guests of these agents; their only mark is on the user. */
+  async function findGuestIds(agentIds: string[]): Promise<string[]> {
+    const guests = await findUsers({ provider: 'guest', embedAgentId: { $in: agentIds } }, '_id');
+    return guests.map((user) => String(user._id));
+  }
+
   async function listAgentAnalyticsHandler(req: ServerRequest, res: Response) {
     const caller = req.user;
     if (!caller?._id) {
@@ -857,10 +866,16 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       }
 
       const agents = await findScopedAgents(caller);
+      const agentIds = agents.map((agent) => agent.id);
+      const match = await resolveSourceMatch(req.query.source, agentIds, findGuestIds);
+      if (match === null) {
+        return res.status(400).json({ error: 'Unknown source' });
+      }
       const raw = await aggregateAgentAnalytics({
-        agentIds: agents.map((agent) => agent.id),
+        agentIds,
         userIds: scope.userIds,
         since,
+        match,
       });
 
       const oneTurnCount =
@@ -922,10 +937,15 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       }
 
       const agentIds = agents.map((agent) => agent.id).sort();
+      const match = await resolveSourceMatch(req.query.source, agentIds, findGuestIds);
+      if (match === null) {
+        return res.status(400).json({ error: 'Unknown source' });
+      }
+      const source = typeof req.query.source === 'string' ? req.query.source : '';
       const day = since.toISOString().slice(0, 10);
-      const cacheKey = `${String(caller._id)}|${rawGroupId ?? ''}|${day}|${agentIds.join(',')}`;
+      const cacheKey = `${String(caller._id)}|${rawGroupId ?? ''}|${source}|${day}|${agentIds.join(',')}`;
       const texts = await sampleStudentMessages(
-        { agentIds, userIds: scope.userIds, since },
+        { agentIds, userIds: scope.userIds, since, match },
         TOPIC_SAMPLE_LIMIT,
       );
       const body: TopicsResult = await summarizeTopics(cacheKey, texts, llm);

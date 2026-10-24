@@ -2117,6 +2117,24 @@ describe('createAdminUsageHandlers', () => {
       daily: [{ date: '2026-07-28', conversations: 10 }],
     };
 
+    it('narrows to the requested source and refuses an unknown one', async () => {
+      const aggregateAgentAnalytics = jest.fn(async () => populatedRaw);
+      const handlers = createAdminUsageHandlers(
+        createDeps(baseWorld(), { aggregateAgentAnalytics }),
+      );
+
+      const api = createReqRes({ query: { source: 'api' } });
+      await handlers.listAgentAnalytics(api.req, api.res);
+      expect(api.status).toHaveBeenCalledWith(200);
+      expect(aggregateAgentAnalytics).toHaveBeenLastCalledWith(
+        expect.objectContaining({ match: { apiKeyId: { $exists: true } } }),
+      );
+
+      const bogus = createReqRes({ query: { source: 'bogus' } });
+      await handlers.listAgentAnalytics(bogus.req, bogus.res);
+      expect(bogus.status).toHaveBeenCalledWith(400);
+    });
+
     it('shapes raw distributions into the dashboard response', async () => {
       const deps = createDeps(baseWorld(), {
         aggregateAgentAnalytics: jest.fn(async () => populatedRaw),

@@ -37,7 +37,21 @@ export interface AgentAnalyticsScope {
   /** `null` means every user; `[]` means no user (an empty group). */
   userIds: string[] | null;
   since: Date;
+  /** Extra conversation conditions (the dashboard's Source filter), ANDed with the rest. */
+  match?: FilterQuery<IConversation>;
 }
+
+/**
+ * `$and` keeps a source `user` condition from colliding with the roster's `match.user`,
+ * which `scopedActivityStages` sets on the same object.
+ */
+const analyticsFilter = (
+  agentIds: string[],
+  match: FilterQuery<IConversation> | undefined,
+): FilterQuery<IConversation> => ({
+  agent_id: { $in: agentIds },
+  ...(match ? { $and: [match] } : {}),
+});
 
 /**
  * Raw distributions, not presentation buckets. Bucket edges, medians, and day
@@ -227,6 +241,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
     agentIds,
     userIds,
     since,
+    match,
   }: AgentAnalyticsScope): Promise<AgentAnalyticsRaw> {
     if (agentIds.length === 0 || userIds?.length === 0) {
       return EMPTY_ANALYTICS;
@@ -237,7 +252,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
     const Conversation = mongoose.models.Conversation as Model<IConversation>;
 
     const [result] = await Conversation.aggregate<AgentAnalyticsRaw>([
-      ...scopedActivityStages({ agent_id: { $in: agentIds } }, userIds, since),
+      ...scopedActivityStages(analyticsFilter(agentIds, match), userIds, since),
       {
         $lookup: {
           from: messageCollection,
@@ -342,7 +357,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
   }
 
   async function sampleStudentMessages(
-    { agentIds, userIds, since }: AgentAnalyticsScope,
+    { agentIds, userIds, since, match }: AgentAnalyticsScope,
     limit: number,
   ): Promise<string[]> {
     if (agentIds.length === 0 || userIds?.length === 0) {
@@ -354,7 +369,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
     const Conversation = mongoose.models.Conversation as Model<IConversation>;
 
     const rows = await Conversation.aggregate<{ text: string }>([
-      ...scopedActivityStages({ agent_id: { $in: agentIds } }, userIds, since),
+      ...scopedActivityStages(analyticsFilter(agentIds, match), userIds, since),
       { $match: { 'activity.0': { $exists: true } } },
       {
         $lookup: {
