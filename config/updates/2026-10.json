@@ -1,0 +1,43 @@
+{
+  "id": "2026-10",
+  "edition": "October 2026",
+  "commits": "5f2935877..cde97da4c (Oct 1 to Oct 24)",
+  "subject": "What's new in GiesChat: drafts now keep up with your changes",
+  "preheader": "Your TAs' drafts now keep up with your changes, and agents can read your course website.",
+  "headline": "Drafts now keep up with your changes",
+  "intro": {
+    "faculty": "Here is what changed in GiesChat this month and what it means for the agents you run for your classes.",
+    "all": "Here is what changed in GiesChat this month. Items marked Faculty are for people who build agents for their classes."
+  },
+  "clip": {
+    "gif": "updates/2026-10/main.gif",
+    "mp4": "updates/2026-10/main.mp4",
+    "alt": "Before and after: a TA's draft used to fall behind silently; now they see a notice, open Update my draft, choose where you both edited, and the draft is current again.",
+    "caption": "Before: when you changed an agent, a TA's draft fell behind without anyone knowing. After: they see it on their draft and update in one click."
+  },
+  "changes": [
+    {
+      "title": "How it works for your TAs",
+      "body": "If you change an agent while a TA is working on a draft, they get a note and can bring their draft up to date in one step. Where you both edited the same thing, they see both versions and choose.",
+      "faculty": true
+    },
+    {
+      "title": "Agents can learn from your course website",
+      "body": "In the agent builder, paste a course or department web address under Websites. GiesChat reads up to 50 pages from that site, saves a clean copy for your agent, and checks it again every night, so answers keep up when your site changes.",
+      "faculty": true
+    },
+    {
+      "title": "Pictures of tables and charts now count",
+      "body": "Add a photo or screenshot of a table or chart to an agent and GiesChat reads the numbers into text, so students can ask about them."
+    },
+    {
+      "title": "The class dashboard is now the Agent dashboard",
+      "body": "Same place, new name. People you invite as collaborators or co-admins now get access to it automatically, so you no longer need to request it for them.",
+      "faculty": true
+    },
+    {
+      "title": "Newer models",
+      "body": "Chat now runs on GPT-6 Luna. Class agents can also use GPT-6.1 Sol and Claude Sonnet, Opus and Haiku 5.5."
+    }
+  ]
+}

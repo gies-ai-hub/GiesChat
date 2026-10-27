@@ -1367,6 +1367,21 @@ export function postAdminAgentDraft(
   return request.post(endpoints.adminAgentDraftPost(agentId, draftId), {});
 }
 
+export function getAdminDraftUpdate(
+  agentId: string,
+  draftId: string,
+): Promise<q.AdminDraftUpdatePreview> {
+  return request.get(endpoints.adminAgentDraftUpdate(agentId, draftId));
+}
+
+export function updateAdminAgentDraft(
+  agentId: string,
+  draftId: string,
+  payload: q.AdminDraftUpdateRequest,
+): Promise<q.AdminDraftUpdateResponse> {
+  return request.post(endpoints.adminAgentDraftUpdate(agentId, draftId), payload);
+}
+
 /* Embedded chat (public) */
 export function startEmbedSession(key: string): Promise<q.EmbedSessionResponse> {
   return request.post(endpoints.embedSession(key));

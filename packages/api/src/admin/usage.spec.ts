@@ -1,7 +1,7 @@
 import { Types } from 'mongoose';
 import { ResourceType, PermissionBits } from 'librechat-data-provider';
 import type { IUser, IAgent, IGroup, IMongoFile } from '@librechat/data-schemas';
-import type { WebsitePage } from 'librechat-data-provider';
+import type { WebsitePage, AdminDraftUpdatePreview } from 'librechat-data-provider';
 import type { Response } from 'express';
 import type {
   AdminUsageDeps,
@@ -3367,6 +3367,139 @@ describe('createAdminUsageHandlers', () => {
         expect(status).toHaveBeenCalledWith(200);
         const [, data] = deps.updateAgent.mock.calls[0] as [unknown, Partial<IAgent>];
         expect(data.tool_resources).toEqual({ context: { file_ids: ['file_a'] } });
+      });
+    });
+
+    describe('draft updates', () => {
+      const BASE = 'Coach BADM 350 cases.\nAsk one question at a time.\nOffice hours: Tuesdays.';
+
+      /** Production went v2 → v3 (new model, new document); Bob's draft started at v2. */
+      function staleWorld() {
+        const { prod, bobDraft } = world();
+        const v2 = { name: 'Case Coach', model: 'gpt-6-luna', instructions: BASE };
+        prod.versions = [{}, v2, {}] as IAgent['versions'];
+        Object.assign(prod, v2, {
+          model: 'gpt-6.1-sol',
+          instructions: BASE.replace('Tuesdays', 'Thursdays'),
+          tool_resources: { context: { file_ids: ['rubric_prod'] } },
+        });
+        Object.assign(bobDraft, v2, {
+          instructions: BASE.replace('Tuesdays', 'Mondays'),
+          conversation_starters: ['How is the case graded?'],
+        });
+        const files = [
+          {
+            file_id: 'rubric_prod',
+            filename: 'rubric.pdf',
+            filepath: '/r.pdf',
+            text: 'r',
+            embedded: true,
+          },
+        ];
+        return { prod, bobDraft, files };
+      }
+
+      it('shows the owner what comes in, what stays and what clashes, and writes nothing', async () => {
+        const { prod, bobDraft, files } = staleWorld();
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob] }), {
+          getFiles: jest.fn(async () => files),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status, json } = createReqRes({
+          params: { agent_id: 'agent_prod', draft_id: 'agent_prod_bob' },
+          user: ta,
+        });
+        await handlers.previewDraftUpdate(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        const body = json.mock.calls[0][0] as AdminDraftUpdatePreview;
+        expect(body.from).toBe(2);
+        expect(body.to).toBe(3);
+        expect(body.changes).toEqual(
+          expect.arrayContaining([
+            { field: 'model', from: 'production', before: 'gpt-6-luna', after: 'gpt-6.1-sol' },
+            { field: 'tool_resources', from: 'production', before: null, after: '+ rubric.pdf' },
+            expect.objectContaining({ field: 'conversation_starters', from: 'draft' }),
+          ]),
+        );
+        expect(body.conflicts).toEqual([
+          {
+            id: 'instructions:0',
+            field: 'instructions',
+            context: 'Ask one question at a time.',
+            mine: 'Office hours: Mondays.',
+            theirs: 'Office hours: Thursdays.',
+          },
+        ]);
+        expect(deps.updateAgent).not.toHaveBeenCalled();
+        expect(deps.setAgentMeta).not.toHaveBeenCalled();
+      });
+
+      it('lets only the draft’s owner see or apply an update', async () => {
+        const { prod, bobDraft } = staleWorld();
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status } = createReqRes({
+          params: { agent_id: 'agent_prod', draft_id: 'agent_prod_bob' },
+          body: { to: 3, choices: { 'instructions:0': 'mine' } },
+          user: prof,
+        });
+        await handlers.updateAgentDraft(req, res);
+        expect(status).toHaveBeenCalledWith(403);
+        expect(deps.updateAgent).not.toHaveBeenCalled();
+      });
+
+      it('writes nothing when production moved since the preview or a clash has no pick', async () => {
+        const { prod, bobDraft } = staleWorld();
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob] }));
+        const handlers = createAdminUsageHandlers(deps);
+        const params = { agent_id: 'agent_prod', draft_id: 'agent_prod_bob' };
+
+        const moved = createReqRes({ params, body: { to: 2, choices: {} }, user: ta });
+        await handlers.updateAgentDraft(moved.req, moved.res);
+        expect(moved.status).toHaveBeenCalledWith(409);
+
+        const unpicked = createReqRes({ params, body: { to: 3, choices: {} }, user: ta });
+        await handlers.updateAgentDraft(unpicked.req, unpicked.res);
+        expect(unpicked.status).toHaveBeenCalledWith(400);
+
+        const malformed = createReqRes({
+          params,
+          body: { to: 3, choices: { x: 'both' } },
+          user: ta,
+        });
+        await handlers.updateAgentDraft(malformed.req, malformed.res);
+        expect(malformed.status).toHaveBeenCalledWith(400);
+
+        expect(deps.updateAgent).not.toHaveBeenCalled();
+        expect(deps.setAgentMeta).not.toHaveBeenCalled();
+      });
+
+      it('applies the merge to the draft with its own copy of a new document and moves its base', async () => {
+        const { prod, bobDraft, files } = staleWorld();
+        const deps = createDeps(baseWorld({ agents: [prod, bobDraft], users: [bob] }), {
+          getFiles: jest.fn(async () => files),
+        });
+        const handlers = createAdminUsageHandlers(deps);
+        const { req, res, status, json } = createReqRes({
+          params: { agent_id: 'agent_prod', draft_id: 'agent_prod_bob' },
+          body: { to: 3, choices: { 'instructions:0': 'theirs' } },
+          user: ta,
+        });
+        await handlers.updateAgentDraft(req, res);
+        expect(status).toHaveBeenCalledWith(200);
+        expect(json.mock.calls[0][0]).toEqual({ draft_id: 'agent_prod_bob', draftBase: 3 });
+        const [filter, data] = deps.updateAgent.mock.calls[0] as [{ id: string }, Partial<IAgent>];
+        expect(filter).toEqual({ id: 'agent_prod_bob' });
+        expect(data).toEqual({
+          model: 'gpt-6.1-sol',
+          instructions: BASE.replace('Tuesdays', 'Thursdays'),
+          tool_resources: { context: { file_ids: ['rubric_prod_copy'] } },
+        });
+        expect(deps.copyDocuments).toHaveBeenCalledWith(
+          expect.objectContaining({ agentId: 'agent_prod_bob', files: [files[0]] }),
+        );
+        expect(deps.setAgentMeta).toHaveBeenCalledWith('agent_prod_bob', { draftBase: 3 });
+        expect(bobDraft.conversation_starters).toEqual(['How is the case graded?']);
       });
     });
   });

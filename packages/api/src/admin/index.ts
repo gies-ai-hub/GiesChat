@@ -8,6 +8,7 @@ export { createAdminAuditLogHandlers } from './auditLog';
 export { createAdminUsageHandlers, setCoAdminAccess } from './usage';
 export { createAdminApiKeyHandlers } from './apiKeys';
 export type { AdminApiKeyDeps, AdminApiKeyHandlers } from './apiKeys';
+export { notifyOutdatedDrafts, startDraftNotify } from './notify';
 export type { AdminConfigDeps } from './config';
 export type { AdminGrantsDeps, GrantPrincipalType } from './grants';
 export type { AdminGroupsDeps } from './groups';
@@ -15,6 +16,7 @@ export type { AdminRolesDeps } from './roles';
 export type { AdminSkillSyncAccessDeps, AdminSkillSyncDeps } from './skills';
 export type { AdminUsersDeps } from './users';
 export type { AdminAuditLogDeps } from './auditLog';
+export type { DraftNotifyDeps, DraftOutdatedEmail } from './notify';
 export type {
   AdminUsageDeps,
   AgentUsageRow,

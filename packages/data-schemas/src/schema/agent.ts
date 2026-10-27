@@ -156,12 +156,16 @@ const agentSchema: Schema<IAgent> = new Schema<IAgent>(
       type: String,
       index: true,
     },
-    /** Production's saved-version count when this draft was cloned; a higher count on production means it moved on. */
+    /** Production's saved-version count when this draft was cloned or last updated; a higher count on production means it moved on. */
     draftBase: {
       type: Number,
     },
     /** The production version this draft became when it was posted. */
     postedVersion: {
+      type: Number,
+    },
+    /** The `draftBase` its owner was last emailed about; equal to `draftBase` means do not email again. */
+    notifiedBase: {
       type: Number,
     },
     support_contact: {

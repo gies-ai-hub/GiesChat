@@ -7,6 +7,7 @@ import { useAdminAgentDraftsQuery, useOpenAdminAgentDraftMutation } from '~/data
 import DeleteAgentButton from '~/components/Agents/DeleteAgentButton';
 import { formatLastActivity } from '../activity';
 import PostDraftDialog from './PostDraftDialog';
+import DraftUpdate from './DraftUpdate';
 import QueryState from '../QueryState';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
@@ -171,6 +172,11 @@ export default function DraftsPanel({
                     />
                   )}
                 </div>
+                {draft.mine && (
+                  <div className="col-span-3 empty:hidden">
+                    <DraftUpdate agentId={agent.agent_id} draftId={draft.draft_id} />
+                  </div>
+                )}
               </li>
             );
           })}

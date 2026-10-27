@@ -101,6 +101,8 @@ export enum QueryKeys {
   adminAgentDrafts = 'adminAgentDrafts',
   /* API keys on the agents the caller authors or co-runs */
   adminApiKeys = 'adminApiKeys',
+  /* What bringing one draft up to date with production would change */
+  adminDraftUpdate = 'adminDraftUpdate',
 }
 
 // Dynamic query keys that require parameters
@@ -144,6 +146,7 @@ export enum MutationKeys {
   previewAdminWebsite = 'previewAdminWebsite',
   saveAdminAgentWebsite = 'saveAdminAgentWebsite',
   postAdminAgentDraft = 'postAdminAgentDraft',
+  updateAdminAgentDraft = 'updateAdminAgentDraft',
   createProject = 'createProject',
   updateProject = 'updateProject',
   deleteProject = 'deleteProject',

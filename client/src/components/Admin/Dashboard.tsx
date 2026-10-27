@@ -8,7 +8,7 @@ import type { AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
 import type { Option } from '@librechat/client';
 import type { AgentPeopleLists } from './Drafts/CollaboratorsDialog';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
-import { CollaboratorsDialog } from './Drafts';
+import { CollaboratorsDialog, DraftUpdate } from './Drafts';
 import {
   useAdminAccess,
   useAdminGroupsQuery,
@@ -57,6 +57,8 @@ export default function AdminDashboard() {
   const [days, setDays] = useState<number>(30);
   const [selectedAgent, setSelectedAgent] = useState<AdminAgentUsage | null>(null);
   const [editingAgent, setEditingAgent] = useState<AdminAgentUsage | null>(null);
+  /** The production agent whose draft is open in the editor, so the editor can offer an update. */
+  const [editingDraftOf, setEditingDraftOf] = useState<string | null>(null);
   const [embeddingAgent, setEmbeddingAgent] = useState<AdminAgentUsage | null>(null);
   const [apiAgent, setApiAgent] = useState<AdminAgentUsage | null>(null);
   const [source, setSource] = useState<string>(ALL_SOURCES);
@@ -160,10 +162,10 @@ export default function AdminDashboard() {
   );
 
   /** A draft is an ordinary agent, so the existing edit dialog opens on its id; only the title changes. */
-  const handleEditDraft = useCallback(
-    (draftId: string, agent: AdminAgentUsage) => setEditingAgent({ ...agent, agent_id: draftId }),
-    [],
-  );
+  const handleEditDraft = useCallback((draftId: string, agent: AdminAgentUsage) => {
+    setEditingDraftOf(agent.agent_id);
+    setEditingAgent({ ...agent, agent_id: draftId });
+  }, []);
 
   const openDraft = useOpenAdminAgentDraftMutation();
   /** Find-or-create, so the same pencil starts a collaborator's draft and reopens it later. */
@@ -198,6 +200,7 @@ export default function AdminDashboard() {
         return;
       }
       setEditingAgent(null);
+      setEditingDraftOf(null);
       queryClient.invalidateQueries([QueryKeys.adminAgentUsage]);
       queryClient.invalidateQueries([QueryKeys.adminAgentDrafts]);
     },
@@ -421,6 +424,14 @@ export default function AdminDashboard() {
             <OGDialogTitle>
               {localize('com_ui_admin_edit_agent_title', { name: editingAgent?.name ?? '' })}
             </OGDialogTitle>
+            {editingAgent != null && editingDraftOf != null && (
+              <DraftUpdate
+                agentId={editingDraftOf}
+                draftId={editingAgent.agent_id}
+                inEditor
+                onUpdated={() => handleEditOpenChange(false)}
+              />
+            )}
             {editingAgent != null && (
               <AgentPanelSwitch
                 key={editingAgent.agent_id}

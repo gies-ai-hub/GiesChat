@@ -1,6 +1,7 @@
 const { logger } = require('@librechat/data-schemas');
-const { checkEmailConfig } = require('@librechat/api');
+const { checkEmailConfig, startDraftNotify } = require('@librechat/api');
 const sendEmail = require('~/server/utils/sendEmail');
+const db = require('~/models');
 
 /** What each role may do, in the words the email uses. */
 const ROLE_DETAIL = {
@@ -12,27 +13,27 @@ const ROLE_DETAIL = {
 const ROLE_NAME = { coAdmin: 'co-admin', collaborator: 'collaborator' };
 
 /**
- * Emails one person about their role on a class agent. Sign-in is Illinois SSO, so the
- * email carries no token or link state of its own.
+ * Emails one person about a class agent. Sign-in is Illinois SSO, so the email carries no
+ * token or link state of its own.
  *
  * @param {object} params
  * @param {string} params.email
  * @param {string} params.subject
  * @param {string} params.agentName
- * @param {string} params.inviterName
+ * @param {string} params.inviterName - who did it
  * @param {string} params.action - the verb phrase before the agent's name
  * @param {string} params.actionEnd - what follows the agent's name, if anything
- * @param {'coAdmin'|'collaborator'} params.role
+ * @param {string} params.detail - what the reader can do next
  * @returns {Promise<void>}
  */
-const sendRoleEmail = async ({
+const sendAgentEmail = async ({
   email,
   subject,
   agentName,
   inviterName,
   action,
   actionEnd,
-  role,
+  detail,
 }) => {
   if (!checkEmailConfig()) {
     logger.warn(`[AgentInvites] No email provider configured; ${email} was not emailed`);
@@ -48,7 +49,7 @@ const sendRoleEmail = async ({
       inviterName,
       action,
       actionEnd,
-      detail: ROLE_DETAIL[role] ?? ROLE_DETAIL.collaborator,
+      detail,
       name: email,
       inviteLink: `${process.env.DOMAIN_CLIENT}/admin`,
       year: new Date().getFullYear(),
@@ -65,11 +66,11 @@ const sendRoleEmail = async ({
  * @returns {Promise<void>}
  */
 const sendCollaboratorInvite = ({ email, agentName, inviterName, role = 'collaborator' }) =>
-  sendRoleEmail({
+  sendAgentEmail({
     email,
     agentName,
     inviterName,
-    role,
+    detail: ROLE_DETAIL[role] ?? ROLE_DETAIL.collaborator,
     action: role === 'coAdmin' ? 'made you a co-admin of' : 'invited you to collaborate on',
     actionEnd: '',
     subject:
@@ -85,14 +86,43 @@ const sendCollaboratorInvite = ({ email, agentName, inviterName, role = 'collabo
  * @returns {Promise<void>}
  */
 const sendRoleChange = ({ email, agentName, inviterName, role }) =>
-  sendRoleEmail({
+  sendAgentEmail({
     email,
     agentName,
     inviterName,
-    role,
+    detail: ROLE_DETAIL[role] ?? ROLE_DETAIL.collaborator,
     action: 'changed your role on',
     actionEnd: ` to ${ROLE_NAME[role] ?? ROLE_NAME.collaborator}`,
     subject: `Your role on “${agentName}” is now ${ROLE_NAME[role] ?? ROLE_NAME.collaborator}`,
   });
 
-module.exports = { sendCollaboratorInvite, sendRoleChange };
+/**
+ * Tells a draft's owner that production moved on since their draft's base. Throws when the
+ * send fails, so the draft stays unmarked and the next pass retries; a missing email
+ * provider is not a failure.
+ *
+ * @param {import('@librechat/api').DraftOutdatedEmail} params
+ * @returns {Promise<void>}
+ */
+const sendDraftOutdated = ({ email, agentName, changedBy, from, to }) =>
+  sendAgentEmail({
+    email,
+    agentName,
+    inviterName: changedBy,
+    action: 'changed',
+    actionEnd: ` (now version ${to}) since you started your draft from version ${from}`,
+    detail:
+      'Open your draft and choose Update my draft. Your changes stay on top, and anything that clashes is shown for you to choose. You can also keep working on the older version.',
+    subject: `“${agentName}” changed since you started your draft`,
+  });
+
+/** Starts the leader-only sweep that sends {@link sendDraftOutdated}. */
+const startDraftEmails = () =>
+  startDraftNotify({
+    findAgents: db.getAgents,
+    findUsers: db.findUsers,
+    setAgentMeta: db.setAgentMeta,
+    sendDraftOutdated,
+  });
+
+module.exports = { sendCollaboratorInvite, sendRoleChange, sendDraftOutdated, startDraftEmails };

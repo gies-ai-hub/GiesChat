@@ -533,6 +533,9 @@ export const adminAgentDrafts = (agentId: string) =>
 export const adminAgentDraftPost = (agentId: string, draftId: string) =>
   `${adminAgentDrafts(agentId)}/${encodeURIComponent(draftId)}/post`;
 
+export const adminAgentDraftUpdate = (agentId: string, draftId: string) =>
+  `${adminAgentDrafts(agentId)}/${encodeURIComponent(draftId)}/update`;
+
 /** Public: the key in the path is the credential. */
 export const embedSession = (key: string) => `${BASE_URL}/api/embed/${encodeURIComponent(key)}`;
 
