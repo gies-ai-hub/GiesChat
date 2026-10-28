@@ -1,7 +1,7 @@
 import React from 'react';
 import { RecoilRoot } from 'recoil';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
@@ -208,6 +208,17 @@ const siteKey = {
   createdAt: '2026-10-24T12:00:00.000Z',
 };
 
+/** Stand-ins for the browser's back button and the sidebar's dashboard link. */
+const HistoryControls = () => {
+  const navigate = useNavigate();
+  return (
+    <>
+      <button type="button" data-testid="browser-back" onClick={() => navigate(-1)} />
+      <button type="button" data-testid="sidebar-admin" onClick={() => navigate('/admin')} />
+    </>
+  );
+};
+
 const renderDashboard = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -216,6 +227,7 @@ const renderDashboard = () => {
     <RecoilRoot>
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={['/admin']}>
+          <HistoryControls />
           <Routes>
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/c/new" element={<ChatLocation />} />
@@ -644,6 +656,33 @@ describe('AdminDashboard', () => {
 
       const row = within(table).getByText('No Course Agent').closest('tr') as HTMLElement;
       expect(within(row).getByText('None')).toBeInTheDocument();
+    });
+
+    it('returns to the agent list from browser back and from the sidebar link', async () => {
+      renderDashboard();
+      const openCard = async () => {
+        const list = await screen.findByRole('list', { name: 'Agents you manage' });
+        await userEvent.click(within(list).getByRole('button', { name: 'Case Study Coach' }));
+        expect(
+          await screen.findByRole('button', { name: 'Back to all agents' }),
+        ).toBeInTheDocument();
+      };
+      const expectList = async () => {
+        expect(
+          await screen.findByRole('button', { name: 'View student progress for Case Study Coach' }),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByRole('button', { name: 'Back to all agents' }),
+        ).not.toBeInTheDocument();
+      };
+
+      await openCard();
+      await userEvent.click(screen.getByTestId('browser-back'));
+      await expectList();
+
+      await openCard();
+      await userEvent.click(screen.getByTestId('sidebar-admin'));
+      await expectList();
     });
 
     it('keeps the strip visible during the drill-down', async () => {

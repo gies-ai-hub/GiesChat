@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { ArrowLeft, Bot, MessageSquare } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Dropdown, OGDialog, OGDialogContent, OGDialogTitle } from '@librechat/client';
 import { QueryKeys, Permissions, PermissionTypes } from 'librechat-data-provider';
@@ -14,6 +14,7 @@ import {
   useAdminAccess,
   useAdminGroupsQuery,
   useAdminApiKeysQuery,
+  useAdminAgentUsageQuery,
   useOpenAdminAgentDraftMutation,
 } from '~/data-provider';
 import { useHasAccess, useLocalize } from '~/hooks';
@@ -37,6 +38,8 @@ const DASHBOARD_ORIGIN = 'dashboard';
 const DASHBOARD_MODEL = { provider: 'Azure OpenAI', model: 'gpt-6-luna' };
 /** Class agents may hold more File Context documents than a chat message may attach. */
 const DASHBOARD_DOCUMENT_LIMIT = 100;
+/** The drill-down lives in the URL, so browser back and the sidebar link return to the list. */
+const AGENT_PARAM = 'agent';
 const NO_PEOPLE: AgentPeopleLists = {
   collaborators: [],
   pending: [],
@@ -57,7 +60,8 @@ export default function AdminDashboard() {
 
   const [groupId, setGroupId] = useState<string>(ALL_CLASSES);
   const [days, setDays] = useState<number>(30);
-  const [selectedAgent, setSelectedAgent] = useState<AdminAgentUsage | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedAgentId = searchParams.get(AGENT_PARAM);
   const [editingAgent, setEditingAgent] = useState<AdminAgentUsage | null>(null);
   /** The production agent whose draft is open in the editor, so the editor can offer an update. */
   const [editingDraftOf, setEditingDraftOf] = useState<string | null>(null);
@@ -74,6 +78,23 @@ export default function AdminDashboard() {
   const { data: groupData, error: groupsError } = useAdminGroupsQuery(
     { limit: GROUP_PAGE_SIZE },
     { enabled: canPickClass },
+  );
+
+  /** The tables treat an empty string as "unfiltered", which is what `all` means here. */
+  const groupFilter = groupId === ALL_CLASSES ? '' : groupId;
+
+  /**
+   * Same query key as the cards and table, so this costs no request. The list carries every
+   * scoped agent whatever the filters; `keepPreviousData` holds the drill-down open while a
+   * new class or window loads.
+   */
+  const { data: usageData } = useAdminAgentUsageQuery(
+    { days, ...(groupFilter ? { groupId: groupFilter } : {}) },
+    { keepPreviousData: true },
+  );
+  const selectedAgent = useMemo(
+    () => usageData?.agents.find((agent) => agent.agent_id === selectedAgentId) ?? null,
+    [usageData, selectedAgentId],
   );
 
   const classOptions = useMemo<Option[]>(() => {
@@ -210,10 +231,14 @@ export default function AdminDashboard() {
     [queryClient],
   );
 
-  const handleBack = useCallback(() => setSelectedAgent(null), []);
+  /** Switching between agents replaces the entry, so one browser back always lands on the list. */
+  const handleSelectAgent = useCallback(
+    (agent: AdminAgentUsage) =>
+      setSearchParams({ [AGENT_PARAM]: agent.agent_id }, { replace: selectedAgent != null }),
+    [setSearchParams, selectedAgent],
+  );
 
-  /** The tables treat an empty string as "unfiltered", which is what `all` means here. */
-  const groupFilter = groupId === ALL_CLASSES ? '' : groupId;
+  const handleBack = useCallback(() => setSearchParams({}), [setSearchParams]);
 
   /** One drafts row at a time. It lives in the table, so a card's toggle first leaves an open agent. */
   const handleToggleDrafts = useCallback(
@@ -344,7 +369,7 @@ export default function AdminDashboard() {
             groupId={groupFilter}
             days={days}
             selectedAgentId={selectedAgent?.agent_id ?? null}
-            onSelectAgent={setSelectedAgent}
+            onSelectAgent={handleSelectAgent}
             expandedId={draftsOpenFor}
             {...agentActions}
           />
@@ -352,7 +377,7 @@ export default function AdminDashboard() {
             <AgentUsageTable
               groupId={groupFilter}
               days={days}
-              onSelectAgent={setSelectedAgent}
+              onSelectAgent={handleSelectAgent}
               expandedId={draftsOpenFor}
               {...agentActions}
               onEditDraft={handleEditDraft}
