@@ -1,39 +1,30 @@
-import React, { Fragment, useState, useCallback } from 'react';
-import { Code, Pencil, KeyRound, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { QueryKeys } from 'librechat-data-provider';
+import React, { Fragment, useEffect, useCallback } from 'react';
 import {
   Table,
-  Button,
   TableRow,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableCaption,
-  TooltipAnchor,
 } from '@librechat/client';
 import type { AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
 import type { AgentPeopleLists } from './Drafts/CollaboratorsDialog';
-import DeleteAgentButton from '~/components/Agents/DeleteAgentButton';
+import type { AgentActionHandlers } from './AgentActions';
 import { useAdminAgentUsageQuery } from '~/data-provider';
 import { formatLastActivity } from './activity';
+import AgentActions from './AgentActions';
 import { DraftsPanel } from './Drafts';
 import { useLocalize } from '~/hooks';
 import QueryState from './QueryState';
 
-interface AgentUsageTableProps {
+interface AgentUsageTableProps extends AgentActionHandlers {
   groupId: string;
   days: number;
+  /** The agent whose drafts row is open; the dashboard owns it so a card can open it too. */
+  expandedId: string | null;
   onSelectAgent: (agent: AdminAgentUsage) => void;
-  onEditAgent: (agent: AdminAgentUsage) => void;
-  onEmbedAgent: (agent: AdminAgentUsage) => void;
-  /** Opens the agent's API keys; offered to its author and co-admins only. */
-  onApiAccess: (agent: AdminAgentUsage) => void;
-  onOpenAgent: (agent: AdminAgentUsage) => void;
   onEditDraft: (draftId: string, agent: AdminAgentUsage) => void;
-  /** A collaborator's pencil: opens their own draft, creating it on first use. */
-  onEditOwnDraft: (agent: AdminAgentUsage) => void;
   onTestLink: (draft: AdminAgentDraft, agent: AdminAgentUsage) => void;
   onOpenDraft: (draftId: string) => void;
   onManageCollaborators: (agent: AdminAgentUsage, people: AgentPeopleLists) => void;
@@ -42,31 +33,28 @@ interface AgentUsageTableProps {
 export default function AgentUsageTable({
   groupId,
   days,
+  expandedId,
   onSelectAgent,
-  onEditAgent,
-  onEmbedAgent,
-  onApiAccess,
-  onOpenAgent,
   onEditDraft,
-  onEditOwnDraft,
   onTestLink,
   onOpenDraft,
   onManageCollaborators,
+  ...actions
 }: AgentUsageTableProps) {
   const localize = useLocalize();
-  const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState<string | null>(null);
   const params = { days, ...(groupId ? { groupId } : {}) };
   const { data, isLoading, error, refetch } = useAdminAgentUsageQuery(params);
-
-  const handleDeleted = useCallback(
-    () => queryClient.invalidateQueries([QueryKeys.adminAgentUsage]),
-    [queryClient],
-  );
 
   const handleRetry = useCallback(() => {
     void refetch();
   }, [refetch]);
+
+  /** A card's drafts icon opens a row further down the page, so bring it into view. */
+  useEffect(() => {
+    if (expandedId != null) {
+      document.getElementById(`drafts-${expandedId}`)?.scrollIntoView?.({ block: 'nearest' });
+    }
+  }, [expandedId]);
 
   const agents = data?.agents ?? [];
   /** Ranks agents against the busiest one in view, so a chart repeating this column isn't needed. */
@@ -172,128 +160,14 @@ export default function AgentUsageTable({
                   {formatLastActivity(agent.lastActivity) ?? localize('com_ui_none')}
                 </TableCell>
                 <TableCell className="text-right">
-                  {/* Every listed row is author-or-EDIT scoped by the server, so the pencil
-                    needs no per-row flag. DELETE is a narrower bit, hence canDelete. */}
-                  <span className="flex justify-end gap-1">
-                    <TooltipAnchor
-                      description={localize('com_ui_admin_tip_open')}
-                      render={
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          type="button"
-                          onClick={() => onOpenAgent(agent)}
-                          aria-label={localize('com_ui_admin_open_agent', { name: agent.name })}
-                        >
-                          <MessageSquare className="size-4" aria-hidden="true" />
-                        </Button>
-                      }
-                    />
-                    {/* A collaborator's pencil edits their own draft; production changes only when it is posted. */}
-                    <TooltipAnchor
-                      description={localize(
-                        agent.isCollaborator
-                          ? 'com_ui_admin_tip_edit_own_draft'
-                          : 'com_ui_admin_tip_edit',
-                      )}
-                      render={
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          type="button"
-                          onClick={() =>
-                            agent.isCollaborator ? onEditOwnDraft(agent) : onEditAgent(agent)
-                          }
-                          aria-label={localize(
-                            agent.isCollaborator
-                              ? 'com_ui_admin_edit_own_draft'
-                              : 'com_ui_admin_edit_agent',
-                            { name: agent.name },
-                          )}
-                        >
-                          <Pencil className="size-4" aria-hidden="true" />
-                        </Button>
-                      }
-                    />
-                    <TooltipAnchor
-                      description={localize(
-                        agent.embed ? 'com_ui_admin_tip_embed_on' : 'com_ui_admin_tip_embed',
-                      )}
-                      render={
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          type="button"
-                          onClick={() => onEmbedAgent(agent)}
-                          aria-label={localize('com_ui_admin_embed_agent', { name: agent.name })}
-                          className={agent.embed ? 'text-[#d94f04] dark:text-[#ff5f05]' : undefined}
-                        >
-                          <Code className="size-4" aria-hidden="true" />
-                        </Button>
-                      }
-                    />
-                    {(agent.isAuthor || agent.isCoAdmin) && (
-                      <TooltipAnchor
-                        description={localize('com_ui_admin_tip_api')}
-                        render={
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            type="button"
-                            onClick={() => onApiAccess(agent)}
-                            aria-label={localize('com_ui_admin_api_agent', { name: agent.name })}
-                          >
-                            <KeyRound className="size-4" aria-hidden="true" />
-                          </Button>
-                        }
-                      />
-                    )}
-                    {(agent.isAuthor || agent.isCoAdmin || agent.isCollaborator) && (
-                      <TooltipAnchor
-                        description={localize(
-                          expanded === agent.agent_id
-                            ? 'com_ui_admin_tip_drafts_hide'
-                            : 'com_ui_admin_tip_drafts',
-                        )}
-                        render={
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            type="button"
-                            aria-expanded={expanded === agent.agent_id}
-                            aria-controls={`drafts-${agent.agent_id}`}
-                            aria-label={localize('com_ui_admin_drafts_toggle', {
-                              name: agent.name,
-                            })}
-                            onClick={() =>
-                              setExpanded((current) =>
-                                current === agent.agent_id ? null : agent.agent_id,
-                              )
-                            }
-                          >
-                            {expanded === agent.agent_id ? (
-                              <ChevronDown className="size-4" aria-hidden="true" />
-                            ) : (
-                              <ChevronRight className="size-4" aria-hidden="true" />
-                            )}
-                          </Button>
-                        }
-                      />
-                    )}
-                    {agent.canDelete && (
-                      <DeleteAgentButton
-                        agentId={agent.agent_id}
-                        agentName={agent.name}
-                        confirmText={localize('com_ui_admin_delete_agent_confirm', {
-                          name: agent.name,
-                        })}
-                        onDeleted={handleDeleted}
-                      />
-                    )}
-                  </span>
+                  <AgentActions
+                    agent={agent}
+                    draftsExpanded={expandedId === agent.agent_id}
+                    {...actions}
+                  />
                 </TableCell>
               </TableRow>
-              {expanded === agent.agent_id && (
+              {expandedId === agent.agent_id && (
                 <TableRow id={`drafts-${agent.agent_id}`}>
                   <TableCell colSpan={8} className="bg-surface-secondary p-2">
                     <DraftsPanel

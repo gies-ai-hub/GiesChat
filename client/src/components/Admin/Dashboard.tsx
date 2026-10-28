@@ -7,6 +7,7 @@ import { QueryKeys, Permissions, PermissionTypes } from 'librechat-data-provider
 import type { AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
 import type { Option } from '@librechat/client';
 import type { AgentPeopleLists } from './Drafts/CollaboratorsDialog';
+import type { AgentActionHandlers } from './AgentActions';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
 import { CollaboratorsDialog, DraftUpdate } from './Drafts';
 import {
@@ -62,6 +63,7 @@ export default function AdminDashboard() {
   const [editingDraftOf, setEditingDraftOf] = useState<string | null>(null);
   const [embeddingAgent, setEmbeddingAgent] = useState<AdminAgentUsage | null>(null);
   const [apiAgent, setApiAgent] = useState<AdminAgentUsage | null>(null);
+  const [draftsOpenFor, setDraftsOpenFor] = useState<string | null>(null);
   const [source, setSource] = useState<string>(ALL_SOURCES);
   const [isBuilding, setIsBuilding] = useState(false);
   const [collaboratorsFor, setCollaboratorsFor] = useState<{
@@ -213,6 +215,35 @@ export default function AdminDashboard() {
   /** The tables treat an empty string as "unfiltered", which is what `all` means here. */
   const groupFilter = groupId === ALL_CLASSES ? '' : groupId;
 
+  /** One drafts row at a time. It lives in the table, so a card's toggle first leaves an open agent. */
+  const handleToggleDrafts = useCallback(
+    (agent: AdminAgentUsage) => {
+      if (selectedAgent != null) {
+        handleBack();
+        setDraftsOpenFor(agent.agent_id);
+        return;
+      }
+      setDraftsOpenFor((current) => (current === agent.agent_id ? null : agent.agent_id));
+    },
+    [selectedAgent, handleBack],
+  );
+
+  const handleAgentDeleted = useCallback(
+    () => queryClient.invalidateQueries([QueryKeys.adminAgentUsage]),
+    [queryClient],
+  );
+
+  /** The same icon row sits on each agent card and each table row. */
+  const agentActions: AgentActionHandlers = {
+    onOpenAgent: handleOpenAgent,
+    onEditAgent: setEditingAgent,
+    onEditOwnDraft: handleEditOwnDraft,
+    onEmbedAgent: setEmbeddingAgent,
+    onApiAccess: setApiAgent,
+    onToggleDrafts: handleToggleDrafts,
+    onDeleted: handleAgentDeleted,
+  };
+
   /**
    * `Root` gives every route a fixed-height `overflow-hidden` shell and expects the
    * route to own its scrolling, the way the marketplace does. Without this container
@@ -314,18 +345,17 @@ export default function AdminDashboard() {
             days={days}
             selectedAgentId={selectedAgent?.agent_id ?? null}
             onSelectAgent={setSelectedAgent}
+            expandedId={draftsOpenFor}
+            {...agentActions}
           />
           {selectedAgent == null && (
             <AgentUsageTable
               groupId={groupFilter}
               days={days}
               onSelectAgent={setSelectedAgent}
-              onEditAgent={setEditingAgent}
-              onEmbedAgent={setEmbeddingAgent}
-              onApiAccess={setApiAgent}
-              onOpenAgent={handleOpenAgent}
+              expandedId={draftsOpenFor}
+              {...agentActions}
               onEditDraft={handleEditDraft}
-              onEditOwnDraft={handleEditOwnDraft}
               onTestLink={handleTestLink}
               onOpenDraft={openAgentChat}
               onManageCollaborators={handleManageCollaborators}

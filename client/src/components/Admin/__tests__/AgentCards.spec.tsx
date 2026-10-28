@@ -66,20 +66,33 @@ const usage: AdminAgentUsageResponse = {
 
 const newClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
+const newActions = () => ({
+  onOpenAgent: jest.fn(),
+  onEditAgent: jest.fn(),
+  onEditOwnDraft: jest.fn(),
+  onEmbedAgent: jest.fn(),
+  onApiAccess: jest.fn(),
+  onToggleDrafts: jest.fn(),
+  onDeleted: jest.fn(),
+});
+
 function renderCards(props: Partial<React.ComponentProps<typeof AgentCards>> = {}) {
   const onSelectAgent = jest.fn();
+  const actions = newActions();
   render(
     <QueryClientProvider client={newClient()}>
       <AgentCards
         groupId=""
         days={30}
         selectedAgentId={null}
+        expandedId={null}
         onSelectAgent={onSelectAgent}
+        {...actions}
         {...props}
       />
     </QueryClientProvider>,
   );
-  return { onSelectAgent };
+  return { onSelectAgent, actions };
 }
 
 describe('AgentCards', () => {
@@ -108,7 +121,7 @@ describe('AgentCards', () => {
   it('renders an agent with no avatar, description, or category without crashing', async () => {
     renderCards();
 
-    const bare = await screen.findByRole('button', { name: /Bare Agent/ });
+    const bare = await screen.findByRole('button', { name: 'Bare Agent' });
     expect(bare).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
     expect(screen.getAllByText('Course')).toHaveLength(1);
@@ -117,7 +130,7 @@ describe('AgentCards', () => {
   it('calls onSelectAgent with the clicked agent', async () => {
     const { onSelectAgent } = renderCards();
 
-    const card = await screen.findByRole('button', { name: /Case Study Coach/ });
+    const card = await screen.findByRole('button', { name: 'Case Study Coach' });
     await userEvent.click(card);
 
     expect(onSelectAgent).toHaveBeenCalledWith(expect.objectContaining({ agent_id: 'agent_1' }));
@@ -126,18 +139,44 @@ describe('AgentCards', () => {
   it('marks only the selected card with aria-current', async () => {
     renderCards({ selectedAgentId: 'agent_2' });
 
-    const selected = await screen.findByRole('button', { name: /Bare Agent/ });
-    const other = screen.getByRole('button', { name: /Case Study Coach/ });
+    const selected = await screen.findByRole('button', { name: 'Bare Agent' });
+    const other = screen.getByRole('button', { name: 'Case Study Coach' });
 
     expect(selected).toHaveAttribute('aria-current', 'true');
     expect(other).not.toHaveAttribute('aria-current');
+  });
+
+  /** The same icons as the usage table; CSS shows them on hover or focus, so jsdom sees them always. */
+  it("carries the table's actions, which act on the agent without opening it", async () => {
+    const { onSelectAgent, actions } = renderCards();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit Case Study Coach' }));
+    expect(actions.onEditAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ agent_id: 'agent_1' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Open Case Study Coach in chat' }));
+    expect(actions.onOpenAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ agent_id: 'agent_1' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Drafts of Case Study Coach' }));
+    expect(actions.onToggleDrafts).toHaveBeenCalledWith(
+      expect.objectContaining({ agent_id: 'agent_1' }),
+    );
+    expect(onSelectAgent).not.toHaveBeenCalled();
   });
 
   it('renders nothing while loading and when the list is empty', async () => {
     mockGetAdminAgentUsage.mockResolvedValue({ agents: [] });
     const { container } = render(
       <QueryClientProvider client={newClient()}>
-        <AgentCards groupId="" days={30} selectedAgentId={null} onSelectAgent={jest.fn()} />
+        <AgentCards
+          groupId=""
+          days={30}
+          selectedAgentId={null}
+          expandedId={null}
+          onSelectAgent={jest.fn()}
+          {...newActions()}
+        />
       </QueryClientProvider>,
     );
 

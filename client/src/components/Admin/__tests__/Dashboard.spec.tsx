@@ -442,7 +442,9 @@ describe('AdminDashboard', () => {
     it('opens API access from the agent row for its author', async () => {
       renderDashboard();
       await userEvent.click(
-        await screen.findByRole('button', { name: 'API access for Case Study Coach' }),
+        await within(await screen.findByRole('table')).findByRole('button', {
+          name: 'API access for Case Study Coach',
+        }),
       );
       expect(
         await screen.findByRole('heading', { name: 'API access: Case Study Coach' }),
@@ -456,7 +458,9 @@ describe('AdminDashboard', () => {
       renderDashboard();
       await screen.findByRole('table');
       expect(
-        screen.queryByRole('button', { name: 'API access for Case Study Coach' }),
+        within(screen.getByRole('table')).queryByRole('button', {
+          name: 'API access for Case Study Coach',
+        }),
       ).not.toBeInTheDocument();
     });
 
@@ -468,7 +472,9 @@ describe('AdminDashboard', () => {
       await userEvent.click(await screen.findByRole('option', { name: 'API: BADM 350 site' }));
 
       await userEvent.click(
-        screen.getByRole('button', { name: 'API access for Case Study Coach' }),
+        within(screen.getByRole('table')).getByRole('button', {
+          name: 'API access for Case Study Coach',
+        }),
       );
       const revokeButton = await screen.findByRole('button', { name: 'Revoke key BADM 350 site' });
       mockGetAdminApiKeys.mockResolvedValue({ keys: [] });
@@ -616,7 +622,7 @@ describe('AdminDashboard', () => {
       renderDashboard();
 
       const list = await screen.findByRole('list', { name: 'Agents you manage' });
-      const card = within(list).getByRole('button', { name: /Case Study Coach/ });
+      const card = within(list).getByRole('button', { name: 'Case Study Coach' });
       await userEvent.click(card);
 
       expect(await screen.findByRole('heading', { name: /Case Study Coach/ })).toBeInTheDocument();
@@ -644,7 +650,7 @@ describe('AdminDashboard', () => {
       renderDashboard();
 
       const list = await screen.findByRole('list', { name: 'Agents you manage' });
-      await userEvent.click(within(list).getByRole('button', { name: /Case Study Coach/ }));
+      await userEvent.click(within(list).getByRole('button', { name: 'Case Study Coach' }));
 
       await waitFor(() => expect(mockGetAdminAgentStudentUsage).toHaveBeenCalled());
       expect(screen.getByRole('list', { name: 'Agents you manage' })).toBeInTheDocument();
@@ -727,7 +733,11 @@ describe('AdminDashboard', () => {
       mockGetAdminAgentDrafts.mockResolvedValue(emptyDrafts);
       renderDashboard();
       expect(await screen.findByText('v7 in production')).toBeInTheDocument();
-      await userEvent.click(screen.getByRole('button', { name: 'Drafts of Case Study Coach' }));
+      await userEvent.click(
+        within(screen.getByRole('table')).getByRole('button', {
+          name: 'Drafts of Case Study Coach',
+        }),
+      );
       expect(
         await screen.findByText(
           'No open drafts. Collaborators start one from their own dashboard.',
@@ -748,7 +758,9 @@ describe('AdminDashboard', () => {
         screen.queryByRole('button', { name: 'Edit Case Study Coach' }),
       ).not.toBeInTheDocument();
       await userEvent.click(
-        screen.getByRole('button', { name: 'Edit your draft of Case Study Coach' }),
+        within(screen.getByRole('table')).getByRole('button', {
+          name: 'Edit your draft of Case Study Coach',
+        }),
       );
       await waitFor(() => expect(mockOpenAdminAgentDraft).toHaveBeenCalledWith('agent_1'));
       await waitFor(() =>
@@ -767,7 +779,11 @@ describe('AdminDashboard', () => {
       mockOpenAdminAgentDraft.mockResolvedValue({ draft_id: 'agent_1_me', created: true });
       renderDashboard();
       await screen.findByText('Case Study Coach');
-      await userEvent.click(screen.getByRole('button', { name: 'Drafts of Case Study Coach' }));
+      await userEvent.click(
+        within(screen.getByRole('table')).getByRole('button', {
+          name: 'Drafts of Case Study Coach',
+        }),
+      );
       await userEvent.click(await screen.findByRole('button', { name: 'Start a draft' }));
       await waitFor(() =>
         expect(screen.getByTestId('agent-panel-switch')).toHaveAttribute(
