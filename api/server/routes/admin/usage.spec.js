@@ -23,8 +23,11 @@ jest.mock('~/server/middleware', () => ({
   requireJwtAuth: (_req, _res, next) => next(),
 }));
 
+/** Capabilities the caller lacks; empty means every check passes. */
+const mockDenied = new Set();
 jest.mock('~/server/middleware/roles/capabilities', () => ({
-  requireCapability: () => (_req, _res, next) => next(),
+  requireCapability: (capability) => (_req, res, next) =>
+    mockDenied.has(capability) ? res.status(403).json({ message: 'Forbidden' }) : next(),
 }));
 
 let mongoServer;
@@ -73,6 +76,7 @@ async function seedWorld() {
     author: caller._id,
     provider: 'anthropic',
     model: 'claude',
+    createdVia: 'dashboard',
   });
   sharedAgent = await Agent.create({
     id: 'agent_shared',
@@ -80,6 +84,7 @@ async function seedWorld() {
     author: colleague._id,
     provider: 'anthropic',
     model: 'claude',
+    createdVia: 'dashboard',
   });
 
   await AclEntry.create({
@@ -239,6 +244,25 @@ describe('admin usage routes — real dependency wiring', () => {
     const shared = res.body.agents.find((agent) => agent.agent_id === 'agent_shared');
     expect(shared.conversationCount).toBe(1);
     expect(shared.messageCount).toBe(2);
+  });
+
+  it('opens to a caller with no dashboard capabilities, except the class filter', async () => {
+    ['access:admin', 'read:usage', 'read:groups'].forEach((cap) => mockDenied.add(cap));
+    try {
+      const own = await request(createApp()).get('/api/admin/usage/agents');
+      expect(own.status).toBe(200);
+      expect(own.body.agents.map((agent) => agent.agent_id).sort()).toEqual([
+        'agent_owned',
+        'agent_shared',
+      ]);
+
+      const roster = await request(createApp()).get(
+        `/api/admin/usage/agents/agent_shared/students?groupId=${classGroup._id.toString()}`,
+      );
+      expect(roster.status).toBe(403);
+    } finally {
+      mockDenied.clear();
+    }
   });
 
   it('answers 404 for a group that does not exist', async () => {

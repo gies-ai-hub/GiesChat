@@ -7,7 +7,7 @@ import type { TEndpointsConfig } from 'librechat-data-provider';
 import type { NavLink } from '~/common';
 import BrainstormPanel from '~/components/Brainstorm/BrainstormPanel';
 import ConversationsSection from '~/components/UnifiedSidebar/ConversationsSection';
-import { useAdminAccess, useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
+import { useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
 import useSideNavLinks from '~/hooks/Nav/useSideNavLinks';
 import { useAuthContext, useShowMarketplace } from '~/hooks';
 import store from '~/store';
@@ -56,13 +56,9 @@ export default function useUnifiedSidebarLinks() {
 
   const brainstormEnabled = startupConfig?.brainstormRoomsEnabled === true;
   const showAgentMarketplace = useShowMarketplace();
-  /**
-   * Asked for every signed-in user: dashboard access is granted per user with the
-   * role left at USER, so the role alone cannot predict the answer. The endpoint is
-   * self-scoped and returns an empty capability list for a student.
-   */
+  /** The Agent dashboard is open to every signed-in user (2026-10-28). */
   const { user } = useAuthContext();
-  const { hasAdminAccess } = useAdminAccess(user != null);
+  const signedIn = user != null;
 
   const links = useMemo(() => {
     const conversationLink: NavLink = {
@@ -91,8 +87,7 @@ export default function useUnifiedSidebarLinks() {
             href: '/agents',
           }
         : null;
-    /** Only rendered for capability holders — the route it points at 403s for everyone else. */
-    const adminLink: NavLink | null = hasAdminAccess
+    const adminLink: NavLink | null = signedIn
       ? {
           title: 'com_ui_admin_dashboard',
           label: '',
@@ -110,7 +105,7 @@ export default function useUnifiedSidebarLinks() {
       ...(adminLink ? [adminLink] : []),
       ...panelLinks,
     ];
-  }, [sideNavLinks, brainstormEnabled, showAgentMarketplace, hasAdminAccess]);
+  }, [sideNavLinks, brainstormEnabled, showAgentMarketplace, signedIn]);
 
   return links;
 }

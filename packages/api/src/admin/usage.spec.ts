@@ -351,7 +351,6 @@ interface TestDeps extends AdminUsageDeps {
   sendCollaboratorInvite: jest.Mock;
   revokeAgentAccess: jest.Mock;
   sendRoleChange: jest.Mock;
-  grantDashboardAccess: jest.Mock;
 }
 
 /** The shape the analytics pipeline returns when nothing happened in the window. */
@@ -448,7 +447,6 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
     sendCollaboratorInvite: jest.fn(async () => undefined),
     revokeAgentAccess: jest.fn(async () => undefined),
     sendRoleChange: jest.fn(async () => undefined),
-    grantDashboardAccess: jest.fn(async () => undefined),
     crawlWebsite: jest.fn(async (url: string) => ({ url, pages: [], skipped: [] })),
     cleanWebsitePages: jest.fn(async (pages: WebsitePage[]) => pages),
     replaceWebsiteCopy: jest.fn(
@@ -2715,35 +2713,6 @@ describe('createAdminUsageHandlers', () => {
           inviterName: 'Prof',
           role: 'collaborator',
         });
-        expect(deps.grantDashboardAccess).toHaveBeenCalledTimes(1);
-        expect(deps.grantDashboardAccess).toHaveBeenCalledWith({
-          userId: anaId.toString(),
-          grantedBy: callerId.toString(),
-        });
-      });
-
-      it('grants the dashboard to a new co-admin and still saves when the grant fails', async () => {
-        const { prod } = world();
-        const deps = createDeps(baseWorld({ agents: [prod], users: [bob, ana] }), {
-          grantDashboardAccess: jest.fn(async () => {
-            throw new Error('mongo down');
-          }),
-        });
-        const handlers = createAdminUsageHandlers(deps);
-        const { req, res, status } = createReqRes({
-          params: { agent_id: 'agent_prod' },
-          body: { userIds: [], coAdminIds: [anaId.toString()] },
-          user: prof,
-        });
-        await handlers.updateAgentCollaborators(req, res);
-        expect(deps.grantDashboardAccess).toHaveBeenCalledWith(
-          expect.objectContaining({ userId: anaId.toString() }),
-        );
-        expect(deps.setAgentMeta).toHaveBeenCalledWith(
-          'agent_prod',
-          expect.objectContaining({ coAdmins: [anaId.toString()] }),
-        );
-        expect(status).toHaveBeenCalledWith(200);
       });
 
       it('does not re-email someone who was already a collaborator', async () => {
@@ -2758,7 +2727,6 @@ describe('createAdminUsageHandlers', () => {
         });
         await handlers.updateAgentCollaborators(req, res);
         expect(deps.sendCollaboratorInvite).not.toHaveBeenCalled();
-        expect(deps.grantDashboardAccess).not.toHaveBeenCalled();
         expect(json.mock.calls[0][0]).toMatchObject({ invited: [] });
       });
 
@@ -2803,7 +2771,6 @@ describe('createAdminUsageHandlers', () => {
           pending: ['jokafor@illinois.edu'],
           invited: ['jokafor@illinois.edu'],
         });
-        expect(deps.grantDashboardAccess).not.toHaveBeenCalled();
       });
 
       it('adds an invited address that already has an account and still emails it', async () => {
@@ -3118,7 +3085,7 @@ describe('createAdminUsageHandlers', () => {
         expect(json.mock.calls[0][0]).toMatchObject({ roleChanged: ['cora@illinois.edu'] });
       });
 
-      it('grants the dashboard to a collaborator promoted to co-admin', async () => {
+      it('tells a collaborator promoted to co-admin', async () => {
         const { prod } = world();
         prod.collaborators = [coId.toString()];
         const deps = createDeps(baseWorld({ agents: [prod], users: [bob, cora] }));
@@ -3130,10 +3097,6 @@ describe('createAdminUsageHandlers', () => {
         });
         await handlers.updateAgentCollaborators(req, res);
         expect(deps.sendRoleChange).toHaveBeenCalledTimes(1);
-        expect(deps.grantDashboardAccess).toHaveBeenCalledWith({
-          userId: coId.toString(),
-          grantedBy: callerId.toString(),
-        });
       });
 
       it('promoting an invited address keeps it pending as a co-admin and tells them', async () => {

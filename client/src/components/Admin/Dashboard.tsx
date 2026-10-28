@@ -47,7 +47,8 @@ export default function AdminDashboard() {
   const localize = useLocalize();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { hasAdminAccess, isLoading: isCheckingAccess, isDenied } = useAdminAccess();
+  /** The dashboard is open to every signed-in user; only the class list needs `read:groups`. */
+  const { hasAdminAccess: canPickClass } = useAdminAccess();
   const canCreateAgents = useHasAccess({
     permissionType: PermissionTypes.AGENTS,
     permission: Permissions.CREATE,
@@ -70,7 +71,7 @@ export default function AdminDashboard() {
 
   const { data: groupData, error: groupsError } = useAdminGroupsQuery(
     { limit: GROUP_PAGE_SIZE },
-    { enabled: hasAdminAccess },
+    { enabled: canPickClass },
   );
 
   const classOptions = useMemo<Option[]>(() => {
@@ -81,7 +82,7 @@ export default function AdminDashboard() {
     ];
   }, [groupData, localize]);
 
-  const { data: apiKeyData } = useAdminApiKeysQuery({ enabled: hasAdminAccess });
+  const { data: apiKeyData } = useAdminApiKeysQuery();
 
   const sourceOptions = useMemo<Option[]>(
     () => [
@@ -211,29 +212,6 @@ export default function AdminDashboard() {
 
   /** The tables treat an empty string as "unfiltered", which is what `all` means here. */
   const groupFilter = groupId === ALL_CLASSES ? '' : groupId;
-
-  if (isCheckingAccess) {
-    return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-10">
-        <p role="status" className="text-text-secondary">
-          {localize('com_ui_loading')}
-        </p>
-      </main>
-    );
-  }
-
-  if (isDenied || !hasAdminAccess) {
-    return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-10">
-        <h1 className="mb-2 text-xl font-semibold text-text-primary">
-          {localize('com_ui_admin_dashboard')}
-        </h1>
-        <p role="alert" className="text-text-secondary">
-          {localize('com_ui_admin_forbidden')}
-        </p>
-      </main>
-    );
-  }
 
   /**
    * `Root` gives every route a fixed-height `overflow-hidden` shell and expects the

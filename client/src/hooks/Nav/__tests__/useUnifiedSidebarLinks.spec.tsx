@@ -63,56 +63,29 @@ function wrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Dashboard access is granted per user with the role left at USER, so the role a
- * client holds cannot predict the answer — the sidebar has to ask the server for
- * every signed-in user, and the self-scoped endpoint answers with an empty list.
- */
-describe('useUnifiedSidebarLinks — admin capability gate', () => {
+/** The Agent dashboard is open to every signed-in user, so the link needs no capability check. */
+describe('useUnifiedSidebarLinks — Agent dashboard link', () => {
   beforeEach(() => {
     mockGetAdminEffectiveCapabilities.mockReset();
-    mockGetAdminEffectiveCapabilities.mockResolvedValue({
-      capabilities: ['access:admin', 'read:usage', 'read:groups'],
-    });
   });
 
-  it('shows the dashboard link for a default-role user holding the grants', async () => {
+  it('shows the dashboard link to a signed-in user with no capabilities', async () => {
     mockUser.mockReturnValue({ id: 'u1', role: SystemRoles.USER });
 
     const { result } = renderHook(() => useUnifiedSidebarLinks(), { wrapper });
 
-    await waitFor(() => expect(mockGetAdminEffectiveCapabilities).toHaveBeenCalled());
     await waitFor(() =>
       expect(result.current.some((link) => link.id === 'admin-dashboard')).toBe(true),
     );
+    expect(mockGetAdminEffectiveCapabilities).not.toHaveBeenCalled();
   });
 
-  it('hides the dashboard link when the user holds no capabilities', async () => {
-    mockUser.mockReturnValue({ id: 'u1', role: SystemRoles.USER });
-    mockGetAdminEffectiveCapabilities.mockResolvedValue({ capabilities: [] });
+  it('hides the dashboard link before the user is known', async () => {
+    mockUser.mockReturnValue(undefined);
 
     const { result } = renderHook(() => useUnifiedSidebarLinks(), { wrapper });
 
     await waitFor(() => expect(result.current.length).toBeGreaterThan(0));
     expect(result.current.some((link) => link.id === 'admin-dashboard')).toBe(false);
-  });
-
-  it('does not ask before the user is known', async () => {
-    mockUser.mockReturnValue(undefined);
-
-    renderHook(() => useUnifiedSidebarLinks(), { wrapper });
-
-    await waitFor(() => expect(mockGetAdminEffectiveCapabilities).not.toHaveBeenCalled());
-  });
-
-  it('still asks, and shows the dashboard link, for an admin', async () => {
-    mockUser.mockReturnValue({ id: 'u2', role: SystemRoles.ADMIN });
-
-    const { result } = renderHook(() => useUnifiedSidebarLinks(), { wrapper });
-
-    await waitFor(() => expect(mockGetAdminEffectiveCapabilities).toHaveBeenCalled());
-    await waitFor(() =>
-      expect(result.current.some((link) => link.id === 'admin-dashboard')).toBe(true),
-    );
   });
 });

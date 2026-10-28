@@ -33,7 +33,7 @@ flowchart LR
   <table>
     <tr><th>Layer</th><th>Answers</th><th>Where</th></tr>
     <tr><td><b>Role</b> (USER / ADMIN)</td><td>Coarse app-wide permissions</td><td><code>role</code> collection</td></tr>
-    <tr><td><b>System grants</b></td><td>"Can this person open the agent dashboard?" Needs <code>access:admin</code>, <code>read:usage</code> and <code>read:groups</code>, granted per user to faculty.</td><td><code>systemGrant</code>, <code>/api/admin/grants</code>, <code>requireCapability</code></td></tr>
+    <tr><td><b>System grants</b></td><td>"Can this person filter the agent dashboard by class?" Needs <code>read:groups</code>, granted per user to faculty. The dashboard itself is open to every signed-in user and scoped to their own agents.</td><td><code>systemGrant</code>, <code>/api/admin/grants</code>, <code>requireCapability</code></td></tr>
     <tr><td><b>Resource ACLs</b></td><td>"Can this person view or edit <i>this</i> agent?"</td><td><code>aclEntry</code>, <code>accessRole</code>, <span class="path">api/server/services/PermissionService</span></td></tr>
     <tr><td><b>Agent roles</b> (Gies)</td><td>Owner / co-admin / collaborator, mapped onto ACL grants</td><td><span class="path">api/server/services/AgentAccess.js</span></td></tr>
   </table>

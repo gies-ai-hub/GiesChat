@@ -15,11 +15,7 @@ const { requireCapability } = require('~/server/middleware/roles/capabilities');
 const { findAccessibleResources } = require('~/server/services/PermissionService');
 const { copyAgentDocuments } = require('~/server/services/Files/copy');
 const { sendCollaboratorInvite, sendRoleChange } = require('~/server/services/AgentInvites');
-const {
-  grantAgentAccess,
-  revokeAgentAccess,
-  grantDashboardAccess,
-} = require('~/server/services/AgentAccess');
+const { grantAgentAccess, revokeAgentAccess } = require('~/server/services/AgentAccess');
 const { siteStore, replaceWebsiteCopy } = require('~/server/services/Websites');
 const { requireJwtAuth } = require('~/server/middleware');
 const { getAppConfig } = require('~/server/services/Config');
@@ -27,9 +23,14 @@ const db = require('~/models');
 
 const router = express.Router();
 
-const requireAdminAccess = requireCapability(SystemCapabilities.ACCESS_ADMIN);
-const requireReadUsage = requireCapability(SystemCapabilities.READ_USAGE);
 const requireReadGroups = requireCapability(SystemCapabilities.READ_GROUPS);
+/**
+ * A class filter reads that class's roster (and a 404 for an unknown id makes group ids
+ * enumerable), so it stays with `read:groups` holders. Without one, every route is scoped
+ * to the caller's own agents.
+ */
+const requireClassAccess = (req, res, next) =>
+  req.query.groupId === undefined ? next() : requireReadGroups(req, res, next);
 
 const handlers = createAdminUsageHandlers({
   findAgents: db.getAgents,
@@ -63,7 +64,6 @@ const handlers = createAdminUsageHandlers({
   sendRoleChange,
   grantAgentAccess,
   revokeAgentAccess,
-  grantDashboardAccess,
   crawlWebsite: (url) => crawlSite(url),
   cleanWebsitePages: async (pages) => cleanPages(pages, await siteStore.resolveEndpoint()),
   replaceWebsiteCopy,
@@ -76,34 +76,19 @@ const apiKeyHandlers = createAdminApiKeyHandlers({
   deleteAgentApiKeyForAgents: db.deleteAgentApiKeyForAgents,
 });
 
-router.use(requireJwtAuth, requireAdminAccess);
-
 /**
- * Both routes read class rosters: `/agents/:agent_id/students` returns the name
- * and email of every group member, and `/agents` filters *by* a roster while
- * distinguishing a real group (200) from a nonexistent one (404), which makes
- * group ids enumerable. `read:groups` is the established boundary for roster
- * data and is required alongside `read:usage` on both, otherwise usage access
- * alone would enumerate or read another instructor's roster.
+ * Open to every signed-in user (2026-10-28). The handlers' usage scope (author, EDIT,
+ * collaborator or co-admin, dashboard-built only) is the boundary, so each person sees
+ * and changes only their own agents, and the people who used them.
  */
-router.get('/agents', requireReadUsage, requireReadGroups, handlers.listAgentUsage);
-/** Reports class roster size, so it carries the same `read:groups` requirement as the others. */
-router.get('/analytics', requireReadUsage, requireReadGroups, handlers.listAgentAnalytics);
+router.use(requireJwtAuth);
+
+router.get('/agents', requireClassAccess, handlers.listAgentUsage);
+router.get('/analytics', requireClassAccess, handlers.listAgentAnalytics);
 /** Reads student message text server-side; returns topic labels and counts only. */
-router.get('/topics', requireReadUsage, requireReadGroups, handlers.listAgentTopics);
-router.get(
-  '/agents/:agent_id/students',
-  requireReadUsage,
-  requireReadGroups,
-  handlers.listAgentStudentUsage,
-);
+router.get('/topics', requireClassAccess, handlers.listAgentTopics);
+router.get('/agents/:agent_id/students', requireClassAccess, handlers.listAgentStudentUsage);
 
-/**
- * A personal display preference for this dashboard — no class or student data is
- * read, so `access:admin` from `router.use` above is the whole gate. Deliberately
- * NOT `read:usage`/`read:groups`: requiring roster permissions to save a checkbox
- * would be a boundary that means nothing.
- */
 /**
  * Embedding is a share decision about an agent the caller already edits, so the
  * usage scope (author-or-EDIT) is the whole gate — no roster is read.
@@ -112,8 +97,7 @@ router.put('/agents/:agent_id/embed', handlers.updateAgentEmbed);
 router.delete('/agents/:agent_id/embed', handlers.revokeAgentEmbed);
 
 /**
- * Agent API keys: an author/co-admin decision about an agent; no roster is read, so
- * `access:admin` is the gate, as for embedding.
+ * Agent API keys: an author/co-admin decision about an agent; no roster is read.
  */
 router.get('/api-keys', apiKeyHandlers.listApiKeys);
 router.post('/agents/:agent_id/api-keys', apiKeyHandlers.createApiKey);
@@ -121,8 +105,7 @@ router.delete('/api-keys/:key_id', apiKeyHandlers.revokeApiKey);
 
 /**
  * Websites. Test reads a public site and stores nothing; Add/Refresh writes a document onto
- * an agent the caller already edits (usage scope). No roster is read, so `access:admin` is
- * the gate, as for embedding.
+ * an agent the caller already edits (usage scope). No roster is read.
  */
 router.post('/websites/preview', handlers.previewWebsite);
 router.post('/agents/:agent_id/websites', handlers.saveAgentWebsite);
@@ -141,7 +124,7 @@ router.post('/agents/:agent_id/drafts/:draft_id/update', handlers.updateAgentDra
 
 /**
  * Compares two models on an agent the caller can edit (usage scope) or on a new agent's
- * instructions. Reads no class data and writes nothing, so `access:admin` is the gate.
+ * instructions. Reads no class data and writes nothing.
  */
 router.post('/model-test', handlers.testAgentModels);
 

@@ -199,11 +199,6 @@ export interface AdminUsageDeps {
   sendCollaboratorInvite: (params: AgentPersonEmail) => Promise<void>;
   /** One email when someone already on the agent changes role. Failures are logged, never surfaced. */
   sendRoleChange: (params: AgentPersonEmail) => Promise<void>;
-  /**
-   * Gives a newly added collaborator or co-admin the class dashboard capabilities, so
-   * nobody has to grant them by hand. Idempotent; never revoked on removal.
-   */
-  grantDashboardAccess: (params: { userId: string; grantedBy?: string }) => Promise<void>;
   /** Same-site crawl; throws `WebsiteError` for a malformed or private address. */
   crawlWebsite: (url: string) => Promise<CrawlResult>;
   /** GPT-6 Luna cleanup for the Test panel; plain text when Luna is unavailable. */
@@ -570,7 +565,6 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     copyDocuments,
     sendCollaboratorInvite,
     sendRoleChange,
-    grantDashboardAccess,
     crawlWebsite,
     cleanWebsitePages,
     replaceWebsiteCopy,
@@ -1215,15 +1209,6 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
           .map((userId) => setCoAdminAccess(deps, { userId, agent, granted: false })),
       ]);
       await setAgentMeta(agent.id, meta);
-      await Promise.all(
-        [...roles].flatMap(([userId, role]) =>
-          before.get(userId) !== role
-            ? grantDashboardAccess({ userId, grantedBy: callerId }).catch((error) =>
-                logger.error(`[adminUsage] could not grant user ${userId} the dashboard`, error),
-              )
-            : [],
-        ),
-      );
 
       const inviterName = caller.name ?? caller.email ?? '';
       const notify = (

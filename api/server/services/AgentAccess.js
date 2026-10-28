@@ -1,5 +1,4 @@
 const { PrincipalType, ResourceType, AccessRoleIds } = require('librechat-data-provider');
-const { SystemCapabilities } = require('@librechat/data-schemas');
 const { grantPermission } = require('~/server/services/PermissionService');
 const db = require('~/models');
 
@@ -45,27 +44,4 @@ const revokeAgentAccess = async ({ userId, agentDbId }) => {
   await db.revokePermission(PrincipalType.USER, userId, ResourceType.AGENT, agentDbId);
 };
 
-/**
- * Gives an invited collaborator or co-admin the class dashboard, as user-level grants
- * (the role stays USER): the three capabilities `/admin` is gated on
- * (`api/server/routes/admin/usage.js`). `grantCapability` is an insert-only upsert, so a
- * professor who already holds them is untouched.
- *
- * @param {{ userId: string, grantedBy?: string }} params
- * @returns {Promise<void>}
- */
-const grantDashboardAccess = async ({ userId, grantedBy }) => {
-  const { ACCESS_ADMIN, READ_USAGE, READ_GROUPS } = SystemCapabilities;
-  await Promise.all(
-    [ACCESS_ADMIN, READ_USAGE, READ_GROUPS].map((capability) =>
-      db.grantCapability({
-        principalType: PrincipalType.USER,
-        principalId: userId,
-        capability,
-        grantedBy,
-      }),
-    ),
-  );
-};
-
-module.exports = { grantAgentAccess, revokeAgentAccess, grantDashboardAccess };
+module.exports = { grantAgentAccess, revokeAgentAccess };

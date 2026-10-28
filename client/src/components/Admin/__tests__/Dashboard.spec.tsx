@@ -317,45 +317,29 @@ describe('AdminDashboard', () => {
     expect(screen.queryByRole('button', { name: /build an agent/i })).not.toBeInTheDocument();
   });
 
-  it('shows a loading state while the capability check is in flight', () => {
-    mockGetAdminEffectiveCapabilities.mockReturnValue(new Promise(() => undefined));
-    renderDashboard();
-
-    expect(screen.getByRole('status')).toHaveTextContent('Loading');
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
-  });
-
-  it('shows the forbidden message when the user lacks the admin capability', async () => {
-    mockGetAdminEffectiveCapabilities.mockImplementation(forbidden);
-    renderDashboard();
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      "You don't have access to the agent dashboard",
-    );
-    expect(mockGetAdminAgentUsage).not.toHaveBeenCalled();
-  });
-
   /**
-   * `access:admin` only means the capabilities endpoint answered. The nav link and this
-   * view are both driven by `useAdminAccess`, so a helpdesk admin who lacks the
-   * dashboard's own capabilities must be turned away here rather than at a 403.
+   * The dashboard is open to every signed-in user; each sees only their own agents, which
+   * the server scopes. Only the class list needs `read:groups`, so it is not asked for.
    */
   it.each<[string, string[]]>([
-    ['access:admin alone', ['access:admin']],
-    ['read:users but not read:usage', ['access:admin', 'read:users']],
-    ['read:usage but not read:groups', ['access:admin', 'read:usage']],
-    ['read:groups but not read:usage', ['access:admin', 'read:groups']],
     ['no capabilities at all', []],
-  ])('denies a user holding %s', async (_label, capabilities) => {
+    ['access:admin alone', ['access:admin']],
+    ['read:usage but not read:groups', ['access:admin', 'read:usage']],
+  ])('opens for a user holding %s, without the class list', async (_label, capabilities) => {
     mockGetAdminEffectiveCapabilities.mockResolvedValue({ capabilities });
     renderDashboard();
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      "You don't have access to the agent dashboard",
-    );
-    expect(mockGetAdminAgentUsage).not.toHaveBeenCalled();
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+    expect(mockGetAdminAgentUsage).toHaveBeenCalled();
     expect(mockGetAdminGroups).not.toHaveBeenCalled();
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('still opens when the capability check is refused', async () => {
+    mockGetAdminEffectiveCapabilities.mockImplementation(forbidden);
+    renderDashboard();
+
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+    expect(mockGetAdminGroups).not.toHaveBeenCalled();
   });
 
   it('admits a professor granted manage:groups, which implies read:groups', async () => {
