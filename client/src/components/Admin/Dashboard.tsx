@@ -35,7 +35,7 @@ const DASHBOARD_ORIGIN = 'dashboard';
 /** Class agents start on this deployment; it is listed under the endpoint in librechat.yaml. */
 const DASHBOARD_MODEL = { provider: 'Azure OpenAI', model: 'gpt-6-luna' };
 /** Class agents may hold more File Context documents than a chat message may attach. */
-const DASHBOARD_DOCUMENT_LIMIT = 50;
+const DASHBOARD_DOCUMENT_LIMIT = 100;
 const NO_PEOPLE: AgentPeopleLists = {
   collaborators: [],
   pending: [],
