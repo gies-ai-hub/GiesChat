@@ -5,12 +5,12 @@ const sharp = require('sharp');
 const { execFileSync } = require('child_process');
 
 const W = 1200;
-const H = 676;
-const BAND = 128;
+const H = 600;
+const BAND = 112;
 const RULE = 4;
 const PAD = 40;
-const BODY_TOP = BAND + RULE + 24;
-const BODY_H = H - BODY_TOP - 40;
+const BODY_TOP = BAND + RULE + 18;
+const BODY_H = H - BODY_TOP - 34;
 const NAVY = '#13294b';
 const ORANGE = '#ff5f05';
 const PILLS = { new: ['NEW', NAVY], before: ['BEFORE', '#6b7280'], after: ['AFTER', ORANGE] };
@@ -23,7 +23,11 @@ clip.json:
   "out": "docs/site/updates/2026-10",
   "title": "Drafts now keep up with your changes",
   "brand": "GiesChat · October 2026",
-  "poster": { "before": "shots/before.png", "after": "shots/after.png", "seconds": 3 },
+  "poster": {
+    "before": "shots/before.png", "beforeNote": "What the screen looked like",
+    "after": "shots/after.png", "afterNote": "What it looks like now",
+    "seconds": 4
+  },
   "frames": [
     { "label": "before", "caption": "…", "image": "shots/before.png", "seconds": 2.5 },
     { "label": "after", "caption": "…", "image": "shots/after.png", "overlay": "shots/toast.png" }
@@ -50,11 +54,6 @@ function band(label, caption) {
   <text x="${PAD + pillW + 20}" y="${BAND / 2 + 12}" font-family="${FONT}" font-size="33" font-weight="bold" fill="${NAVY}">${escapeXml(caption)}</text>
 </svg>`);
 }
-
-const label = (text, width) =>
-  Buffer.from(`<svg width="${width}" height="26" xmlns="http://www.w3.org/2000/svg">
-  <text y="19" font-family="${FONT}" font-size="18" font-weight="bold" fill="#4b5563">${escapeXml(text)}</text>
-</svg>`);
 
 const brandMark = (text) =>
   Buffer.from(`<svg width="${W}" height="30" xmlns="http://www.w3.org/2000/svg">
@@ -118,26 +117,71 @@ async function frame(spec, dir, brand) {
   return slide(layers, spec.caption, spec.label, brand);
 }
 
-/** Before and after stacked: the only frame classic Outlook on Windows shows, so it carries both. */
+/** Greedy word wrap for SVG text, which has none: about half an em per character. */
+function wrap(text, width, size) {
+  const max = Math.floor(width / (size * 0.52));
+  return String(text)
+    .split(/\s+/)
+    .reduce((lines, word) => {
+      const last = lines[lines.length - 1];
+      if (last !== undefined && `${last} ${word}`.length <= max) {
+        lines[lines.length - 1] = `${last} ${word}`;
+      } else {
+        lines.push(word);
+      }
+      return lines;
+    }, []);
+}
+
+/** A column heading ("Before" / "After") and, below the screen, its note. */
+function columnText({ heading, color, note, width, cardHeight }) {
+  const NOTE_SIZE = 21;
+  const lines = note ? wrap(note, width, NOTE_SIZE) : [];
+  const noteTop = 44 + cardHeight + 30;
+  const height = noteTop + lines.length * 30;
+  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+  <text y="26" font-family="${FONT}" font-size="24" font-weight="bold" fill="${color}">${escapeXml(heading)}</text>
+  ${lines
+    .map(
+      (line, i) =>
+        `<text y="${noteTop + i * 30}" font-family="${FONT}" font-size="${NOTE_SIZE}" fill="#334155">${escapeXml(line)}</text>`,
+    )
+    .join('')}
+</svg>`;
+  return { input: Buffer.from(svg), height };
+}
+
+/**
+ * Before on the left, after on the right, each with its note. It is the first frame on
+ * purpose: classic Outlook on Windows shows only the first frame of a GIF.
+ */
 async function poster(spec, title, dir, brand) {
-  const half = Math.floor((BODY_H - 2 * 30) / 2);
+  const SIDE = 28;
+  const GAP = 24;
+  const column = Math.floor((W - SIDE * 2 - GAP) / 2);
   const files = [spec.before, spec.after].map((file) => path.resolve(dir, file));
-  const sizes = await Promise.all(files.map((file) => sharp(file).metadata()));
-  /** One shared width, so the two screens line up and read as the same place. */
-  const width = Math.floor(
-    Math.min(W - PAD * 2, ...sizes.map((size) => (half * size.width) / size.height)),
-  );
-  const [before, after] = await Promise.all(files.map((file) => card(file, width, H)));
-  const left = (shot) => Math.round((W - shot.width) / 2);
-  const firstTop = BODY_TOP - 12;
-  const secondTop = firstTop + 26 + before.height - before.pad;
+  const [before, after] = await Promise.all(files.map((file) => card(file, column, BODY_H)));
+  const visible = (shot) => shot.height - shot.pad * 2;
+  const columns = [
+    { shot: before, heading: 'Before', color: '#6b7280', note: spec.beforeNote, left: SIDE },
+    {
+      shot: after,
+      heading: 'After',
+      color: ORANGE,
+      note: spec.afterNote,
+      left: SIDE + column + GAP,
+    },
+  ].map((col) => ({
+    ...col,
+    text: columnText({ ...col, width: column, cardHeight: visible(col.shot) }),
+  }));
+  const blockHeight = Math.max(...columns.map((col) => col.text.height));
+  const top = BODY_TOP + Math.max(0, Math.round((BODY_H - blockHeight) / 2)) - 8;
   return slide(
-    [
-      { input: label('Before', 300), top: firstTop, left: left(before) + before.pad },
-      { input: before.input, top: firstTop + 26 - before.pad, left: left(before) },
-      { input: label('After', 300), top: secondTop, left: left(after) + after.pad },
-      { input: after.input, top: secondTop + 26 - after.pad, left: left(after) },
-    ],
+    columns.flatMap((col) => [
+      { input: col.text.input, top, left: col.left },
+      { input: col.shot.input, top: top + 44 - col.shot.pad, left: col.left - col.shot.pad },
+    ]),
     title,
     'new',
     brand,

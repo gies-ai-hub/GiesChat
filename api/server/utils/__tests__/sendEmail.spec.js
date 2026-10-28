@@ -141,3 +141,62 @@ describe('sendEmail SMTP auth assembly', () => {
     expect(freshLogger.warn).not.toHaveBeenCalled();
   });
 });
+
+describe('sendEmail inline attachments', () => {
+  const gif = {
+    name: 'update-clip.gif',
+    contentType: 'image/gif',
+    contentInBase64: Buffer.from('GIF89a').toString('base64'),
+    contentId: 'update-clip.gif',
+  };
+
+  function loadWithACS(beginSend) {
+    jest.resetModules();
+    jest.doMock('@librechat/data-schemas', () => ({
+      logger: { debug: jest.fn(), warn: jest.fn(), error: jest.fn() },
+    }));
+    jest.doMock('@librechat/api', () => ({
+      logAxiosError: jest.fn(),
+      isEnabled: jest.fn(),
+      readFileAsString: jest.fn().mockResolvedValue({ content: '<img src="cid:update-clip.gif">' }),
+    }));
+    jest.doMock('@azure/communication-email', () => ({
+      EmailClient: jest.fn().mockImplementation(() => ({ beginSend })),
+    }));
+    return require('../sendEmail');
+  }
+
+  it('hands ACS the inline file so Outlook shows it without downloading anything', async () => {
+    process.env.ACS_EMAIL_CONNECTION_STRING = 'endpoint=https://acs.test/;accesskey=k';
+    const beginSend = jest
+      .fn()
+      .mockResolvedValue({ pollUntilDone: async () => ({ status: 'Succeeded' }) });
+    const sendEmail = loadWithACS(beginSend);
+    await sendEmail({ ...baseParams, attachments: [gif] });
+    expect(beginSend).toHaveBeenCalledWith(expect.objectContaining({ attachments: [gif] }));
+  });
+
+  it('sends no attachments field to ACS when there are none', async () => {
+    process.env.ACS_EMAIL_CONNECTION_STRING = 'endpoint=https://acs.test/;accesskey=k';
+    const beginSend = jest
+      .fn()
+      .mockResolvedValue({ pollUntilDone: async () => ({ status: 'Succeeded' }) });
+    const sendEmail = loadWithACS(beginSend);
+    await sendEmail(baseParams);
+    expect(beginSend.mock.calls[0][0]).not.toHaveProperty('attachments');
+  });
+
+  it('maps the file to a cid attachment for SMTP', async () => {
+    const sendEmail = loadSendEmail();
+    await sendEmail({ ...baseParams, attachments: [gif] });
+    const [{ attachments }] = mockSendMail.mock.calls[0];
+    expect(attachments).toEqual([
+      expect.objectContaining({
+        filename: 'update-clip.gif',
+        cid: 'update-clip.gif',
+        contentType: 'image/gif',
+      }),
+    ]);
+    expect(attachments[0].content.toString()).toBe('GIF89a');
+  });
+});

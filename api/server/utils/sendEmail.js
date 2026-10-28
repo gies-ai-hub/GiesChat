@@ -7,6 +7,14 @@ const { logger } = require('@librechat/data-schemas');
 const { logAxiosError, isEnabled, readFileAsString } = require('@librechat/api');
 
 /**
+ * @typedef {Object} EmailAttachment
+ * @property {string} name - File name shown to the recipient.
+ * @property {string} contentType - MIME type, e.g. `image/gif`.
+ * @property {string} contentInBase64 - The file's bytes, base64-encoded.
+ * @property {string} [contentId] - Makes the file inline, referenced from the HTML as `cid:<contentId>`.
+ */
+
+/**
  * Sends an email using Mailgun API.
  *
  * @async
@@ -16,9 +24,10 @@ const { logAxiosError, isEnabled, readFileAsString } = require('@librechat/api')
  * @param {string} params.from - The sender's email address.
  * @param {string} params.subject - The subject of the email.
  * @param {string} params.html - The HTML content of the email.
+ * @param {EmailAttachment[]} [params.attachments] - Inline ones go by their `contentId` as filename.
  * @returns {Promise<Object>} - A promise that resolves to the response from Mailgun API.
  */
-const sendEmailViaMailgun = async ({ to, from, subject, html }) => {
+const sendEmailViaMailgun = async ({ to, from, subject, html, attachments = [] }) => {
   const mailgunApiKey = process.env.MAILGUN_API_KEY;
   const mailgunDomain = process.env.MAILGUN_DOMAIN;
   const mailgunHost = process.env.MAILGUN_HOST || 'https://api.mailgun.net';
@@ -33,6 +42,16 @@ const sendEmailViaMailgun = async ({ to, from, subject, html }) => {
   formData.append('subject', subject);
   formData.append('html', html);
   formData.append('o:tracking-clicks', 'no');
+  for (const file of attachments) {
+    formData.append(
+      file.contentId ? 'inline' : 'attachment',
+      Buffer.from(file.contentInBase64, 'base64'),
+      {
+        filename: file.contentId ?? file.name,
+        contentType: file.contentType,
+      },
+    );
+  }
 
   try {
     const response = await axios.post(`${mailgunHost}/v3/${mailgunDomain}/messages`, formData, {
@@ -62,7 +81,7 @@ const sendEmailViaMailgun = async ({ to, from, subject, html }) => {
  * Azure Communication Services. Preferred when configured: GiesChat's own mail
  * resource in the lab subscription, so no external provider account is needed.
  */
-const sendEmailViaACS = async ({ from, to, subject, html }) => {
+const sendEmailViaACS = async ({ from, to, subject, html, attachments = [] }) => {
   const connectionString = process.env.ACS_EMAIL_CONNECTION_STRING;
   if (!connectionString) {
     throw new Error('ACS_EMAIL_CONNECTION_STRING is required');
@@ -73,6 +92,7 @@ const sendEmailViaACS = async ({ from, to, subject, html }) => {
     senderAddress: from,
     content: { subject, html },
     recipients: { to: [{ address: to }] },
+    ...(attachments.length > 0 ? { attachments } : {}),
   });
   return await poller.pollUntilDone();
 };
@@ -92,6 +112,8 @@ const sendEmailViaSMTP = async ({ transporterOptions, mailOptions }) => {
  * @param {string} params.subject - The subject of the email.
  * @param {Record<string, string>} params.payload - The data to be used in the email template.
  * @param {string} params.template - The filename of the email template.
+ * @param {EmailAttachment[]} [params.attachments] - Files to attach; one with a `contentId` shows inline
+ *   where the HTML references `cid:<contentId>`, so mail clients need not download it.
  * @param {boolean} [throwError=true] - Whether to throw an error if the email sending process fails.
  * @returns {Promise<Object>} - A promise that resolves to the info object of the sent email or the error if sending the email fails.
  *
@@ -109,7 +131,14 @@ const sendEmailViaSMTP = async ({ transporterOptions, mailOptions }) => {
  *
  * @throws Will throw an error if the email sending process fails and throwError is `true`.
  */
-const sendEmail = async ({ email, subject, payload, template, throwError = true }) => {
+const sendEmail = async ({
+  email,
+  subject,
+  payload,
+  template,
+  attachments = [],
+  throwError = true,
+}) => {
   try {
     const { content: source } = await readFileAsString(path.join(__dirname, 'emails', template));
     const compiledTemplate = handlebars.compile(source);
@@ -129,6 +158,7 @@ const sendEmail = async ({ email, subject, payload, template, throwError = true 
         to: email,
         subject: subject,
         html: html,
+        attachments,
       });
     }
 
@@ -140,6 +170,7 @@ const sendEmail = async ({ email, subject, payload, template, throwError = true 
         to: toAddress,
         subject: subject,
         html: html,
+        attachments,
       });
     }
 
@@ -194,6 +225,12 @@ const sendEmail = async ({ email, subject, payload, template, throwError = true 
       },
       subject: subject,
       html: html,
+      attachments: attachments.map((file) => ({
+        filename: file.name,
+        content: Buffer.from(file.contentInBase64, 'base64'),
+        contentType: file.contentType,
+        cid: file.contentId,
+      })),
     };
 
     return await sendEmailViaSMTP({ transporterOptions, mailOptions });

@@ -10,6 +10,9 @@ const TEMPLATE_PATH = path.resolve(__dirname, '..', 'api', 'server', 'utils', 'e
 const AUDIENCES = ['faculty', 'all'];
 /** Sign-in is Illinois SSO, so any other address is a test or local account. */
 const ILLINOIS = /@illinois\.edu$/i;
+/** The clip travels inside the email, so Outlook shows it without "download pictures". */
+const CLIP_CID = 'update-clip.gif';
+const DOCS = path.resolve(__dirname, '..', 'docs', 'site');
 /** ACS caps an Azure-managed domain at about 30 emails a minute. */
 const SEND_GAP_MS = 2500;
 
@@ -46,8 +49,11 @@ async function findRecipients({ User, SystemGrant }, audience) {
   ).lean();
 }
 
-/** The template's data for one audience: faculty get the faculty intro and no tags. */
-function buildPayload(update, audience, baseUrl) {
+/**
+ * The template's data for one audience: faculty get the faculty intro and no tags.
+ * `inline` points the clip at the attached GIF; a browser preview needs the web address.
+ */
+function buildPayload(update, audience, baseUrl, { inline = false } = {}) {
   const root = baseUrl.replace(/\/+$/, '');
   const asset = (file) => `${root}/docs/${file}`;
   const everyone = audience === 'all';
@@ -60,7 +66,7 @@ function buildPayload(update, audience, baseUrl) {
     intro: everyone ? update.intro.all : update.intro.faculty,
     clip: update.clip
       ? {
-          gifUrl: asset(update.clip.gif),
+          gifUrl: inline ? `cid:${CLIP_CID}` : asset(update.clip.gif),
           mp4Url: asset(update.clip.mp4),
           alt: update.clip.alt,
           caption: update.clip.caption,
@@ -71,11 +77,27 @@ function buildPayload(update, audience, baseUrl) {
       title: change.title,
       body: change.body,
       tagged: everyone && change.faculty === true,
-      last: index === update.changes.length - 1,
+      /** Changes sit two to a row; an odd one out takes the whole row. */
+      wide: index === update.changes.length - 1 && update.changes.length % 2 === 1,
     })),
     appUrl: root,
     docsUrl: `${root}/docs/`,
   };
+}
+
+/** The clip's GIF as an inline attachment, or none when the update has no clip. */
+function clipAttachments(update) {
+  if (!update.clip) {
+    return [];
+  }
+  return [
+    {
+      name: CLIP_CID,
+      contentType: 'image/gif',
+      contentInBase64: fs.readFileSync(path.join(DOCS, update.clip.gif)).toString('base64'),
+      contentId: CLIP_CID,
+    },
+  ];
 }
 
 function renderUpdate(payload) {
@@ -123,12 +145,12 @@ function parseArgs(argv) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** The clip is linked from the docs site, so it must be deployed before anyone gets the email. */
+/** The clip's full-quality MP4 is linked from the docs site, so it must be deployed first. */
 async function assertClipLive(payload) {
   if (!payload.clip) {
     return;
   }
-  for (const url of [payload.clip.gifUrl, payload.clip.mp4Url]) {
+  for (const url of [payload.clip.mp4Url]) {
     const response = await fetch(url, { method: 'HEAD' }).catch(() => null);
     if (!response?.ok) {
       throw new Error(`${url} is not reachable yet; deploy the docs site first`);
@@ -178,12 +200,13 @@ async function main(argv) {
 
   if (args.to) {
     const audience = args.audience ?? 'faculty';
-    const payload = buildPayload(update, audience, baseUrl);
+    const payload = buildPayload(update, audience, baseUrl, { inline: true });
     await sendEmail({
       email: args.to,
       subject: update.subject,
       payload: { ...payload, name: args.to },
       template: TEMPLATE,
+      attachments: clipAttachments(update),
     });
     console.log(`Test email (${audience} version) sent to ${args.to}. Nothing recorded.`);
     process.exit(0);
@@ -206,7 +229,8 @@ async function main(argv) {
     confirm: args.confirm,
     count: counts[args.audience],
   });
-  const payload = buildPayload(update, args.audience, baseUrl);
+  const payload = buildPayload(update, args.audience, baseUrl, { inline: true });
+  const attachments = clipAttachments(update);
   await assertClipLive(payload);
   const recipients = await findRecipients(models, args.audience);
   const failed = [];
@@ -217,6 +241,7 @@ async function main(argv) {
         subject: update.subject,
         payload: { ...payload, name: recipient.name || recipient.email },
         template: TEMPLATE,
+        attachments,
       });
       console.log(`  ${index + 1}/${recipients.length} sent`);
     } catch (error) {
@@ -241,7 +266,14 @@ async function main(argv) {
   process.exit(0);
 }
 
-module.exports = { findRecipients, buildPayload, renderUpdate, assertSendable, AUDIENCES };
+module.exports = {
+  findRecipients,
+  buildPayload,
+  clipAttachments,
+  renderUpdate,
+  assertSendable,
+  AUDIENCES,
+};
 
 if (require.main === module) {
   main(process.argv.slice(2)).catch((error) => {

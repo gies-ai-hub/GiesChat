@@ -1,7 +1,13 @@
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const { createModels } = require('@librechat/data-schemas');
-const { findRecipients, buildPayload, renderUpdate, assertSendable } = require('../send-update');
+const {
+  findRecipients,
+  buildPayload,
+  clipAttachments,
+  renderUpdate,
+  assertSendable,
+} = require('../send-update');
 
 const update = {
   id: '2026-10',
@@ -80,10 +86,32 @@ describe('buildPayload', () => {
 
     const all = buildPayload(update, 'all', 'https://gieschat.azurewebsites.net');
     expect(all.intro).toBe('Items marked Faculty are for teachers.');
-    expect(all.changes.map((change) => [change.number, change.tagged, change.last])).toEqual([
+    expect(all.changes.map((change) => [change.number, change.tagged, change.wide])).toEqual([
       [1, true, false],
-      [2, false, true],
+      [2, false, false],
     ]);
+    const odd = buildPayload(
+      { ...update, changes: [...update.changes, { title: 'Third', body: 'Spans the row.' }] },
+      'all',
+      'https://gieschat.azurewebsites.net',
+    );
+    expect(odd.changes.map((change) => change.wide)).toEqual([false, false, true]);
+  });
+});
+
+describe('inline clip', () => {
+  it('points the sent email at the attached GIF, which is the published clip', () => {
+    const payload = buildPayload(update, 'faculty', 'https://gieschat.azurewebsites.net', {
+      inline: true,
+    });
+    expect(payload.clip.gifUrl).toBe('cid:update-clip.gif');
+    expect(payload.clip.mp4Url).toBe(
+      'https://gieschat.azurewebsites.net/docs/updates/2026-10/main.mp4',
+    );
+    const [gif] = clipAttachments(update);
+    expect(gif).toMatchObject({ contentId: 'update-clip.gif', contentType: 'image/gif' });
+    expect(Buffer.from(gif.contentInBase64, 'base64').subarray(0, 6).toString()).toBe('GIF89a');
+    expect(clipAttachments({ ...update, clip: undefined })).toEqual([]);
   });
 });
 
