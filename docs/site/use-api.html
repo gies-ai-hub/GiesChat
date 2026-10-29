@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent API · GiesChat Docs</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="site.js"></script>
+</head>
+<body>
+<main>
+  <div class="crumb">Using GiesChat › Agent API</div>
+  <h1>Agent API</h1>
+  <p class="lede">Let your own course site talk to one of your class agents. Students sign in with Illinois on your site, and your site's server calls GiesChat for them.</p>
+
+  <div class="callout"><b>Sign-in required.</b> Anyone can read this page, but using the API needs a GiesChat account. You sign in to GiesChat to create a key, and every call must carry the token of a student who signed in with Illinois.</div>
+
+  <h2>API or embed?</h2>
+  <ul>
+    <li><b>Embed</b> puts a ready-made GiesChat chat box on a Canvas page or web page. No code needed. See <a href="use-embed.html">Embedding an agent</a>.</li>
+    <li><b>The API</b> is for a site with its own server and its own chat screen. You write the code that sends each message and shows the reply.</li>
+  </ul>
+
+  <h2>What you need</h2>
+  <ul>
+    <li>An agent you built in the Agent dashboard. You must be its author or a co-admin.</li>
+    <li>A site with a server. The key is a secret: keep it on the server, never in browser code.</li>
+    <li>Illinois sign-in on that site: a Microsoft Entra app registration in the University of Illinois directory, the same one GiesChat signs in with.</li>
+  </ul>
+
+  <h2>1. Set up Illinois sign-in on your site</h2>
+  <p>Register your site as an app in Microsoft Entra and add Illinois sign-in with any standard library (for example MSAL). Then:</p>
+  <ul>
+    <li>Ask for the scopes <code>openid profile email</code>. GiesChat needs the <code>oid</code> claim, which Microsoft only includes with <code>profile</code>.</li>
+    <li>Use the v2.0 sign-in endpoint (the default in current libraries).</li>
+    <li>Note the app's <b>Application (client) ID</b>. You need it in the next step.</li>
+  </ul>
+  <p>After a student signs in, your library gives you their <b>ID token</b>. That is what you send to GiesChat. ID tokens expire after about an hour, so get a fresh one when it runs out.</p>
+
+  <h2>2. Create a key</h2>
+  <p>In the Agent dashboard, hover your agent and choose the key icon (<b>API access</b>). Choose <b>New key</b>, then enter:</p>
+  <ul>
+    <li><b>Key name</b>: for you, for example the site it is for.</li>
+    <li><b>Site's Entra app ID</b>: the Application (client) ID from step 1. The key only accepts student tokens issued to that app.</li>
+  </ul>
+  <div class="shot" role="img" aria-label="Example of the API access dialog after creating a key">
+    <div class="title">API access: FIN 300 Office Hours</div>
+    <div class="hint">A key lets your own course site chat with this agent as each signed-in student.</div>
+    <div class="row"><b>Copy this key now. You won't see it again.</b></div>
+    <div class="row"><code>sk-••••••••••••••••••••••••</code></div>
+    <div class="row"><span class="btn">Copy key</span><span class="btn alt">Done</span></div>
+  </div>
+  <p>Copy the key right away and store it in your server's settings. GiesChat shows it only once. The dialog also shows a short Python example.</p>
+
+  <h2>3. Call the API</h2>
+  <p>The API follows the OpenAI format, so the OpenAI SDKs work with it. Base URL:</p>
+  <pre><code>https://gieschat.azurewebsites.net/api/agents/v1</code></pre>
+  <p>Every call sends two headers:</p>
+  <table>
+    <thead><tr><th scope="col">Header</th><th scope="col">Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>Authorization</code></td><td><code>Bearer &lt;your key&gt;</code></td></tr>
+      <tr><td><code>X-GiesChat-User-Token</code></td><td>The signed-in student's Illinois ID token</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Python (Responses API)</h3>
+<pre><code>from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://gieschat.azurewebsites.net/api/agents/v1",
+    api_key=GIESCHAT_KEY,  # from your server's settings
+)
+
+first = client.responses.create(
+    model="agent_abc123",  # your agent's id, or an allowed model (see below)
+    input="When is the midterm?",
+    extra_headers={"X-GiesChat-User-Token": student_id_token},
+)
+print(first.output_text)
+
+# Continue the same conversation
+follow_up = client.responses.create(
+    model="agent_abc123",
+    input="What does it cover?",
+    previous_response_id=first.id,
+    extra_headers={"X-GiesChat-User-Token": student_id_token},
+)</code></pre>
+
+  <h3>curl (Chat Completions)</h3>
+<pre><code>curl https://gieschat.azurewebsites.net/api/agents/v1/chat/completions \
+  -H "Authorization: Bearer $GIESCHAT_KEY" \
+  -H "X-GiesChat-User-Token: $STUDENT_ID_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "user", "content": "When is the midterm?"}]}'</code></pre>
+  <p>The reply's <code>X-GiesChat-Conversation-Id</code> header holds the conversation id (non-streaming replies also carry it as <code>conversation_id</code>). Send it back as <code>conversation_id</code> to continue. Add <code>"stream": true</code> for a streamed reply.</p>
+
+  <h2>Conversations</h2>
+  <ul>
+    <li>Send only the student's new message. GiesChat keeps the history, and it uses only the last user message you send. <code>system</code> and <code>assistant</code> messages are ignored.</li>
+    <li>A key can only continue conversations it started.</li>
+    <li>Students see these chats in their own GiesChat sidebar, tagged with the key's name, and can carry on there.</li>
+    <li>The chats count in your dashboard. Use the <b>Source</b> filter to see API traffic alone, or one key.</li>
+  </ul>
+
+  <h2>Choosing a model</h2>
+  <p>Leave <code>model</code> out, or set it to your agent's id, to use the model you picked in the builder. To use another model for one call, send its id. <code>GET /models</code> lists the models you can pick. A key works with its own agent only, so another agent's id is refused.</p>
+
+  <h2>Limits</h2>
+  <ul>
+    <li>300 calls a minute per key.</li>
+    <li>20 calls a minute per student, per key.</li>
+    <li>Over a limit, GiesChat answers <code>429</code> with a <code>Retry-After</code> header in seconds.</li>
+    <li>Tools that connect to other services (Canvas, Outlook and so on) are off for API calls. The agent answers from its instructions and documents.</li>
+  </ul>
+
+  <h2>Errors</h2>
+  <p>Errors use the OpenAI shape: <code>{"error": {"message", "type", "code"}}</code>.</p>
+  <table>
+    <thead><tr><th scope="col">Status</th><th scope="col">Code</th><th scope="col">What to do</th></tr></thead>
+    <tbody>
+      <tr><td>401</td><td style="white-space:nowrap"><code>invalid_user_token</code></td><td>The student token is missing, expired, or was issued to a different app than the key's. Get a fresh ID token, and check the key's app ID.</td></tr>
+      <tr><td>401</td><td style="white-space:nowrap"><code>invalid_api_key</code></td><td>The key's agent was deleted. Create a key on another agent.</td></tr>
+      <tr><td>403</td><td style="white-space:nowrap"><code>key_wrong_agent</code></td><td><code>model</code> named another agent. Use your agent's id, a model id, or leave it out.</td></tr>
+      <tr><td>404</td><td style="white-space:nowrap"><code>model_not_found</code></td><td>That model isn't offered. Pick one from <code>GET /models</code>.</td></tr>
+      <tr><td>404</td><td style="white-space:nowrap"><code>conversation_not_found</code></td><td>The conversation id is wrong, or another key started it. Start a new conversation.</td></tr>
+      <tr><td>429</td><td style="white-space:nowrap"><code>rate_limit_exceeded</code></td><td>Wait for the number of seconds in <code>Retry-After</code>.</td></tr>
+    </tbody>
+  </table>
+  <p>A revoked or unknown key is refused too.</p>
+
+  <h2>Turning it off</h2>
+  <p>Open <b>API access</b> again and choose <b>Revoke</b> next to the key. It stops working right away. Deleting the agent also deletes its keys.</p>
+
+  <div class="callout"><b>New in October 2026.</b> If something doesn't work, tell us with the bug button. See <a href="use-issues.html">Reporting an issue</a>.</div>
+</main>
+</body>
+</html>

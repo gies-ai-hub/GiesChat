@@ -6,6 +6,7 @@ const SECTIONS = [
     ['use-agents.html', 'Building a class agent', 'agent dashboard admin create agent instructions documents websites scrape model test support contact course'],
     ['use-collaborators.html', 'Collaborators, drafts & co-admins', 'invite email roles draft post production test link co-admin'],
     ['use-embed.html', 'Embedding an agent', 'embed iframe canvas snippet public illinois guest revoke greeting theme'],
+    ['use-api.html', 'Agent API', 'api key openai chat completions responses course site entra id token developer integrate'],
     ['use-tools.html', 'Tools', 'mcp canvas outlook ms365 deck builder powerpoint pptx app builder replit tutors career prep'],
     ['use-issues.html', 'Reporting an issue', 'bug report github issue feedback'],
   ]],

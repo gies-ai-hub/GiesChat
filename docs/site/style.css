@@ -91,7 +91,7 @@ ol li, ul li { margin: 6px 0; }
   header.top { padding: 10px 16px; }
   header.top input { width: 100%; min-width: 0; }
   #menu { display: inline-block; }
-  .shell { grid-template-columns: 1fr; }
+  .shell { grid-template-columns: minmax(0, 1fr); }
   nav.side { display: none; position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
   nav.side.open { display: block; }
   main { padding: 24px 16px 40px; }
