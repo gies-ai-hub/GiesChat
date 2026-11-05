@@ -75,10 +75,11 @@ export default function AgentUsageTable({
       errorKey="com_ui_admin_agents_error"
       onRetry={handleRetry}
     >
-      {/* ponytail: reuses the chat's wide-table class; the app-wide scrollbar is 0.1em tall,
-          so without it the row actions past the edge are unreachable with a mouse. */}
+      {/* Tight cells and buttons so a row fits the dashboard column on a laptop. ponytail: the
+          chat's wide-table class gives a visible scrollbar for narrower windows, since the
+          app-wide one is 0.1em tall. */}
       <div className="markdown-table-wrapper">
-        <Table unwrapped>
+        <Table unwrapped className="[&_td]:px-2 [&_th]:px-2">
           <TableCaption className="sr-only">
             {localize(view ? 'com_ui_admin_all_agents_caption' : 'com_ui_admin_agents_caption')}
           </TableCaption>
@@ -119,14 +120,13 @@ export default function AgentUsageTable({
                   </TableCell>
                   {view && (
                     <TableCell>
-                      <span className="block font-medium text-text-primary">
+                      <span
+                        className="block font-medium text-text-primary"
+                        title={agent.owner?.email || undefined}
+                      >
                         {agent.owner?.name || localize('com_ui_admin_owner_unknown')}
                       </span>
-                      {agent.owner?.email && (
-                        <span className="block text-xs text-text-secondary">
-                          {agent.owner.email}
-                        </span>
-                      )}
+                      {agent.owner?.email && <span className="sr-only">{agent.owner.email}</span>}
                     </TableCell>
                   )}
                   <TableCell className="whitespace-nowrap text-text-secondary">
@@ -166,7 +166,7 @@ export default function AgentUsageTable({
                   <TableCell className="text-right tabular-nums">
                     <span className="flex items-center justify-end gap-2">
                       <span
-                        className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-secondary"
+                        className="h-1.5 w-9 overflow-hidden rounded-full bg-surface-secondary"
                         aria-hidden="true"
                       >
                         <span
@@ -187,6 +187,7 @@ export default function AgentUsageTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <AgentActions
+                      className="gap-0 [&_button]:px-1.5"
                       agent={agent}
                       draftsExpanded={expandedId === agent.agent_id}
                       userId={userId}
