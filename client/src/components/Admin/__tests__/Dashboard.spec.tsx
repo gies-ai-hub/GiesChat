@@ -437,6 +437,11 @@ describe('AdminDashboard', () => {
   });
 
   describe('agent API', () => {
+    /** The API access dialog loads its coding-agent skill from /docs when it opens. */
+    beforeAll(() => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('') });
+    });
+
     it('filters analytics by one API key', async () => {
       renderDashboard();
       await screen.findByRole('table');

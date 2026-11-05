@@ -13,6 +13,18 @@
   <h1>Agent API</h1>
   <p class="lede">Let your own course site talk to one of your class agents. Students sign in with Illinois on your site, and your site's server calls GiesChat for them.</p>
 
+  <section class="handoff" aria-labelledby="handoff-title">
+    <h2 id="handoff-title">Hand this to whoever builds your site</h2>
+    <p>Copy this page's link, or give your coding agent (Claude Code, Codex, Cursor) a skill with everything on this page.</p>
+    <div class="actions">
+      <button type="button" id="copy-link">Copy page link</button>
+      <button type="button" id="copy-skill">Copy for coding agent</button>
+      <a class="button" href="skills/gieschat-agent-api/SKILL.md" download="SKILL.md">Download skill</a>
+    </div>
+    <p class="note">Claude Code: save the file in your site's repo as <code>.claude/skills/gieschat-agent-api/SKILL.md</code>. Any other agent: choose <b>Copy for coding agent</b> and paste it into the chat. The skill holds no key; it tells the agent to read <code>GIESCHAT_API_KEY</code> from your server's settings. In the Agent dashboard's <b>API access</b> dialog, the same buttons fill in your agent's id for you.</p>
+    <p class="note" id="handoff-status" role="status" aria-live="polite"></p>
+  </section>
+
   <div class="callout"><b>Sign-in required.</b> Anyone can read this page, but using the API needs a GiesChat account. You sign in to GiesChat to create a key, and every call must carry the token of a student who signed in with Illinois.</div>
 
   <h2>API or embed?</h2>
@@ -134,5 +146,31 @@ follow_up = client.responses.create(
 
   <div class="callout"><b>New in October 2026.</b> If something doesn't work, tell us with the bug button. See <a href="use-issues.html">Reporting an issue</a>.</div>
 </main>
+<script>
+  // ponytail: fetched up front so Copy writes inside the click; Safari refuses a write that waits on a request.
+  const status = document.getElementById('handoff-status');
+  let skill = null;
+  fetch('skills/gieschat-agent-api/SKILL.md').then((r) => (r.ok ? r.text() : null)).then((t) => { skill = t; }, () => {});
+  const failed = () => { status.textContent = 'Copy failed. Use Download skill instead.'; };
+  // execCommand first: navigator.clipboard is blocked when this page sits in a frame.
+  const copy = (text, done) => {
+    const button = document.activeElement;
+    const area = Object.assign(document.createElement('textarea'), { value: text, readOnly: true });
+    area.style.cssText = 'position:fixed;top:0;opacity:0';
+    document.body.append(area);
+    area.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch {}
+    area.remove();
+    button?.focus();
+    if (copied) { status.textContent = done; return; }
+    if (!navigator.clipboard) return failed();
+    navigator.clipboard.writeText(text).then(() => { status.textContent = done; }, failed);
+  };
+  document.getElementById('copy-link').onclick = () => copy(location.origin + location.pathname, 'Link copied.');
+  document.getElementById('copy-skill').onclick = () => skill
+    ? copy(skill, 'Copied. Paste it into your coding agent.')
+    : (status.textContent = "Couldn't load the skill. Use Download skill instead.");
+</script>
 </body>
 </html>

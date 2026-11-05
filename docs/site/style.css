@@ -62,6 +62,15 @@ code, .path { font: 12.5px 'Roboto Mono', monospace; }
 pre:not(.mermaid) { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; overflow-x: auto; }
 .diagram { border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: #fff; margin: 12px 0 20px; overflow-x: auto; }
 .callout { border-left: 4px solid var(--orange); background: var(--orange-soft); color: var(--callout-text); padding: 12px 16px; border-radius: 8px; margin: 16px 0; }
+.handoff { border: 1px solid var(--border); background: var(--surface-2); border-radius: 12px; padding: 14px 16px; margin: 16px 0; }
+.handoff h2 { font-size: 16px; margin: 0 0 4px; }
+.handoff p { margin: 0 0 12px; }
+.handoff .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.handoff button, .handoff a.button { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; cursor: pointer; }
+.handoff button:hover, .handoff a.button:hover { background: var(--hover); }
+.handoff button:focus-visible, .handoff a.button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.handoff .note { font-size: 13px; color: var(--text-2); margin: 0; }
+.handoff .note:empty { display: none; }
 .disabled { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-3); vertical-align: middle; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 12px 0; display: block; overflow-x: auto; }
 th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--border); }

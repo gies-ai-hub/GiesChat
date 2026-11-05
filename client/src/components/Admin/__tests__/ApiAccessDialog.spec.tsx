@@ -6,6 +6,8 @@ import { RecoilRoot } from 'recoil';
 import type { AdminAgentUsage } from 'librechat-data-provider';
 import ApiAccessDialog from '../ApiAccessDialog';
 
+const mockCopy = jest.fn((_text: string) => true);
+jest.mock('copy-to-clipboard', () => (text: string) => mockCopy(text));
 const mockGetAdminApiKeys = jest.fn();
 const mockCreate = jest.fn();
 const mockRevoke = jest.fn();
@@ -47,8 +49,16 @@ function renderDialog() {
   );
 }
 
+/** The coding-agent skill is a static docs file; the dialog swaps in the agent's id. */
+const SKILL = 'Agent id: `agent_YOUR_AGENT_ID`\nmodel="agent_YOUR_AGENT_ID"\n';
+const mockFetch = jest.fn();
+beforeAll(() => {
+  global.fetch = mockFetch as unknown as typeof fetch;
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
+  mockFetch.mockResolvedValue({ ok: true, text: () => Promise.resolve(SKILL) });
   mockGetAdminApiKeys.mockResolvedValue({
     keys: [key('k1', 'agent_1', 'BADM 350 site'), key('k2', 'agent_2', 'Other agent site')],
   });
@@ -92,4 +102,23 @@ it('revokes a key', async () => {
   renderDialog();
   await userEvent.click(await screen.findByRole('button', { name: 'Revoke key BADM 350 site' }));
   await waitFor(() => expect(mockRevoke).toHaveBeenCalledWith('k1'));
+});
+
+it("copies the coding-agent skill with this agent's id filled in", async () => {
+  const user = userEvent.setup();
+  renderDialog();
+  await screen.findByText('BADM 350 site');
+  expect(mockFetch).toHaveBeenCalledWith('/docs/skills/gieschat-agent-api/SKILL.md');
+  await user.click(screen.getByRole('button', { name: 'Copy for coding agent' }));
+  expect(mockCopy).toHaveBeenCalledWith('Agent id: `agent_1`\nmodel="agent_1"\n');
+});
+
+it('asks for the skill again when it failed to load', async () => {
+  mockFetch.mockResolvedValueOnce({ ok: false, status: 503 });
+  const user = userEvent.setup();
+  renderDialog();
+  await screen.findByText('BADM 350 site');
+  await user.click(screen.getByRole('button', { name: 'Copy for coding agent' }));
+  expect(mockCopy).not.toHaveBeenCalled();
+  await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 });

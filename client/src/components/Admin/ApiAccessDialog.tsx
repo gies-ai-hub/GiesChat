@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import copyToClipboard from 'copy-to-clipboard';
+import { Bot, Link2, Download } from 'lucide-react';
 import {
   Button,
   OGDialog,
@@ -7,6 +9,7 @@ import {
   useToastContext,
 } from '@librechat/client';
 import type { AdminAgentUsage, AdminApiKeyCreateResponse } from 'librechat-data-provider';
+import type { TranslationKeys } from '~/hooks';
 import {
   useAdminApiKeysQuery,
   useCreateAdminApiKeyMutation,
@@ -25,6 +28,10 @@ interface ApiAccessDialogProps {
 /** An Entra application (client) id; the server checks the same shape. */
 const APP_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME_MAX = 100;
+const GUIDE_PATH = '/docs/use-api.html';
+/** One static file serves the public docs page and this dialog, which fills in the agent's id. */
+const SKILL_PATH = '/docs/skills/gieschat-agent-api/SKILL.md';
+const SKILL_AGENT_ID = 'agent_YOUR_AGENT_ID';
 
 const snippetFor = (key: string, agentId: string) => `from openai import OpenAI
 
@@ -53,6 +60,7 @@ export default function ApiAccessDialog({ agent, onOpenChange }: ApiAccessDialog
   const [audience, setAudience] = useState('');
   const [errors, setErrors] = useState<{ name?: boolean; audience?: boolean }>({});
   const [created, setCreated] = useState<AdminApiKeyCreateResponse | null>(null);
+  const [skill, setSkill] = useState<string | null>(null);
 
   useEffect(() => {
     setAdding(false);
@@ -61,6 +69,24 @@ export default function ApiAccessDialog({ agent, onOpenChange }: ApiAccessDialog
     setErrors({});
     setCreated(null);
   }, [agent]);
+
+  /**
+   * Fetched when the dialog opens so Copy can write to the clipboard inside the click:
+   * Safari refuses a clipboard write that waits on a network request.
+   */
+  const loadSkill = useCallback(
+    () =>
+      fetch(SKILL_PATH)
+        .then((response) => (response.ok ? response.text() : Promise.reject(response.status)))
+        .then(setSkill, () => undefined),
+    [],
+  );
+
+  useEffect(() => {
+    if (agent != null && skill == null) {
+      void loadSkill();
+    }
+  }, [agent, skill, loadSkill]);
 
   const keys = useMemo(
     () => (data?.keys ?? []).filter((key) => key.agentId === agent?.agent_id),
@@ -73,13 +99,45 @@ export default function ApiAccessDialog({ agent, onOpenChange }: ApiAccessDialog
       severity: NotificationSeverity.ERROR,
     });
 
-  const copy = (text: string) => {
-    void navigator.clipboard.writeText(text).then(() =>
-      showToast({
-        message: localize('com_ui_admin_api_copied'),
-        severity: NotificationSeverity.SUCCESS,
-      }),
-    );
+  /** `copy-to-clipboard` also works where `navigator.clipboard` is blocked, e.g. inside a frame. */
+  const copy = (text: string, message: TranslationKeys = 'com_ui_admin_api_copied') => {
+    const copied = copyToClipboard(text, { format: 'text/plain' });
+    showToast({
+      message: localize(copied ? message : 'com_ui_admin_api_copy_failed'),
+      severity: copied ? NotificationSeverity.SUCCESS : NotificationSeverity.ERROR,
+    });
+  };
+
+  const agentSkill = (): string | null => {
+    if (skill != null && agent != null) {
+      return skill.replaceAll(SKILL_AGENT_ID, agent.agent_id);
+    }
+    showToast({
+      message: localize('com_ui_admin_api_skill_error'),
+      severity: NotificationSeverity.ERROR,
+    });
+    void loadSkill();
+    return null;
+  };
+
+  const copySkill = () => {
+    const text = agentSkill();
+    if (text != null) {
+      copy(text, 'com_ui_admin_api_skill_copied');
+    }
+  };
+
+  const downloadSkill = () => {
+    const text = agentSkill();
+    if (text == null) {
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/markdown' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'SKILL.md';
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const submit = (event: React.FormEvent) => {
@@ -125,6 +183,37 @@ export default function ApiAccessDialog({ agent, onOpenChange }: ApiAccessDialog
         </OGDialogTitle>
         <div className="flex flex-col gap-4 text-sm text-text-primary">
           <p className="text-text-secondary">{localize('com_ui_admin_api_intro')}</p>
+
+          <section
+            aria-labelledby="api-handoff-title"
+            className="rounded-lg border border-border-light bg-surface-secondary-alt p-3"
+          >
+            <h3 id="api-handoff-title" className="text-xs font-semibold">
+              {localize('com_ui_admin_api_handoff_title')}
+            </h3>
+            <p className="mt-1 text-xs text-text-secondary">
+              {localize('com_ui_admin_api_handoff_hint')}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => copy(`${window.location.origin}${GUIDE_PATH}`)}
+              >
+                <Link2 className="size-4" aria-hidden="true" />
+                {localize('com_ui_admin_api_copy_guide')}
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={copySkill}>
+                <Bot className="size-4" aria-hidden="true" />
+                {localize('com_ui_admin_api_copy_skill')}
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={downloadSkill}>
+                <Download className="size-4" aria-hidden="true" />
+                {localize('com_ui_admin_api_download_skill')}
+              </Button>
+            </div>
+          </section>
 
           {created != null ? (
             <div className="flex flex-col gap-3">
