@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableCaption,
 } from '@librechat/client';
-import type { AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
+import type { AdminAgentUsage, AdminAgentDraft, AdminDashboardView } from 'librechat-data-provider';
 import type { AgentPeopleLists } from './Drafts/CollaboratorsDialog';
 import type { AgentActionHandlers } from './AgentActions';
 import { useAdminAgentUsageQuery } from '~/data-provider';
@@ -21,6 +21,10 @@ import QueryState from './QueryState';
 interface AgentUsageTableProps extends AgentActionHandlers {
   groupId: string;
   days: number;
+  /** `admin` lists every owner's agents, with an Owner column in place of Status. */
+  view?: AdminDashboardView;
+  /** The signed-in user, so the Admin view can tell their own agents from others'. */
+  userId?: string;
   /** The agent whose drafts row is open; the dashboard owns it so a card can open it too. */
   expandedId: string | null;
   onSelectAgent: (agent: AdminAgentUsage) => void;
@@ -33,6 +37,8 @@ interface AgentUsageTableProps extends AgentActionHandlers {
 export default function AgentUsageTable({
   groupId,
   days,
+  view,
+  userId,
   expandedId,
   onSelectAgent,
   onEditDraft,
@@ -42,7 +48,7 @@ export default function AgentUsageTable({
   ...actions
 }: AgentUsageTableProps) {
   const localize = useLocalize();
-  const params = { days, ...(groupId ? { groupId } : {}) };
+  const params = { days, ...(groupId ? { groupId } : {}), ...(view ? { view } : {}) };
   const { data, isLoading, error, refetch } = useAdminAgentUsageQuery(params);
 
   const handleRetry = useCallback(() => {
@@ -70,12 +76,15 @@ export default function AgentUsageTable({
       onRetry={handleRetry}
     >
       <Table>
-        <TableCaption className="sr-only">{localize('com_ui_admin_agents_caption')}</TableCaption>
+        <TableCaption className="sr-only">
+          {localize(view ? 'com_ui_admin_all_agents_caption' : 'com_ui_admin_agents_caption')}
+        </TableCaption>
         <TableHeader>
           <TableRow>
             <TableHead scope="col">{localize('com_ui_admin_col_agent')}</TableHead>
+            {view && <TableHead scope="col">{localize('com_ui_admin_col_owner')}</TableHead>}
             <TableHead scope="col">{localize('com_ui_admin_col_course')}</TableHead>
-            <TableHead scope="col">{localize('com_ui_admin_col_status')}</TableHead>
+            {!view && <TableHead scope="col">{localize('com_ui_admin_col_status')}</TableHead>}
             <TableHead scope="col" className="text-right">
               {localize('com_ui_admin_col_conversations')}
             </TableHead>
@@ -105,38 +114,50 @@ export default function AgentUsageTable({
                     {agent.name}
                   </button>
                 </TableCell>
+                {view && (
+                  <TableCell>
+                    <span className="block font-medium text-text-primary">
+                      {agent.owner?.name || localize('com_ui_admin_owner_unknown')}
+                    </span>
+                    {agent.owner?.email && (
+                      <span className="block text-xs text-text-secondary">{agent.owner.email}</span>
+                    )}
+                  </TableCell>
+                )}
                 <TableCell className="whitespace-nowrap text-text-secondary">
                   {agent.course != null && agent.course !== ''
                     ? agent.course
                     : localize('com_ui_none')}
                 </TableCell>
-                <TableCell className="whitespace-nowrap">
-                  <span className="flex flex-wrap items-center gap-1">
-                    <span className="rounded-full border border-green-200 bg-green-50 px-2 text-[11px] font-semibold text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-200">
-                      {localize('com_ui_admin_status_production', { version: agent.version })}
+                {!view && (
+                  <TableCell className="whitespace-nowrap">
+                    <span className="flex flex-wrap items-center gap-1">
+                      <span className="rounded-full border border-green-200 bg-green-50 px-2 text-[11px] font-semibold text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-200">
+                        {localize('com_ui_admin_status_production', { version: agent.version })}
+                      </span>
+                      {agent.draftCount > 0 && (
+                        <span className="rounded-full border border-orange-200 bg-orange-50 px-2 text-[11px] font-semibold text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300">
+                          {localize(
+                            agent.draftCount === 1
+                              ? 'com_ui_admin_status_drafts_one'
+                              : 'com_ui_admin_status_drafts_other',
+                            { count: agent.draftCount },
+                          )}
+                        </span>
+                      )}
+                      {agent.isCoAdmin && (
+                        <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 text-[11px] font-semibold text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">
+                          {localize('com_ui_admin_role_coadmin')}
+                        </span>
+                      )}
+                      {agent.isCollaborator && (
+                        <span className="rounded-full border border-border-light bg-surface-tertiary px-2 text-[11px] font-semibold text-text-primary">
+                          {localize('com_ui_admin_status_collaborator')}
+                        </span>
+                      )}
                     </span>
-                    {agent.draftCount > 0 && (
-                      <span className="rounded-full border border-orange-200 bg-orange-50 px-2 text-[11px] font-semibold text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300">
-                        {localize(
-                          agent.draftCount === 1
-                            ? 'com_ui_admin_status_drafts_one'
-                            : 'com_ui_admin_status_drafts_other',
-                          { count: agent.draftCount },
-                        )}
-                      </span>
-                    )}
-                    {agent.isCoAdmin && (
-                      <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 text-[11px] font-semibold text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">
-                        {localize('com_ui_admin_role_coadmin')}
-                      </span>
-                    )}
-                    {agent.isCollaborator && (
-                      <span className="rounded-full border border-border-light bg-surface-tertiary px-2 text-[11px] font-semibold text-text-primary">
-                        {localize('com_ui_admin_status_collaborator')}
-                      </span>
-                    )}
-                  </span>
-                </TableCell>
+                  </TableCell>
+                )}
                 <TableCell className="text-right tabular-nums">
                   <span className="flex items-center justify-end gap-2">
                     <span
@@ -163,6 +184,7 @@ export default function AgentUsageTable({
                   <AgentActions
                     agent={agent}
                     draftsExpanded={expandedId === agent.agent_id}
+                    userId={userId}
                     {...actions}
                   />
                 </TableCell>

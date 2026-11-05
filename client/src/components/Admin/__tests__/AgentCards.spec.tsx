@@ -41,6 +41,7 @@ const usage: AdminAgentUsageResponse = {
       isCoAdmin: false,
       isCollaborator: false,
       draftCount: 0,
+      owner: null,
     },
     {
       agent_id: 'agent_2',
@@ -60,6 +61,7 @@ const usage: AdminAgentUsageResponse = {
       isCoAdmin: false,
       isCollaborator: false,
       draftCount: 0,
+      owner: null,
     },
   ],
 };

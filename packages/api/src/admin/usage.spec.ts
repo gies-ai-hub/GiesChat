@@ -351,6 +351,7 @@ interface TestDeps extends AdminUsageDeps {
   sendCollaboratorInvite: jest.Mock;
   revokeAgentAccess: jest.Mock;
   sendRoleChange: jest.Mock;
+  isAgentAdmin: jest.Mock;
 }
 
 /** The shape the analytics pipeline returns when nothing happened in the window. */
@@ -456,6 +457,7 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
           metadata: { sourceUrl: crawl.url, pages: 1, checkedAt: NOW },
         }) as IMongoFile,
     ),
+    isAgentAdmin: jest.fn(async () => false),
     ...overrides,
   };
 
@@ -578,6 +580,107 @@ describe('createAdminUsageHandlers', () => {
   /* ================================================================ *
    * listAgentUsage
    * ================================================================ */
+
+  describe('Admin view (manage:agents)', () => {
+    const owner = mockUser({ _id: otherAuthorId, name: 'Dana Owner', email: 'dana@illinois.edu' });
+    const adminWorld = () => baseWorld({ users: [bob, ana, zed, owner] });
+    const asAdmin = (deps: TestDeps) => deps.isAgentAdmin.mockResolvedValue(true);
+
+    it('lists every owner’s dashboard agents with their owner, acting as author on each', async () => {
+      const deps = createDeps(adminWorld());
+      asAdmin(deps);
+      const { req, res, status, json } = createReqRes({ query: { view: 'admin' } });
+
+      await createAdminUsageHandlers(deps).listAgentUsage(req, res);
+
+      expect(status).toHaveBeenCalledWith(200);
+      const rows = agentBody(json).agents as (AgentUsageResponseItem & {
+        owner: { name: string } | null;
+      })[];
+      expect(rows.map((row) => row.agent_id).sort()).toEqual([
+        'agent_alpha',
+        'agent_beta',
+        'agent_delta',
+        'agent_gamma',
+      ]);
+      const gammaRow = rows.find((row) => row.agent_id === 'agent_gamma');
+      expect(gammaRow).toMatchObject({
+        owner: { name: 'Dana Owner' },
+        isAuthor: true,
+        isCoAdmin: false,
+        isCollaborator: false,
+        canDelete: true,
+      });
+    });
+
+    it('answers 403 to ?view=admin without manage:agents, before reading any agent', async () => {
+      const deps = createDeps(adminWorld());
+      const { req, res, status } = createReqRes({ query: { view: 'admin' } });
+
+      await createAdminUsageHandlers(deps).listAgentUsage(req, res);
+
+      expect(status).toHaveBeenCalledWith(403);
+      expect(deps.findAgents).not.toHaveBeenCalled();
+    });
+
+    it('leaves My agents unchanged for an admin: own scope, no owner, no capability check', async () => {
+      const deps = createDeps(adminWorld());
+      asAdmin(deps);
+      const { req, res, json } = createReqRes();
+
+      await createAdminUsageHandlers(deps).listAgentUsage(req, res);
+
+      const rows = agentBody(json).agents as (AgentUsageResponseItem & { owner: unknown })[];
+      expect(rows.map((row) => row.agent_id)).not.toContain('agent_gamma');
+      expect(rows.every((row) => row.owner === null)).toBe(true);
+      expect(deps.isAgentAdmin).not.toHaveBeenCalled();
+    });
+
+    it('opens the student drill-down of any agent to an admin only', async () => {
+      const deps = createDeps(adminWorld());
+      const professor = createReqRes({ params: { agent_id: 'agent_gamma' } });
+      await createAdminUsageHandlers(deps).listAgentStudentUsage(professor.req, professor.res);
+      expect(professor.status).toHaveBeenCalledWith(403);
+
+      asAdmin(deps);
+      const admin = createReqRes({ params: { agent_id: 'agent_gamma' } });
+      await createAdminUsageHandlers(deps).listAgentStudentUsage(admin.req, admin.res);
+      expect(admin.status).toHaveBeenCalledWith(200);
+    });
+
+    it('covers every owner’s agents in the analytics', async () => {
+      const deps = createDeps(adminWorld());
+      asAdmin(deps);
+      const { req, res, status } = createReqRes({ query: { view: 'admin' } });
+
+      await createAdminUsageHandlers(deps).listAgentAnalytics(req, res);
+
+      expect(status).toHaveBeenCalledWith(200);
+      const [{ agentIds }] = deps.aggregateAgentAnalytics.mock.calls[0] as [{ agentIds: string[] }];
+      expect(agentIds).toEqual(expect.arrayContaining(['agent_gamma']));
+    });
+
+    it('lets an admin set people on someone else’s agent, never giving its author a role', async () => {
+      const gammaOwned = mockAgent({ id: 'agent_gamma', name: 'Gamma', author: otherAuthorId });
+      const deps = createDeps({ ...adminWorld(), agents: [gammaOwned] });
+      asAdmin(deps);
+      const { req, res, status } = createReqRes({
+        params: { agent_id: 'agent_gamma' },
+        body: {
+          userIds: [String(bobId), String(otherAuthorId)],
+          emails: ['dana@illinois.edu'],
+        },
+      });
+
+      await createAdminUsageHandlers(deps).updateAgentCollaborators(req, res);
+
+      expect(status).toHaveBeenCalledWith(200);
+      expect(deps.setAgentMeta).toHaveBeenCalledWith(
+        'agent_gamma',
+        expect.objectContaining({ collaborators: [String(bobId)], pendingCollaborators: [] }),
+      );
+    });
+  });
 
   describe('listAgentUsage', () => {
     describe('security — agent scoping', () => {
@@ -1316,6 +1419,7 @@ describe('createAdminUsageHandlers', () => {
           'lastActivity',
           'messageCount',
           'name',
+          'owner',
           'userCount',
           'version',
         ]);

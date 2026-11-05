@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback } from 'react';
 import { packRows, resolveLayout } from 'librechat-data-provider';
+import type { AdminDashboardView } from 'librechat-data-provider';
 import { useAdminAgentAnalyticsQuery, useAdminDashboardLayoutQuery } from '~/data-provider';
 import { PANEL_ORDER, SPAN_CLASS, columnsFor, panelFor } from './registry';
 import { useLocalize } from '~/hooks';
@@ -12,6 +13,8 @@ interface AnalyticsSectionProps {
   days: number;
   /** Empty string means every source: GiesChat, embeds, and API keys together. */
   source: string;
+  /** `admin` covers every owner's agents. */
+  view?: AdminDashboardView;
 }
 
 /**
@@ -22,9 +25,14 @@ interface AnalyticsSectionProps {
  * the default, which packs to exactly the grid this section used before it became
  * customizable — a display preference must never be able to take the analytics down.
  */
-export default function AnalyticsSection({ groupId, days, source }: AnalyticsSectionProps) {
+export default function AnalyticsSection({ groupId, days, source, view }: AnalyticsSectionProps) {
   const localize = useLocalize();
-  const params = { days, ...(groupId ? { groupId } : {}), ...(source ? { source } : {}) };
+  const params = {
+    days,
+    ...(groupId ? { groupId } : {}),
+    ...(source ? { source } : {}),
+    ...(view ? { view } : {}),
+  };
   const { data, isLoading, error, refetch } = useAdminAgentAnalyticsQuery(params);
   const { data: layoutData } = useAdminDashboardLayoutQuery();
 
@@ -47,7 +55,7 @@ export default function AnalyticsSection({ groupId, days, source }: AnalyticsSec
     <section aria-labelledby="admin-analytics-heading" className="mb-8">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 id="admin-analytics-heading" className="text-lg font-medium text-text-primary">
-          {localize('com_ui_admin_analytics_heading')}
+          {localize(view ? 'com_ui_admin_analytics_heading_all' : 'com_ui_admin_analytics_heading')}
         </h2>
         {/* Nothing to arrange while the analytics are loading, forbidden, erroring, or empty. */}
         {data != null && <Customize layout={layout} />}

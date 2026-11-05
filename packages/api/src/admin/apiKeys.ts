@@ -19,6 +19,8 @@ export interface AdminApiKeyDeps {
   createAgentApiKey: (data: AgentApiKeyCreateData) => Promise<AgentApiKeyCreateResult>;
   listAgentApiKeysForAgents: (agentIds: string[]) => Promise<AgentApiKeyListItem[]>;
   deleteAgentApiKeyForAgents: (keyId: string, agentIds: string[]) => Promise<boolean>;
+  /** Holds `manage:agents`: manages keys on every dashboard agent, as in `AdminUsageDeps`. */
+  isAgentAdmin: (user: IUser) => Promise<boolean>;
 }
 
 type Handler = (req: ServerRequest, res: Response) => Promise<Response>;
@@ -52,16 +54,18 @@ export function toApiKeyItem(key: AgentApiKeyListItem): AdminAgentApiKey {
 export function createAdminApiKeyHandlers(deps: AdminApiKeyDeps): AdminApiKeyHandlers {
   /**
    * Keys are an author/co-admin decision. Collaborators and EDIT shares can see an agent's
-   * analytics but never mint or revoke its keys.
+   * analytics but never mint or revoke its keys. A `manage:agents` admin reaches every
+   * agent by id; the list covers every agent only in the Admin view (`all`).
    */
-  async function managedAgentIds(caller: IUser, agentId?: string): Promise<string[]> {
+  async function managedAgentIds(caller: IUser, agentId?: string, all = false): Promise<string[]> {
     const callerId = String(caller._id);
+    const admin = (agentId !== undefined || all) && (await deps.isAgentAdmin(caller));
     const agents = await deps.findAgents(
       {
         createdVia: DASHBOARD_ORIGIN,
         draftOf: { $exists: false },
         ...(agentId === undefined ? {} : { id: agentId }),
-        $or: [{ author: callerId }, { coAdmins: callerId }],
+        ...(admin ? {} : { $or: [{ author: callerId }, { coAdmins: callerId }] }),
       },
       'id',
     );
@@ -73,7 +77,13 @@ export function createAdminApiKeyHandlers(deps: AdminApiKeyDeps): AdminApiKeyHan
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-      const keys = await deps.listAgentApiKeysForAgents(await managedAgentIds(req.user));
+      const all = req.query.view === 'admin';
+      if (all && !(await deps.isAgentAdmin(req.user))) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      const keys = await deps.listAgentApiKeysForAgents(
+        await managedAgentIds(req.user, undefined, all),
+      );
       return res.status(200).json({ keys: keys.map(toApiKeyItem) });
     } catch (error) {
       logger.error('[adminApiKeys] list error:', error);
@@ -131,7 +141,10 @@ export function createAdminApiKeyHandlers(deps: AdminApiKeyDeps): AdminApiKeyHan
       return res.status(404).json({ error: 'API key not found' });
     }
     try {
-      const deleted = await deps.deleteAgentApiKeyForAgents(keyId, await managedAgentIds(req.user));
+      const deleted = await deps.deleteAgentApiKeyForAgents(
+        keyId,
+        await managedAgentIds(req.user, undefined, true),
+      );
       return deleted
         ? res.status(200).json({ deleted: true })
         : res.status(404).json({ error: 'API key not found' });

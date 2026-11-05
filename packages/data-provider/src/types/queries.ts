@@ -238,7 +238,12 @@ export type AdminUsageParams = {
   days?: number;
   /** `gieschat`, `embed`, `api`, or one API key's id. Read by the analytics and topics endpoints. */
   source?: string;
+  /** `admin` lists every owner's dashboard agents; 403 without `manage:agents`. */
+  view?: AdminDashboardView;
 };
+
+/** The Admin tab of the agent dashboard; `undefined` is the caller's own agents. */
+export type AdminDashboardView = 'admin';
 
 export type AdminAgentApiKey = {
   id: string;
@@ -285,7 +290,7 @@ export type AdminAgentUsage = AdminUsageCounts & {
   embed: AgentEmbed | null;
   /** Production version students run — the count of saved versions. */
   version: number;
-  /** The caller authored this agent: they alone set people's roles and delete it. */
+  /** The caller authored this agent, or acts as an admin in the Admin view: they alone set people's roles and delete it. */
   isAuthor: boolean;
   /** The caller runs this agent with the author: edits production and posts drafts. */
   isCoAdmin: boolean;
@@ -293,6 +298,8 @@ export type AdminAgentUsage = AdminUsageCounts & {
   isCollaborator: boolean;
   /** Unposted drafts visible to the caller. */
   draftCount: number;
+  /** Who built it; filled in the Admin view only. `null` there means the account is gone. */
+  owner: AdminUserRef | null;
 };
 
 export type AgentEmbedAudience = 'public' | 'illinois';

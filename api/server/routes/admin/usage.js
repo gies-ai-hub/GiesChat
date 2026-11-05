@@ -11,7 +11,7 @@ const {
   modelTestEndpointFromConfig,
 } = require('@librechat/api');
 const { SystemCapabilities } = require('@librechat/data-schemas');
-const { requireCapability } = require('~/server/middleware/roles/capabilities');
+const { requireCapability, hasCapability } = require('~/server/middleware/roles/capabilities');
 const { findAccessibleResources } = require('~/server/services/PermissionService');
 const { copyAgentDocuments } = require('~/server/services/Files/copy');
 const { sendCollaboratorInvite, sendRoleChange } = require('~/server/services/AgentInvites');
@@ -31,6 +31,13 @@ const requireReadGroups = requireCapability(SystemCapabilities.READ_GROUPS);
  */
 const requireClassAccess = (req, res, next) =>
   req.query.groupId === undefined ? next() : requireReadGroups(req, res, next);
+
+/**
+ * `manage:agents` already bypasses agent ACLs on `/api/agents`; here it gives author powers on
+ * every dashboard agent and the Admin tab that lists them. A failed check counts as no.
+ */
+const isAgentAdmin = (user) =>
+  hasCapability(user, SystemCapabilities.MANAGE_AGENTS).catch(() => false);
 
 const handlers = createAdminUsageHandlers({
   findAgents: db.getAgents,
@@ -67,6 +74,7 @@ const handlers = createAdminUsageHandlers({
   crawlWebsite: (url) => crawlSite(url),
   cleanWebsitePages: async (pages) => cleanPages(pages, await siteStore.resolveEndpoint()),
   replaceWebsiteCopy,
+  isAgentAdmin,
 });
 
 const apiKeyHandlers = createAdminApiKeyHandlers({
@@ -74,6 +82,7 @@ const apiKeyHandlers = createAdminApiKeyHandlers({
   createAgentApiKey: db.createAgentApiKey,
   listAgentApiKeysForAgents: db.listAgentApiKeysForAgents,
   deleteAgentApiKeyForAgents: db.deleteAgentApiKeyForAgents,
+  isAgentAdmin,
 });
 
 /**

@@ -128,6 +128,7 @@ const agentUsage: AdminAgentUsageResponse = {
       isCoAdmin: false,
       isCollaborator: false,
       draftCount: 0,
+      owner: null,
     },
   ],
 };
@@ -375,6 +376,78 @@ describe('AdminDashboard', () => {
     await screen.findByRole('table');
 
     expect(screen.queryByText(/Showing the first/)).not.toBeInTheDocument();
+  });
+
+  describe('Admin tab', () => {
+    const othersAgent = {
+      ...agentUsage.agents[0],
+      agent_id: 'agent_dana',
+      name: 'ACCY 502A Audit Tutor',
+      owner: { id: 'user-dana', name: 'Dana Whitfield', email: 'dwhitfld@illinois.edu' },
+    };
+
+    beforeEach(() => {
+      mockGetAdminAgentUsage.mockImplementation(async (params?: { view?: string }) =>
+        params?.view === 'admin' ? { agents: [othersAgent] } : agentUsage,
+      );
+    });
+
+    it('is not offered without manage:agents', async () => {
+      renderDashboard();
+
+      expect(await screen.findByRole('table')).toBeInTheDocument();
+      expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+      expect(mockGetAdminAgentUsage).not.toHaveBeenCalledWith(
+        expect.objectContaining({ view: 'admin' }),
+      );
+    });
+
+    it('lists every owner’s agents with an Owner column, and edits them with a warning', async () => {
+      mockGetAdminEffectiveCapabilities.mockResolvedValue({
+        capabilities: [...professorCapabilities, 'manage:agents'],
+      });
+      renderDashboard();
+
+      await userEvent.click(await screen.findByRole('tab', { name: /admin/i }));
+
+      expect(await screen.findByText('Dana Whitfield')).toBeInTheDocument();
+      expect(mockGetAdminAgentUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ view: 'admin' }),
+      );
+      expect(mockGetAdminAgentAnalytics).toHaveBeenCalledWith(
+        expect.objectContaining({ view: 'admin' }),
+      );
+      expect(screen.getByRole('tab', { name: /admin/i })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('columnheader', { name: 'Owner' })).toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
+      /** Chat lists only agents shared with the viewer, so it is not offered on someone else's. */
+      expect(
+        screen.queryByRole('button', { name: 'Open ACCY 502A Audit Tutor in chat' }),
+      ).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Edit ACCY 502A Audit Tutor' }));
+
+      expect(await screen.findByRole('note')).toHaveTextContent(
+        "You're editing Dana Whitfield's agent as an admin.",
+      );
+    });
+
+    it('keeps the tab while drilling into an agent, so back returns to the Admin list', async () => {
+      mockGetAdminEffectiveCapabilities.mockResolvedValue({
+        capabilities: [...professorCapabilities, 'manage:agents'],
+      });
+      renderDashboard();
+
+      await userEvent.click(await screen.findByRole('tab', { name: /admin/i }));
+      await userEvent.click(
+        await screen.findByRole('button', { name: /student progress for ACCY 502A/i }),
+      );
+
+      expect(await screen.findByText(/Built by Dana Whitfield/)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: /back/i }));
+      expect(await screen.findByText('Dana Whitfield')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /admin/i })).toHaveAttribute('aria-selected', 'true');
+    });
   });
 
   it('renders agent usage once the data resolves', async () => {

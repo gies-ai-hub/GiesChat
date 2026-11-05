@@ -3,7 +3,12 @@
  */
 
 const mongoose = require('mongoose');
-const { logger, getTenantId, SYSTEM_TENANT_ID } = require('@librechat/data-schemas');
+const {
+  logger,
+  getTenantId,
+  SYSTEM_TENANT_ID,
+  ResourceCapabilityMap,
+} = require('@librechat/data-schemas');
 const { ResourceType, PrincipalType, PermissionBits } = require('librechat-data-provider');
 const { enrichRemoteAgentPrincipals, backfillRemoteAgentPermissions } = require('@librechat/api');
 const {
@@ -19,6 +24,7 @@ const {
   entraIdPrincipalFeatureEnabled,
   searchEntraIdPrincipals,
 } = require('~/server/services/GraphApiService');
+const { hasCapability } = require('~/server/middleware/roles/capabilities');
 const db = require('~/models');
 
 const matchesCurrentTenant = (principal, tenantId) => {
@@ -373,6 +379,19 @@ const getUserEffectivePermissions = async (req, res) => {
     validateResourceType(resourceType);
 
     const { id: userId } = req.user;
+
+    /**
+     * The resource's management capability (e.g. `manage:agents`) bypasses its ACL in
+     * `canAccessResource`, so report every bit. Otherwise the agent builder loads the
+     * VIEW-only projection, which has no instructions, and a save would erase them.
+     */
+    const capability = ResourceCapabilityMap[resourceType];
+    if (capability != null && (await hasCapability(req.user, capability).catch(() => false))) {
+      return res.status(200).json({
+        permissionBits:
+          PermissionBits.VIEW | PermissionBits.EDIT | PermissionBits.DELETE | PermissionBits.SHARE,
+      });
+    }
 
     const permissionBits = await getEffectivePermissions({
       userId,

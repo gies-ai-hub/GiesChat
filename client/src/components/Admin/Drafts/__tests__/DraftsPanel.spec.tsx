@@ -51,6 +51,7 @@ const row = (overrides: Partial<AdminAgentUsage> = {}): AdminAgentUsage => ({
   isCoAdmin: false,
   isCollaborator: false,
   draftCount: 2,
+  owner: null,
   ...overrides,
 });
 

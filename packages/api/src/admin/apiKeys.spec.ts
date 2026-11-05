@@ -41,11 +41,18 @@ function makeDeps(managed = ['agent_a']): AdminApiKeyDeps {
       },
     ]),
     deleteAgentApiKeyForAgents: jest.fn(async () => true),
+    isAgentAdmin: jest.fn(async () => false),
   };
 }
 
 const makeReq = (extra: Record<string, unknown> = {}) =>
-  ({ user: { _id: 'prof' }, params: {}, body: {}, ...extra }) as unknown as ServerRequest;
+  ({
+    user: { _id: 'prof' },
+    params: {},
+    query: {},
+    body: {},
+    ...extra,
+  }) as unknown as ServerRequest;
 
 function makeRes() {
   const res = { status: jest.fn(), json: jest.fn() } as unknown as Response & {
@@ -73,6 +80,36 @@ describe('admin API key handlers', () => {
       lastUsedAt: null,
       createdAt: created.toISOString(),
     });
+  });
+
+  it('lists every owner’s keys in the Admin view for a manage:agents holder, and 403s anyone else', async () => {
+    const admin = makeDeps();
+    admin.isAgentAdmin = jest.fn(async () => true);
+    const res = makeRes();
+    await createAdminApiKeyHandlers(admin).listApiKeys(makeReq({ query: { view: 'admin' } }), res);
+    expect((admin.findAgents as jest.Mock).mock.calls[0][0]).not.toHaveProperty('$or');
+    expect(res.status).toHaveBeenCalledWith(200);
+
+    const professor = makeDeps();
+    const refused = makeRes();
+    await createAdminApiKeyHandlers(professor).listApiKeys(
+      makeReq({ query: { view: 'admin' } }),
+      refused,
+    );
+    expect(refused.status).toHaveBeenCalledWith(403);
+    expect(professor.listAgentApiKeysForAgents).not.toHaveBeenCalled();
+  });
+
+  it('lets an admin create a key on any dashboard agent, by id', async () => {
+    const deps = makeDeps();
+    deps.isAgentAdmin = jest.fn(async () => true);
+    const res = makeRes();
+    await createAdminApiKeyHandlers(deps).createApiKey(
+      makeReq({ params: { agent_id: 'agent_a' }, body: { name: 'site', audience: APP_ID } }),
+      res,
+    );
+    expect((deps.findAgents as jest.Mock).mock.calls[0][0]).not.toHaveProperty('$or');
+    expect(res.status).toHaveBeenCalledWith(201);
   });
 
   it.each([

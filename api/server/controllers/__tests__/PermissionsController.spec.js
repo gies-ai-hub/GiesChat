@@ -7,6 +7,12 @@ jest.mock('@librechat/data-schemas', () => ({
   logger: mockLogger,
   getTenantId: mockGetTenantId,
   SYSTEM_TENANT_ID: '__SYSTEM__',
+  ResourceCapabilityMap: { agent: 'manage:agents' },
+}));
+
+const mockHasCapability = jest.fn();
+jest.mock('~/server/middleware/roles/capabilities', () => ({
+  hasCapability: (...args) => mockHasCapability(...args),
 }));
 
 const { AccessRoleIds, ResourceType, PrincipalType } =
@@ -49,10 +55,12 @@ jest.mock('~/server/services/GraphApiService', () => ({
 }));
 
 const db = require('~/models');
+const { getEffectivePermissions } = require('~/server/services/PermissionService');
 const {
   updateResourcePermissions,
   searchPrincipals,
   getResourcePermissions,
+  getUserEffectivePermissions,
 } = require('../PermissionsController');
 
 const createMockReq = (overrides = {}) => ({
@@ -76,6 +84,38 @@ describe('PermissionsController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetTenantId.mockReturnValue(undefined);
+  });
+
+  describe('getUserEffectivePermissions', () => {
+    it('reports every bit to a holder of the management capability, without asking the ACL', async () => {
+      mockHasCapability.mockResolvedValue(true);
+      const res = createMockRes();
+
+      await getUserEffectivePermissions(createMockReq(), res);
+
+      expect(mockHasCapability).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'user-1' }),
+        'manage:agents',
+      );
+      expect(getEffectivePermissions).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({ permissionBits: 15 });
+    });
+
+    it('answers from the ACL for everyone else, and when the capability check fails', async () => {
+      getEffectivePermissions.mockResolvedValue(1);
+      for (const check of [
+        () => Promise.resolve(false),
+        () => Promise.reject(new Error('db down')),
+      ]) {
+        mockHasCapability.mockImplementationOnce(check);
+        const res = createMockRes();
+
+        await getUserEffectivePermissions(createMockReq(), res);
+
+        expect(res.json).toHaveBeenCalledWith({ permissionBits: 1 });
+      }
+      expect(getEffectivePermissions).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('searchPrincipals', () => {

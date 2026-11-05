@@ -22,6 +22,8 @@ interface AgentActionsProps extends AgentActionHandlers {
   agent: AdminAgentUsage;
   draftsExpanded: boolean;
   className?: string;
+  /** The signed-in user; in the Admin view, chat is offered on their own agents only. */
+  userId?: string;
 }
 
 /**
@@ -33,6 +35,7 @@ export default function AgentActions({
   agent,
   draftsExpanded,
   className,
+  userId,
   onOpenAgent,
   onEditAgent,
   onEditOwnDraft,
@@ -44,20 +47,23 @@ export default function AgentActions({
   const localize = useLocalize();
   return (
     <span className={cn('flex justify-end gap-1', className)}>
-      <TooltipAnchor
-        description={localize('com_ui_admin_tip_open')}
-        render={
-          <Button
-            size="sm"
-            variant="ghost"
-            type="button"
-            onClick={() => onOpenAgent(agent)}
-            aria-label={localize('com_ui_admin_open_agent', { name: agent.name })}
-          >
-            <MessageSquare className="size-4" aria-hidden="true" />
-          </Button>
-        }
-      />
+      {/* Chat lists only agents shared with you, so the Admin view offers it on your own only. */}
+      {(agent.owner == null || agent.owner.id === userId) && (
+        <TooltipAnchor
+          description={localize('com_ui_admin_tip_open')}
+          render={
+            <Button
+              size="sm"
+              variant="ghost"
+              type="button"
+              onClick={() => onOpenAgent(agent)}
+              aria-label={localize('com_ui_admin_open_agent', { name: agent.name })}
+            >
+              <MessageSquare className="size-4" aria-hidden="true" />
+            </Button>
+          }
+        />
+      )}
       {/* A collaborator's pencil edits their own draft; production changes only when it is posted. */}
       <TooltipAnchor
         description={localize(

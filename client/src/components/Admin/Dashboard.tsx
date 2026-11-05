@@ -1,10 +1,11 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { ArrowLeft, Bot, MessageSquare } from 'lucide-react';
+import { useRecoilValue } from 'recoil';
+import { ArrowLeft, Bot, Shield, MessageSquare } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Dropdown, OGDialog, OGDialogContent, OGDialogTitle } from '@librechat/client';
 import { QueryKeys, Permissions, PermissionTypes } from 'librechat-data-provider';
-import type { AdminAgentUsage, AdminAgentDraft } from 'librechat-data-provider';
+import type { AdminAgentUsage, AdminAgentDraft, AdminDashboardView } from 'librechat-data-provider';
 import type { Option } from '@librechat/client';
 import type { AgentPeopleLists } from './Drafts/CollaboratorsDialog';
 import type { AgentActionHandlers } from './AgentActions';
@@ -18,6 +19,7 @@ import {
   useOpenAdminAgentDraftMutation,
 } from '~/data-provider';
 import { useHasAccess, useLocalize } from '~/hooks';
+import Views, { VIEW_PANEL_ID, viewTabId } from './Views';
 import StudentProgressTable from './StudentProgressTable';
 import AgentUsageTable from './AgentUsageTable';
 import ShareWithClass from './ShareWithClass';
@@ -25,6 +27,7 @@ import EmbedDialog from './EmbedDialog';
 import ApiAccessDialog from './ApiAccessDialog';
 import AgentCards from './AgentCards';
 import AnalyticsSection from './Analytics';
+import store from '~/store';
 
 const DAY_WINDOWS = [7, 30, 90] as const;
 /** Sentinel for "no class filter". Must be non-empty — `Dropdown` renders an empty label for `''`. */
@@ -40,6 +43,8 @@ const DASHBOARD_MODEL = { provider: 'Azure OpenAI', model: 'gpt-6-luna' };
 const DASHBOARD_DOCUMENT_LIMIT = 100;
 /** The drill-down lives in the URL, so browser back and the sidebar link return to the list. */
 const AGENT_PARAM = 'agent';
+/** `?view=admin` is the Admin tab: every owner's agents, for `manage:agents` holders. */
+const VIEW_PARAM = 'view';
 const NO_PEOPLE: AgentPeopleLists = {
   collaborators: [],
   pending: [],
@@ -52,7 +57,12 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   /** The dashboard is open to every signed-in user; only the class list needs `read:groups`. */
-  const { hasAdminAccess: canPickClass } = useAdminAccess();
+  const {
+    hasAdminAccess: canPickClass,
+    canAdminAgents,
+    isLoading: isCheckingAccess,
+  } = useAdminAccess();
+  const user = useRecoilValue(store.user);
   const canCreateAgents = useHasAccess({
     permissionType: PermissionTypes.AGENTS,
     permission: Permissions.CREATE,
@@ -62,6 +72,18 @@ export default function AdminDashboard() {
   const [days, setDays] = useState<number>(30);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedAgentId = searchParams.get(AGENT_PARAM);
+  /** Trusts the URL while the capability check runs, so a reload does not flash My agents. */
+  const view: AdminDashboardView | undefined =
+    searchParams.get(VIEW_PARAM) === 'admin' && (canAdminAgents || isCheckingAccess)
+      ? 'admin'
+      : undefined;
+  const viewParams = useMemo(() => {
+    const params: Record<string, string> = {};
+    if (view) {
+      params[VIEW_PARAM] = view;
+    }
+    return params;
+  }, [view]);
   const [editingAgent, setEditingAgent] = useState<AdminAgentUsage | null>(null);
   /** The production agent whose draft is open in the editor, so the editor can offer an update. */
   const [editingDraftOf, setEditingDraftOf] = useState<string | null>(null);
@@ -89,7 +111,7 @@ export default function AdminDashboard() {
    * new class or window loads.
    */
   const { data: usageData } = useAdminAgentUsageQuery(
-    { days, ...(groupFilter ? { groupId: groupFilter } : {}) },
+    { days, ...(groupFilter ? { groupId: groupFilter } : {}), ...(view ? { view } : {}) },
     { keepPreviousData: true },
   );
   const selectedAgent = useMemo(
@@ -105,7 +127,7 @@ export default function AdminDashboard() {
     ];
   }, [groupData, localize]);
 
-  const { data: apiKeyData } = useAdminApiKeysQuery();
+  const { data: apiKeyData } = useAdminApiKeysQuery(view);
 
   const sourceOptions = useMemo<Option[]>(
     () => [
@@ -185,6 +207,10 @@ export default function AdminDashboard() {
     [openAgentChat],
   );
 
+  /** `owner` is set in the Admin view only; anyone else's agent is reached as an admin. */
+  const ownedByOther = (agent: AdminAgentUsage | null) =>
+    agent?.owner != null && agent.owner.id !== user?.id;
+
   /** A draft is an ordinary agent, so the existing edit dialog opens on its id; only the title changes. */
   const handleEditDraft = useCallback((draftId: string, agent: AdminAgentUsage) => {
     setEditingDraftOf(agent.agent_id);
@@ -234,11 +260,22 @@ export default function AdminDashboard() {
   /** Switching between agents replaces the entry, so one browser back always lands on the list. */
   const handleSelectAgent = useCallback(
     (agent: AdminAgentUsage) =>
-      setSearchParams({ [AGENT_PARAM]: agent.agent_id }, { replace: selectedAgent != null }),
-    [setSearchParams, selectedAgent],
+      setSearchParams(
+        { ...viewParams, [AGENT_PARAM]: agent.agent_id },
+        { replace: selectedAgent != null },
+      ),
+    [setSearchParams, selectedAgent, viewParams],
   );
 
-  const handleBack = useCallback(() => setSearchParams({}), [setSearchParams]);
+  const handleBack = useCallback(() => setSearchParams(viewParams), [setSearchParams, viewParams]);
+
+  const handleViewChange = useCallback(
+    (next: AdminDashboardView | undefined) => {
+      setDraftsOpenFor(null);
+      setSearchParams(next ? { [VIEW_PARAM]: next } : {});
+    },
+    [setSearchParams],
+  );
 
   /** One drafts row at a time. It lives in the table, so a card's toggle first leaves an open agent. */
   const handleToggleDrafts = useCallback(
@@ -283,128 +320,158 @@ export default function AdminDashboard() {
               {localize('com_ui_admin_dashboard')}
             </h1>
             <p className="mt-1 text-text-secondary">
-              {localize('com_ui_admin_dashboard_description')}
+              {localize(
+                view
+                  ? 'com_ui_admin_dashboard_description_all'
+                  : 'com_ui_admin_dashboard_description',
+              )}
             </p>
           </div>
         </header>
 
-        <section
-          className="mb-6 flex flex-wrap items-center gap-3"
-          aria-label={localize('com_ui_admin_filters')}
+        {canAdminAgents && <Views view={view} onChange={handleViewChange} />}
+
+        <div
+          id={VIEW_PANEL_ID}
+          {...(canAdminAgents ? { role: 'tabpanel', 'aria-labelledby': viewTabId(view) } : {})}
         >
-          <Dropdown
-            value={groupId}
-            options={classOptions}
-            onChange={setGroupId}
-            ariaLabel={localize('com_ui_admin_class')}
-            testId="admin-class-select"
-          />
-          <Dropdown
-            value={String(days)}
-            options={dayOptions}
-            onChange={handleDaysChange}
-            ariaLabel={localize('com_ui_admin_time_window')}
-            testId="admin-days-select"
-          />
-          <Dropdown
-            value={sourceValue}
-            options={sourceOptions}
-            onChange={setSource}
-            ariaLabel={localize('com_ui_admin_source')}
-            testId="admin-source-select"
-          />
-          <div className="ml-auto flex items-center gap-2">
-            {selectedAgent != null && (
-              <Button variant="outline" onClick={() => handleOpenAgent(selectedAgent)}>
-                <MessageSquare className="mr-2 size-4" aria-hidden="true" />
-                {localize('com_ui_admin_open_in_chat')}
-              </Button>
-            )}
-            {/* Owner only: its role picker can hand out Owner, which includes delete. */}
-            {selectedAgent?.isAuthor === true && (
-              <ShareWithClass
-                agentId={selectedAgent.agent_id}
-                agentName={selectedAgent.name}
-                key={selectedAgent.agent_id}
-              />
-            )}
-            {canCreateAgents && (
-              <Button variant="outline" onClick={() => handleBuilderOpenChange(true)}>
-                <Bot className="mr-2 size-4" aria-hidden="true" />
-                {localize('com_ui_admin_build_agent')}
-              </Button>
-            )}
-          </div>
-        </section>
+          <section
+            className="mb-6 flex flex-wrap items-center gap-3"
+            aria-label={localize('com_ui_admin_filters')}
+          >
+            <Dropdown
+              value={groupId}
+              options={classOptions}
+              onChange={setGroupId}
+              ariaLabel={localize('com_ui_admin_class')}
+              testId="admin-class-select"
+            />
+            <Dropdown
+              value={String(days)}
+              options={dayOptions}
+              onChange={handleDaysChange}
+              ariaLabel={localize('com_ui_admin_time_window')}
+              testId="admin-days-select"
+            />
+            <Dropdown
+              value={sourceValue}
+              options={sourceOptions}
+              onChange={setSource}
+              ariaLabel={localize('com_ui_admin_source')}
+              testId="admin-source-select"
+            />
+            <div className="ml-auto flex items-center gap-2">
+              {selectedAgent != null && !ownedByOther(selectedAgent) && (
+                <Button variant="outline" onClick={() => handleOpenAgent(selectedAgent)}>
+                  <MessageSquare className="mr-2 size-4" aria-hidden="true" />
+                  {localize('com_ui_admin_open_in_chat')}
+                </Button>
+              )}
+              {/* Owner only: its role picker can hand out Owner, which includes delete. */}
+              {selectedAgent?.isAuthor === true && (
+                <ShareWithClass
+                  agentId={selectedAgent.agent_id}
+                  agentName={selectedAgent.name}
+                  key={selectedAgent.agent_id}
+                />
+              )}
+              {canCreateAgents && (
+                <Button variant="outline" onClick={() => handleBuilderOpenChange(true)}>
+                  <Bot className="mr-2 size-4" aria-hidden="true" />
+                  {localize('com_ui_admin_build_agent')}
+                </Button>
+              )}
+            </div>
+          </section>
 
-        {groupsError != null && (
-          <p role="alert" className="mb-4 text-sm text-text-secondary">
-            {localize('com_ui_admin_classes_error')}
-          </p>
-        )}
+          {groupsError != null && (
+            <p role="alert" className="mb-4 text-sm text-text-secondary">
+              {localize('com_ui_admin_classes_error')}
+            </p>
+          )}
 
-        {hasMoreClasses && (
-          <p role="status" className="mb-4 text-sm text-text-secondary">
-            {localize('com_ui_admin_classes_truncated', {
-              count: groupData?.groups.length ?? GROUP_PAGE_SIZE,
-              total: groupData?.total ?? 0,
-            })}
-          </p>
-        )}
+          {hasMoreClasses && (
+            <p role="status" className="mb-4 text-sm text-text-secondary">
+              {localize('com_ui_admin_classes_truncated', {
+                count: groupData?.groups.length ?? GROUP_PAGE_SIZE,
+                total: groupData?.total ?? 0,
+              })}
+            </p>
+          )}
 
-        {/* Class-wide, so it belongs with the agent list rather than a single student's drill-down. */}
-        {selectedAgent == null && (
-          <AnalyticsSection
-            groupId={groupFilter}
-            days={days}
-            source={sourceValue === ALL_SOURCES ? '' : sourceValue}
-          />
-        )}
-
-        <section aria-labelledby="admin-agents-heading">
-          <h2 id="admin-agents-heading" className="mb-3 text-lg font-medium text-text-primary">
-            {localize('com_ui_admin_agents_heading')}
-          </h2>
-          <AgentCards
-            groupId={groupFilter}
-            days={days}
-            selectedAgentId={selectedAgent?.agent_id ?? null}
-            onSelectAgent={handleSelectAgent}
-            expandedId={draftsOpenFor}
-            {...agentActions}
-          />
+          {/* Class-wide, so it belongs with the agent list rather than a single student's drill-down. */}
           {selectedAgent == null && (
-            <AgentUsageTable
+            <AnalyticsSection
               groupId={groupFilter}
               days={days}
-              onSelectAgent={handleSelectAgent}
-              expandedId={draftsOpenFor}
-              {...agentActions}
-              onEditDraft={handleEditDraft}
-              onTestLink={handleTestLink}
-              onOpenDraft={openAgentChat}
-              onManageCollaborators={handleManageCollaborators}
+              source={sourceValue === ALL_SOURCES ? '' : sourceValue}
+              view={view}
             />
           )}
-        </section>
 
-        {selectedAgent != null && (
-          <section aria-labelledby="admin-students-heading" className="mt-6">
-            <Button variant="ghost" onClick={handleBack} className="mb-3 px-2">
-              <ArrowLeft className="mr-2 size-4" aria-hidden="true" />
-              {localize('com_ui_admin_back_to_agents')}
-            </Button>
-            <h2 id="admin-students-heading" className="mb-3 text-lg font-medium text-text-primary">
-              {localize('com_ui_admin_students_heading', { name: selectedAgent.name })}
-            </h2>
-            <StudentProgressTable
-              agentId={selectedAgent.agent_id}
-              agentName={selectedAgent.name}
-              groupId={groupFilter}
-              days={days}
-            />
-          </section>
-        )}
+          {/* The Admin view lists every owner's agents, too many for the card strip. */}
+          {(view == null || selectedAgent == null) && (
+            <section aria-labelledby="admin-agents-heading">
+              <h2 id="admin-agents-heading" className="mb-3 text-lg font-medium text-text-primary">
+                {localize(view ? 'com_ui_admin_all_agents_heading' : 'com_ui_admin_agents_heading')}
+              </h2>
+              {view == null && (
+                <AgentCards
+                  groupId={groupFilter}
+                  days={days}
+                  selectedAgentId={selectedAgent?.agent_id ?? null}
+                  onSelectAgent={handleSelectAgent}
+                  expandedId={draftsOpenFor}
+                  {...agentActions}
+                />
+              )}
+              {selectedAgent == null && (
+                <AgentUsageTable
+                  groupId={groupFilter}
+                  days={days}
+                  view={view}
+                  userId={user?.id}
+                  onSelectAgent={handleSelectAgent}
+                  expandedId={draftsOpenFor}
+                  {...agentActions}
+                  onEditDraft={handleEditDraft}
+                  onTestLink={handleTestLink}
+                  onOpenDraft={openAgentChat}
+                  onManageCollaborators={handleManageCollaborators}
+                />
+              )}
+            </section>
+          )}
+
+          {selectedAgent != null && (
+            <section aria-labelledby="admin-students-heading" className="mt-6">
+              <Button variant="ghost" onClick={handleBack} className="mb-3 px-2">
+                <ArrowLeft className="mr-2 size-4" aria-hidden="true" />
+                {localize('com_ui_admin_back_to_agents')}
+              </Button>
+              <h2
+                id="admin-students-heading"
+                className="mb-3 text-lg font-medium text-text-primary"
+              >
+                {localize('com_ui_admin_students_heading', { name: selectedAgent.name })}
+              </h2>
+              {selectedAgent.owner != null && (
+                <p className="-mt-2 mb-3 text-sm text-text-secondary">
+                  {localize('com_ui_admin_built_by', {
+                    name: selectedAgent.owner.name || localize('com_ui_admin_owner_unknown'),
+                    email: selectedAgent.owner.email,
+                  })}
+                </p>
+              )}
+              <StudentProgressTable
+                agentId={selectedAgent.agent_id}
+                agentName={selectedAgent.name}
+                groupId={groupFilter}
+                days={days}
+              />
+            </section>
+          )}
+        </div>
 
         {canCreateAgents && (
           <OGDialog open={isBuilding} onOpenChange={handleBuilderOpenChange}>
@@ -433,6 +500,7 @@ export default function AdminDashboard() {
 
         <ApiAccessDialog
           agent={apiAgent}
+          view={view}
           onOpenChange={(open) => {
             if (!open) {
               setApiAgent(null);
@@ -457,6 +525,17 @@ export default function AdminDashboard() {
             <OGDialogTitle>
               {localize('com_ui_admin_edit_agent_title', { name: editingAgent?.name ?? '' })}
             </OGDialogTitle>
+            {editingDraftOf == null && ownedByOther(editingAgent) && (
+              <p
+                role="note"
+                className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+              >
+                <Shield className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                {localize('com_ui_admin_editing_as_admin', {
+                  name: editingAgent?.owner?.name || localize('com_ui_admin_owner_unknown'),
+                })}
+              </p>
+            )}
             {editingAgent != null && editingDraftOf != null && (
               <DraftUpdate
                 agentId={editingDraftOf}

@@ -1313,8 +1313,10 @@ export function revokeAdminAgentEmbed(agentId: string): Promise<q.AdminAgentEmbe
   return request.delete(endpoints.adminAgentEmbed(agentId));
 }
 
-export function getAdminApiKeys(): Promise<q.AdminApiKeysResponse> {
-  return request.get(endpoints.adminApiKeys());
+export function getAdminApiKeys(
+  params?: Pick<q.AdminUsageParams, 'view'>,
+): Promise<q.AdminApiKeysResponse> {
+  return request.get(endpoints.adminApiKeys(params));
 }
 
 export function createAdminAgentApiKey(

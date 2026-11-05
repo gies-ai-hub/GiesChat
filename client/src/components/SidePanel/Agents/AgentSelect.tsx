@@ -176,9 +176,15 @@ function AgentSelect({
 
   const onSelect = useCallback(
     (selectedId: string) => {
-      const agentExists = !!(selectedId
-        ? (agents ?? []).find((agent) => agent.id === selectedId)
-        : undefined);
+      /**
+       * The list holds agents shared with the caller; a `manage:agents` admin edits others'
+       * agents from the dashboard, which only the by-id query returns. Missing both would
+       * reset to a blank form, and saving that creates an empty agent.
+       */
+      const agentExists =
+        !!selectedId &&
+        ((agents ?? []).some((agent) => agent.id === selectedId) ||
+          agentQuery.data?.id === selectedId);
 
       createMutation.reset();
       if (!agentExists) {

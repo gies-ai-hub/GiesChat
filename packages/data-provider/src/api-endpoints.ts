@@ -510,7 +510,8 @@ export const adminDashboardLayout = () => `${BASE_URL}/api/admin/usage/layout`;
 export const adminAgentEmbed = (agentId: string) =>
   `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/embed`;
 
-export const adminApiKeys = () => `${BASE_URL}/api/admin/usage/api-keys`;
+export const adminApiKeys = (params: Pick<q.AdminUsageParams, 'view'> = {}) =>
+  `${BASE_URL}/api/admin/usage/api-keys${buildQuery(params)}`;
 
 export const adminApiKey = (keyId: string) => `${adminApiKeys()}/${encodeURIComponent(keyId)}`;
 

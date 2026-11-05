@@ -25,9 +25,12 @@ jest.mock('~/server/middleware', () => ({
 
 /** Capabilities the caller lacks; empty means every check passes. */
 const mockDenied = new Set();
+/** `manage:agents` is opt-in: holders see every owner's agents, which most tests must not. */
+const mockGranted = new Set();
 jest.mock('~/server/middleware/roles/capabilities', () => ({
   requireCapability: (capability) => (_req, res, next) =>
     mockDenied.has(capability) ? res.status(403).json({ message: 'Forbidden' }) : next(),
+  hasCapability: async (_user, capability) => mockGranted.has(capability),
 }));
 
 let mongoServer;
@@ -262,6 +265,22 @@ describe('admin usage routes — real dependency wiring', () => {
       expect(roster.status).toBe(403);
     } finally {
       mockDenied.clear();
+    }
+  });
+
+  it('lists every owner’s agents under ?view=admin for manage:agents only', async () => {
+    const refused = await request(createApp()).get('/api/admin/usage/agents?view=admin');
+    expect(refused.status).toBe(403);
+
+    mockGranted.add('manage:agents');
+    try {
+      const res = await request(createApp()).get('/api/admin/usage/agents?view=admin');
+      expect(res.status).toBe(200);
+      const shared = res.body.agents.find((agent) => agent.agent_id === 'agent_shared');
+      expect(shared.owner).toMatchObject({ id: colleague._id.toString() });
+      expect(shared.isAuthor).toBe(true);
+    } finally {
+      mockGranted.clear();
     }
   });
 

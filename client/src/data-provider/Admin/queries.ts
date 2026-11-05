@@ -5,6 +5,7 @@ import { SystemCapabilities, hasImpliedCapability } from '@librechat/data-schema
 import type { QueryObserverResult, UseQueryOptions } from '@tanstack/react-query';
 import type {
   AdminUsageParams,
+  AdminDashboardView,
   AdminApiKeysResponse,
   AdminGroupListParams,
   AdminTopicsResponse,
@@ -64,6 +65,8 @@ export const useAdminAccess = (
   enabled = true,
 ): {
   hasAdminAccess: boolean;
+  /** Holds `manage:agents`: sees the dashboard's Admin tab and acts as owner on every agent. */
+  canAdminAgents: boolean;
   isLoading: boolean;
   isDenied: boolean;
   error: unknown;
@@ -79,6 +82,10 @@ export const useAdminAccess = (
         DASHBOARD_CAPABILITIES.every((capability) =>
           hasImpliedCapability(data.capabilities, capability),
         ),
+      canAdminAgents:
+        enabled &&
+        data != null &&
+        hasImpliedCapability(data.capabilities, SystemCapabilities.MANAGE_AGENTS),
       isLoading: enabled && isLoading,
       isDenied: enabled && (status === 403 || status === 401),
       error: error != null && status !== 403 && status !== 401 ? error : null,
@@ -102,7 +109,7 @@ export const useAdminAgentUsageQuery = (
   config?: UseQueryOptions<AdminAgentUsageResponse>,
 ): QueryObserverResult<AdminAgentUsageResponse> =>
   useQuery<AdminAgentUsageResponse>(
-    [QueryKeys.adminAgentUsage, params?.groupId ?? '', params?.days ?? 0],
+    [QueryKeys.adminAgentUsage, params?.groupId ?? '', params?.days ?? 0, params?.view ?? ''],
     () => dataService.getAdminAgentUsage(params),
     /**
      * Agents are created in a dialog on this page, so a stale list is the failure the
@@ -117,7 +124,13 @@ export const useAdminAgentAnalyticsQuery = (
   config?: UseQueryOptions<AdminAnalyticsResponse>,
 ): QueryObserverResult<AdminAnalyticsResponse> =>
   useQuery<AdminAnalyticsResponse>(
-    [QueryKeys.adminAgentAnalytics, params?.groupId ?? '', params?.days ?? 0, params?.source ?? ''],
+    [
+      QueryKeys.adminAgentAnalytics,
+      params?.groupId ?? '',
+      params?.days ?? 0,
+      params?.source ?? '',
+      params?.view ?? '',
+    ],
     () => dataService.getAdminAgentAnalytics(params),
     { ...adminQueryConfig, retry: false, ...config },
   );
@@ -128,20 +141,30 @@ export const useAdminAgentTopicsQuery = (
   config?: UseQueryOptions<AdminTopicsResponse>,
 ): QueryObserverResult<AdminTopicsResponse> =>
   useQuery<AdminTopicsResponse>(
-    [QueryKeys.adminAgentTopics, params?.groupId ?? '', params?.days ?? 0, params?.source ?? ''],
+    [
+      QueryKeys.adminAgentTopics,
+      params?.groupId ?? '',
+      params?.days ?? 0,
+      params?.source ?? '',
+      params?.view ?? '',
+    ],
     () => dataService.getAdminAgentTopics(params),
     { ...adminQueryConfig, retry: false, staleTime: 5 * 60 * 1000, ...config },
   );
 
-/** Keys on every agent the caller authors or co-runs; the dialog and Source filter share it. */
+/**
+ * Keys on every agent the caller authors or co-runs (every owner's in the Admin view);
+ * the dialog and Source filter share it.
+ */
 export const useAdminApiKeysQuery = (
+  view?: AdminDashboardView,
   config?: UseQueryOptions<AdminApiKeysResponse>,
 ): QueryObserverResult<AdminApiKeysResponse> =>
-  useQuery<AdminApiKeysResponse>([QueryKeys.adminApiKeys], () => dataService.getAdminApiKeys(), {
-    ...adminQueryConfig,
-    retry: false,
-    ...config,
-  });
+  useQuery<AdminApiKeysResponse>(
+    [QueryKeys.adminApiKeys, view ?? ''],
+    () => dataService.getAdminApiKeys({ view }),
+    { ...adminQueryConfig, retry: false, ...config },
+  );
 
 /**
  * The caller's own panel layout. `retry: false` and a silent failure are deliberate:

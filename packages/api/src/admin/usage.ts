@@ -210,6 +210,11 @@ export interface AdminUsageDeps {
     crawl: CrawlResult;
     previous: IMongoFile[];
   }) => Promise<IMongoFile>;
+  /**
+   * Holds `manage:agents`, the capability that already bypasses agent ACLs: author powers
+   * on every dashboard agent, and the Admin tab (`?view=admin`) that lists them all.
+   */
+  isAgentAdmin: (user: IUser) => Promise<boolean>;
 }
 
 export interface AgentPersonEmail {
@@ -470,7 +475,7 @@ interface AgentUsageItem {
   embed: AgentEmbedItem | null;
   /** Production version students run — the count of saved versions. */
   version: number;
-  /** The caller authored this agent: they alone set roles and delete it. */
+  /** The caller authored this agent, or acts as an admin in the Admin view: they alone set roles and delete it. */
   isAuthor: boolean;
   /** The caller runs this agent with the author: edits production and posts drafts. */
   isCoAdmin: boolean;
@@ -478,6 +483,8 @@ interface AgentUsageItem {
   isCollaborator: boolean;
   /** Drafts of this agent not yet posted (all of them for the author and co-admins, the caller's own otherwise). */
   draftCount: number;
+  /** Who built it; filled in the Admin view only, `null` otherwise. */
+  owner: UserRef | null;
 }
 
 interface StudentUsageItem {
@@ -568,6 +575,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     crawlWebsite,
     cleanWebsitePages,
     replaceWebsiteCopy,
+    isAgentAdmin,
   } = deps;
 
   /**
@@ -580,12 +588,24 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
    * `createdVia` narrows the list to agents built from the dashboard itself. It is a
    * presentation filter, not a permission — a client can set it freely, so it must
    * never be relied on for access. The `$or` below remains the only boundary.
+   *
+   * `admin` drops the `$or` for a `manage:agents` holder (see `isAgentAdmin`), the same
+   * capability that already lets them load, save and delete any agent through
+   * `/api/agents`. Resolve it with `findAgentForCaller` or `adminViewOf`, never from input.
    */
   async function findScopedAgents(
     user: IUser,
     agentId?: string,
     fields: string = AGENT_SCOPE_FIELDS,
+    admin = false,
   ): Promise<IAgent[]> {
+    const base: FilterQuery<IAgent> = {
+      createdVia: DASHBOARD_ORIGIN,
+      ...(agentId === undefined ? { draftOf: { $exists: false } } : { id: agentId }),
+    };
+    if (admin) {
+      return findAgents(base, fields);
+    }
     const callerId = String(user._id);
     const editableIds = await findAccessibleResources({
       userId: callerId,
@@ -594,8 +614,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       requiredPermissions: PermissionBits.EDIT,
     });
     const scope: FilterQuery<IAgent> = {
-      createdVia: DASHBOARD_ORIGIN,
-      ...(agentId === undefined ? { draftOf: { $exists: false } } : { id: agentId }),
+      ...base,
       $or: [
         { author: callerId },
         { _id: { $in: editableIds } },
@@ -604,6 +623,28 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       ],
     };
     return findAgents(scope, fields);
+  }
+
+  /** One agent by id. `admin` reports author powers through `manage:agents`, whatever the agent. */
+  async function findAgentForCaller(
+    user: IUser,
+    agentId: string,
+    fields?: string,
+  ): Promise<{ agent: IAgent | undefined; admin: boolean }> {
+    const admin = await isAgentAdmin(user);
+    const [agent] = await findScopedAgents(user, agentId, fields, admin);
+    return { agent, admin };
+  }
+
+  /**
+   * `?view=admin` lists every owner's agents. `true` for a `manage:agents` holder, `false`
+   * when the view was not asked for, `null` when it was asked for by anyone else.
+   */
+  async function adminViewOf(req: ServerRequest, user: IUser): Promise<boolean | null> {
+    if (req.query.view !== 'admin') {
+      return false;
+    }
+    return (await isAgentAdmin(user)) ? true : null;
   }
 
   function isAuthor(user: IUser, agent: IAgent): boolean {
@@ -645,12 +686,14 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     return findAgents({ draftOf: { $in: agentIds } }, DRAFT_FIELDS);
   }
 
-  /** The author and co-admins see every unposted draft; anyone else only their own. */
-  function visibleDrafts(user: IUser, agent: IAgent, drafts: IAgent[]): IAgent[] {
+  /** The author, co-admins and admins see every unposted draft; anyone else only their own. */
+  function visibleDrafts(user: IUser, agent: IAgent, drafts: IAgent[], admin = false): IAgent[] {
     const unposted = drafts.filter(
       (draft) => draft.draftOf === agent.id && draft.postedVersion == null,
     );
-    return canManage(user, agent) ? unposted : unposted.filter((draft) => isAuthor(user, draft));
+    return admin || canManage(user, agent)
+      ? unposted
+      : unposted.filter((draft) => isAuthor(user, draft));
   }
 
   /**
@@ -751,23 +794,28 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     const since = resolveSince(req.query.days);
 
     try {
+      const admin = await adminViewOf(req, caller);
+      if (admin === null) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
       const scope = await resolveMemberScope(rawGroupId);
       if (!scope.found) {
         return res.status(404).json({ error: 'Group not found' });
       }
 
-      const agents = await findScopedAgents(caller, undefined, AGENT_LIST_FIELDS);
-      const [usage, deletableIds, drafts] = await Promise.all([
-        aggregateAgentUsage({
-          agentIds: agents.map((agent) => agent.id),
-          userIds: scope.userIds,
-          since,
-        }),
-        findDeletableAgentIds(caller),
-        findDraftsOf(agents.map((agent) => agent.id)),
+      const agents = await findScopedAgents(caller, undefined, AGENT_LIST_FIELDS, admin);
+      const agentIds = agents.map((agent) => agent.id);
+      const [usage, deletableIds, drafts, owners] = await Promise.all([
+        aggregateAgentUsage({ agentIds, userIds: scope.userIds, since }),
+        admin ? new Set<string>() : findDeletableAgentIds(caller),
+        findDraftsOf(agentIds),
+        admin
+          ? findUserRefs([...new Set(agents.map((agent) => String(agent.author)))])
+          : new Map<string, UserRef>(),
       ]);
       const usageByAgent = new Map(usage.map((row) => [row.agentId, row]));
 
+      /** The Admin view acts with author powers on every row, so it reports them. */
       const items: AgentUsageItem[] = agents.map((agent) => {
         const row = usageByAgent.get(agent.id);
         return {
@@ -781,13 +829,14 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
           userCount: row?.userCount ?? 0,
           messageCount: row?.messageCount ?? 0,
           lastActivity: row?.lastActivity?.toISOString() ?? null,
-          canDelete: isAuthor(caller, agent) || deletableIds.has(String(agent._id)),
+          canDelete: admin || isAuthor(caller, agent) || deletableIds.has(String(agent._id)),
           embed: toEmbedItem(agent.embed),
           version: agent.versions?.length ?? 0,
-          isAuthor: isAuthor(caller, agent),
-          isCoAdmin: isCoAdmin(caller, agent),
-          isCollaborator: isCollaborator(caller, agent),
-          draftCount: visibleDrafts(caller, agent, drafts).length,
+          isAuthor: admin || isAuthor(caller, agent),
+          isCoAdmin: !admin && isCoAdmin(caller, agent),
+          isCollaborator: !admin && isCollaborator(caller, agent),
+          draftCount: visibleDrafts(caller, agent, drafts, admin).length,
+          owner: admin ? (owners.get(String(agent.author)) ?? null) : null,
         };
       });
       items.sort(byUsageThenName);
@@ -817,7 +866,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     const since = resolveSince(req.query.days);
 
     try {
-      const [agent] = await findScopedAgents(req.user, rawAgentId);
+      const { agent } = await findAgentForCaller(req.user, rawAgentId);
       if (!agent) {
         return res.status(403).json({ error: 'Forbidden' });
       }
@@ -885,12 +934,16 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     const since = resolveSince(req.query.days);
 
     try {
+      const admin = await adminViewOf(req, caller);
+      if (admin === null) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
       const scope = await resolveMemberScope(rawGroupId);
       if (!scope.found) {
         return res.status(404).json({ error: 'Group not found' });
       }
 
-      const agents = await findScopedAgents(caller);
+      const agents = await findScopedAgents(caller, undefined, undefined, admin);
       const agentIds = agents.map((agent) => agent.id);
       const match = await resolveSourceMatch(req.query.source, agentIds, findGuestIds);
       if (match === null) {
@@ -949,9 +1002,13 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     const since = resolveSince(req.query.days);
 
     try {
+      const admin = await adminViewOf(req, caller);
+      if (admin === null) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
       const [scope, agents, llm] = await Promise.all([
         resolveMemberScope(rawGroupId),
-        findScopedAgents(caller),
+        findScopedAgents(caller, undefined, undefined, admin),
         resolveTopicsModel(),
       ]);
       if (!scope.found) {
@@ -1036,7 +1093,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-      const [agent] = await findScopedAgents(caller, rawAgentId);
+      const { agent } = await findAgentForCaller(caller, rawAgentId);
       if (!agent) {
         return res.status(404).json({ error: 'Agent not found' });
       }
@@ -1060,7 +1117,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-      const [agent] = await findScopedAgents(caller, rawAgentId);
+      const { agent } = await findAgentForCaller(caller, rawAgentId);
       if (!agent) {
         return res.status(404).json({ error: 'Agent not found' });
       }
@@ -1128,18 +1185,22 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-      const [agent] = await findScopedAgents(caller, rawAgentId);
+      const { agent, admin } = await findAgentForCaller(caller, rawAgentId);
       if (!agent) {
         return res.status(404).json({ error: 'Agent not found' });
       }
-      if (!isAuthor(caller, agent)) {
+      if (!admin && !isAuthor(caller, agent)) {
         return res.status(403).json({ error: 'Only the author can set collaborators' });
       }
-      const callerId = String(caller._id);
-      const callerEmail = caller.email?.trim().toLowerCase();
-      const coAdminEmails = invitedCoAdmins.filter((email) => email !== callerEmail);
+      /** The author can never hold a role on their own agent, whoever is saving the list. */
+      const authorId = String(agent.author);
+      const author = isAuthor(caller, agent)
+        ? toUserRef(caller)
+        : (await findUserRefs([authorId])).get(authorId);
+      const authorEmail = author?.email.trim().toLowerCase();
+      const coAdminEmails = invitedCoAdmins.filter((email) => email !== authorEmail);
       const collaboratorEmails = invited.filter(
-        (email) => email !== callerEmail && !coAdminEmails.includes(email),
+        (email) => email !== authorEmail && !coAdminEmails.includes(email),
       );
       const allEmails = [...coAdminEmails, ...collaboratorEmails];
       const existing =
@@ -1152,7 +1213,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
 
       const roles = new Map<string, AdminAgentRole>();
       const assign = (id: string | undefined, role: AdminAgentRole) => {
-        if (id != null && id !== callerId && known.has(id) && roles.get(id) !== 'coAdmin') {
+        if (id != null && id !== authorId && known.has(id) && roles.get(id) !== 'coAdmin') {
           roles.set(id, role);
         }
       };
@@ -1263,12 +1324,12 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-      const [agent] = await findScopedAgents(caller, rawAgentId, AGENT_LIST_FIELDS);
+      const { agent, admin } = await findAgentForCaller(caller, rawAgentId, AGENT_LIST_FIELDS);
       if (!agent || agent.draftOf != null) {
         return res.status(404).json({ error: 'Agent not found' });
       }
-      const author = isAuthor(caller, agent);
-      const drafts = visibleDrafts(caller, agent, await findDraftsOf([agent.id]));
+      const author = admin || isAuthor(caller, agent);
+      const drafts = visibleDrafts(caller, agent, await findDraftsOf([agent.id]), admin);
       const collaboratorIds = author ? (agent.collaborators ?? []) : [];
       const coAdminIds = author ? (agent.coAdmins ?? []) : [];
       const people = await findUserRefs([
@@ -1430,11 +1491,11 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-      const [scoped] = await findScopedAgents(caller, rawAgentId);
+      const { agent: scoped, admin } = await findAgentForCaller(caller, rawAgentId);
       if (!scoped || scoped.draftOf != null) {
         return res.status(404).json({ error: 'Agent not found' });
       }
-      if (!canManage(caller, scoped)) {
+      if (!admin && !canManage(caller, scoped)) {
         return res
           .status(403)
           .json({ error: 'Only the author or a co-admin can post a draft to production' });
@@ -1640,7 +1701,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       let searchable: IMongoFile[] = [];
       let agentId = '';
       if (input.agentId != null) {
-        const [scoped] = await findScopedAgents(caller, input.agentId);
+        const { agent: scoped } = await findAgentForCaller(caller, input.agentId);
         const agent = scoped ? await getAgent({ id: scoped.id }) : null;
         if (!agent) {
           return res.status(404).json({ error: 'Agent not found' });
@@ -1729,12 +1790,12 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       return res.status(400).json({ error: 'invalid_url' });
     }
     try {
-      const [scoped] = await findScopedAgents(caller, rawAgentId);
+      const { agent: scoped, admin } = await findAgentForCaller(caller, rawAgentId);
       const agent = scoped ? await getAgent({ id: scoped.id }) : null;
       if (!agent) {
         return res.status(404).json({ error: 'Agent not found' });
       }
-      if (isCollaborator(caller, scoped) && !(await holdsAgentEdit(caller, scoped))) {
+      if (!admin && isCollaborator(caller, scoped) && !(await holdsAgentEdit(caller, scoped))) {
         return res.status(403).json({ error: 'forbidden' });
       }
       const crawl = await crawlWebsite(url);

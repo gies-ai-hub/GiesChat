@@ -8,7 +8,11 @@ import {
   OGDialogContent,
   useToastContext,
 } from '@librechat/client';
-import type { AdminAgentUsage, AdminApiKeyCreateResponse } from 'librechat-data-provider';
+import type {
+  AdminAgentUsage,
+  AdminDashboardView,
+  AdminApiKeyCreateResponse,
+} from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks';
 import {
   useAdminApiKeysQuery,
@@ -22,6 +26,8 @@ import { cn } from '~/utils';
 
 interface ApiAccessDialogProps {
   agent: AdminAgentUsage | null;
+  /** `admin` reads every owner's keys, so another owner's agent shows its own. */
+  view?: AdminDashboardView;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -48,10 +54,10 @@ print(response.output_text)
 const fieldClass = 'mt-1 w-full rounded-md border border-border-medium bg-surface-primary p-2';
 
 /** One agent's keys: list, mint (shown once), revoke. Same dialog shape as Embed. */
-export default function ApiAccessDialog({ agent, onOpenChange }: ApiAccessDialogProps) {
+export default function ApiAccessDialog({ agent, view, onOpenChange }: ApiAccessDialogProps) {
   const localize = useLocalize();
   const { showToast } = useToastContext();
-  const { data, error } = useAdminApiKeysQuery({ enabled: agent != null });
+  const { data, error } = useAdminApiKeysQuery(view, { enabled: agent != null });
   const create = useCreateAdminApiKeyMutation();
   const revoke = useRevokeAdminApiKeyMutation();
 
