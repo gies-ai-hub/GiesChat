@@ -75,137 +75,143 @@ export default function AgentUsageTable({
       errorKey="com_ui_admin_agents_error"
       onRetry={handleRetry}
     >
-      <Table>
-        <TableCaption className="sr-only">
-          {localize(view ? 'com_ui_admin_all_agents_caption' : 'com_ui_admin_agents_caption')}
-        </TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead scope="col">{localize('com_ui_admin_col_agent')}</TableHead>
-            {view && <TableHead scope="col">{localize('com_ui_admin_col_owner')}</TableHead>}
-            <TableHead scope="col">{localize('com_ui_admin_col_course')}</TableHead>
-            {!view && <TableHead scope="col">{localize('com_ui_admin_col_status')}</TableHead>}
-            <TableHead scope="col" className="text-right">
-              {localize('com_ui_admin_col_conversations')}
-            </TableHead>
-            <TableHead scope="col" className="text-right">
-              {localize('com_ui_admin_col_students')}
-            </TableHead>
-            <TableHead scope="col" className="text-right">
-              {localize('com_ui_admin_col_messages')}
-            </TableHead>
-            <TableHead scope="col">{localize('com_ui_admin_col_last_activity')}</TableHead>
-            <TableHead scope="col" className="w-px text-right">
-              <span className="sr-only">{localize('com_ui_admin_col_actions')}</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {agents.map((agent) => (
-            <Fragment key={agent.agent_id}>
-              <TableRow>
-                <TableCell>
-                  <button
-                    type="button"
-                    className="rounded text-left font-medium text-text-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-heavy"
-                    aria-label={localize('com_ui_admin_view_progress', { name: agent.name })}
-                    onClick={() => onSelectAgent(agent)}
-                  >
-                    {agent.name}
-                  </button>
-                </TableCell>
-                {view && (
+      {/* ponytail: reuses the chat's wide-table class; the app-wide scrollbar is 0.1em tall,
+          so without it the row actions past the edge are unreachable with a mouse. */}
+      <div className="markdown-table-wrapper">
+        <Table unwrapped>
+          <TableCaption className="sr-only">
+            {localize(view ? 'com_ui_admin_all_agents_caption' : 'com_ui_admin_agents_caption')}
+          </TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">{localize('com_ui_admin_col_agent')}</TableHead>
+              {view && <TableHead scope="col">{localize('com_ui_admin_col_owner')}</TableHead>}
+              <TableHead scope="col">{localize('com_ui_admin_col_course')}</TableHead>
+              {!view && <TableHead scope="col">{localize('com_ui_admin_col_status')}</TableHead>}
+              <TableHead scope="col" className="text-right">
+                {localize('com_ui_admin_col_conversations')}
+              </TableHead>
+              <TableHead scope="col" className="text-right">
+                {localize('com_ui_admin_col_students')}
+              </TableHead>
+              <TableHead scope="col" className="text-right">
+                {localize('com_ui_admin_col_messages')}
+              </TableHead>
+              <TableHead scope="col">{localize('com_ui_admin_col_last_activity')}</TableHead>
+              <TableHead scope="col" className="w-px text-right">
+                <span className="sr-only">{localize('com_ui_admin_col_actions')}</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {agents.map((agent) => (
+              <Fragment key={agent.agent_id}>
+                <TableRow>
                   <TableCell>
-                    <span className="block font-medium text-text-primary">
-                      {agent.owner?.name || localize('com_ui_admin_owner_unknown')}
-                    </span>
-                    {agent.owner?.email && (
-                      <span className="block text-xs text-text-secondary">{agent.owner.email}</span>
-                    )}
-                  </TableCell>
-                )}
-                <TableCell className="whitespace-nowrap text-text-secondary">
-                  {agent.course != null && agent.course !== ''
-                    ? agent.course
-                    : localize('com_ui_none')}
-                </TableCell>
-                {!view && (
-                  <TableCell className="whitespace-nowrap">
-                    <span className="flex flex-wrap items-center gap-1">
-                      <span className="rounded-full border border-green-200 bg-green-50 px-2 text-[11px] font-semibold text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-200">
-                        {localize('com_ui_admin_status_production', { version: agent.version })}
-                      </span>
-                      {agent.draftCount > 0 && (
-                        <span className="rounded-full border border-orange-200 bg-orange-50 px-2 text-[11px] font-semibold text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300">
-                          {localize(
-                            agent.draftCount === 1
-                              ? 'com_ui_admin_status_drafts_one'
-                              : 'com_ui_admin_status_drafts_other',
-                            { count: agent.draftCount },
-                          )}
-                        </span>
-                      )}
-                      {agent.isCoAdmin && (
-                        <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 text-[11px] font-semibold text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">
-                          {localize('com_ui_admin_role_coadmin')}
-                        </span>
-                      )}
-                      {agent.isCollaborator && (
-                        <span className="rounded-full border border-border-light bg-surface-tertiary px-2 text-[11px] font-semibold text-text-primary">
-                          {localize('com_ui_admin_status_collaborator')}
-                        </span>
-                      )}
-                    </span>
-                  </TableCell>
-                )}
-                <TableCell className="text-right tabular-nums">
-                  <span className="flex items-center justify-end gap-2">
-                    <span
-                      className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-secondary"
-                      aria-hidden="true"
+                    <button
+                      type="button"
+                      className="rounded text-left font-medium text-text-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-heavy"
+                      aria-label={localize('com_ui_admin_view_progress', { name: agent.name })}
+                      onClick={() => onSelectAgent(agent)}
                     >
+                      {agent.name}
+                    </button>
+                  </TableCell>
+                  {view && (
+                    <TableCell>
+                      <span className="block font-medium text-text-primary">
+                        {agent.owner?.name || localize('com_ui_admin_owner_unknown')}
+                      </span>
+                      {agent.owner?.email && (
+                        <span className="block text-xs text-text-secondary">
+                          {agent.owner.email}
+                        </span>
+                      )}
+                    </TableCell>
+                  )}
+                  <TableCell className="whitespace-nowrap text-text-secondary">
+                    {agent.course != null && agent.course !== ''
+                      ? agent.course
+                      : localize('com_ui_none')}
+                  </TableCell>
+                  {!view && (
+                    <TableCell className="whitespace-nowrap">
+                      <span className="flex flex-wrap items-center gap-1">
+                        <span className="rounded-full border border-green-200 bg-green-50 px-2 text-[11px] font-semibold text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-200">
+                          {localize('com_ui_admin_status_production', { version: agent.version })}
+                        </span>
+                        {agent.draftCount > 0 && (
+                          <span className="rounded-full border border-orange-200 bg-orange-50 px-2 text-[11px] font-semibold text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300">
+                            {localize(
+                              agent.draftCount === 1
+                                ? 'com_ui_admin_status_drafts_one'
+                                : 'com_ui_admin_status_drafts_other',
+                              { count: agent.draftCount },
+                            )}
+                          </span>
+                        )}
+                        {agent.isCoAdmin && (
+                          <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 text-[11px] font-semibold text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">
+                            {localize('com_ui_admin_role_coadmin')}
+                          </span>
+                        )}
+                        {agent.isCollaborator && (
+                          <span className="rounded-full border border-border-light bg-surface-tertiary px-2 text-[11px] font-semibold text-text-primary">
+                            {localize('com_ui_admin_status_collaborator')}
+                          </span>
+                        )}
+                      </span>
+                    </TableCell>
+                  )}
+                  <TableCell className="text-right tabular-nums">
+                    <span className="flex items-center justify-end gap-2">
                       <span
-                        data-usage-bar
-                        className="block h-full rounded-full bg-[#2a78d6] dark:bg-[#3987e5]"
-                        style={{
-                          width: `${(agent.conversationCount / maxConversations) * 100}%`,
-                        }}
-                      />
+                        className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-secondary"
+                        aria-hidden="true"
+                      >
+                        <span
+                          data-usage-bar
+                          className="block h-full rounded-full bg-[#2a78d6] dark:bg-[#3987e5]"
+                          style={{
+                            width: `${(agent.conversationCount / maxConversations) * 100}%`,
+                          }}
+                        />
+                      </span>
+                      {agent.conversationCount}
                     </span>
-                    {agent.conversationCount}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{agent.userCount}</TableCell>
-                <TableCell className="text-right tabular-nums">{agent.messageCount}</TableCell>
-                <TableCell className="whitespace-nowrap text-text-secondary">
-                  {formatLastActivity(agent.lastActivity) ?? localize('com_ui_none')}
-                </TableCell>
-                <TableCell className="text-right">
-                  <AgentActions
-                    agent={agent}
-                    draftsExpanded={expandedId === agent.agent_id}
-                    userId={userId}
-                    {...actions}
-                  />
-                </TableCell>
-              </TableRow>
-              {expandedId === agent.agent_id && (
-                <TableRow id={`drafts-${agent.agent_id}`}>
-                  <TableCell colSpan={8} className="bg-surface-secondary p-2">
-                    <DraftsPanel
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{agent.userCount}</TableCell>
+                  <TableCell className="text-right tabular-nums">{agent.messageCount}</TableCell>
+                  <TableCell className="whitespace-nowrap text-text-secondary">
+                    {formatLastActivity(agent.lastActivity) ?? localize('com_ui_none')}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <AgentActions
                       agent={agent}
-                      onEditDraft={(draftId) => onEditDraft(draftId, agent)}
-                      onTestLink={(draft) => onTestLink(draft, agent)}
-                      onOpenInChat={onOpenDraft}
-                      onManageCollaborators={onManageCollaborators}
+                      draftsExpanded={expandedId === agent.agent_id}
+                      userId={userId}
+                      {...actions}
                     />
                   </TableCell>
                 </TableRow>
-              )}
-            </Fragment>
-          ))}
-        </TableBody>
-      </Table>
+                {expandedId === agent.agent_id && (
+                  <TableRow id={`drafts-${agent.agent_id}`}>
+                    <TableCell colSpan={8} className="bg-surface-secondary p-2">
+                      <DraftsPanel
+                        agent={agent}
+                        onEditDraft={(draftId) => onEditDraft(draftId, agent)}
+                        onTestLink={(draft) => onTestLink(draft, agent)}
+                        onOpenInChat={onOpenDraft}
+                        onManageCollaborators={onManageCollaborators}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </QueryState>
   );
 }
