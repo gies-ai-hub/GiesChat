@@ -20,6 +20,7 @@ const ERROR_KEYS: Record<string, TranslationKeys> = {
   invalid_url: 'com_agents_websites_invalid',
   blocked: 'com_agents_websites_blocked',
   empty: 'com_agents_websites_empty',
+  refused: 'com_agents_websites_refused',
 };
 
 export const isWebsiteFile = (file: TFile): boolean => Boolean(file.metadata?.sourceUrl);

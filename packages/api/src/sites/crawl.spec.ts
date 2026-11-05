@@ -22,6 +22,7 @@ let server: http.Server;
 let base = '';
 let allowed: string[] = [];
 let requests = 0;
+let userAgent = '';
 
 const page = (title: string, main: string, links: string[] = []) =>
   `<html><head><title>${title}</title></head><body>
@@ -32,6 +33,7 @@ const page = (title: string, main: string, links: string[] = []) =>
 beforeAll(async () => {
   server = http.createServer((req, res) => {
     requests += 1;
+    userAgent = req.headers['user-agent'] ?? '';
     const route = routes[req.url ?? ''];
     if (!route) {
       res.writeHead(404);
@@ -155,6 +157,35 @@ describe('crawlSite', () => {
 
     expect(result.pages).toEqual([]);
     expect(result.skipped).toEqual([{ url: `${base}/readings/`, reason: 'robots' }]);
+  });
+
+  it('names itself in the crawler format CDN firewalls accept', async () => {
+    routes['/readings/'] = { body: page('Readings', 'Overview.') };
+
+    await crawlSite(`${base}/readings/`, { allowedAddresses: allowed });
+
+    expect(userAgent).toMatch(/^Mozilla\/5\.0 \(compatible; GiesChatBot\/1\.0; \+https:/);
+  });
+
+  it.each([401, 403, 429])(
+    'says the site refused it when the start page answers %i',
+    async (status) => {
+      routes['/readings/'] = { status };
+
+      await expect(
+        crawlSite(`${base}/readings/`, { allowedAddresses: allowed }),
+      ).rejects.toMatchObject({ code: 'refused' });
+    },
+  );
+
+  it('lists a refused page past the start as an error and keeps the rest', async () => {
+    routes['/readings/'] = { body: page('Readings', 'Overview.', ['/readings/locked/']) };
+    routes['/readings/locked/'] = { status: 403 };
+
+    const result = await crawlSite(`${base}/readings/`, { allowedAddresses: allowed });
+
+    expect(result.pages.map((p) => p.url)).toEqual([`${base}/readings/`]);
+    expect(result.skipped).toContainEqual({ url: `${base}/readings/locked/`, reason: 'error' });
   });
 
   it('stops at maxPages and reports the rest as limit', async () => {

@@ -22,7 +22,10 @@ const MAX_REDIRECTS = 5;
 /** Site menus produce dozens of these; the reasons that explain a gap are always kept. */
 const NOISY_REASONS = new Set<WebsiteSkipReason>(['outside', 'offsite']);
 const MAX_NOISY_SKIPPED = 50;
-const USER_AGENT = 'GiesChatBot/1.0 (+https://gieschat.azurewebsites.net)';
+/** Crawler format (Googlebot's): CDN firewalls such as turnitin.com's answer 403 to a UA without `Mozilla/5.0`. */
+const USER_AGENT = 'Mozilla/5.0 (compatible; GiesChatBot/1.0; +https://gieschat.azurewebsites.net)';
+/** Statuses that mean the site turned the crawler away, not that the page is missing. */
+const REFUSED = new Set([401, 403, 429]);
 const NOT_HTML = /\.(pdf|docx?|pptx?|xlsx?|csv|zip|png|jpe?g|gif|svg|webp|mp3|mp4|mov)$/i;
 const CHROME = 'script, style, noscript, svg, iframe, nav, header, footer, form';
 const BLOCKS =
@@ -31,14 +34,14 @@ const BLOCKS =
 export type CrawlResult = AdminWebsitePreviewResponse;
 
 export class WebsiteError extends Error {
-  constructor(public readonly code: 'invalid_url' | 'blocked') {
+  constructor(public readonly code: 'invalid_url' | 'blocked' | 'refused') {
     super(code);
   }
 }
 
 type Fetched =
   | { kind: 'page'; url: URL; html: string }
-  | { kind: 'skip'; url: URL; reason: WebsiteSkipReason };
+  | { kind: 'skip'; url: URL; reason: WebsiteSkipReason; refused?: boolean };
 
 /** http(s) only; the fragment is dropped so `#top` links are not new pages. */
 export function normalizeSiteUrl(raw: string, base?: URL): URL | null {
@@ -182,7 +185,7 @@ async function fetchPage(url: URL, start: URL, dispatcher: Agent): Promise<Fetch
       }
       if (res.statusCode >= 400) {
         await res.body.dump();
-        return { kind: 'skip', url, reason: 'error' };
+        return { kind: 'skip', url, reason: 'error', refused: REFUSED.has(res.statusCode) };
       }
       if (!firstHeader(res.headers, 'content-type').includes('text/html')) {
         await res.body.dump();
@@ -238,7 +241,8 @@ const isDisallowed = (url: URL, disallow: string[]): boolean =>
 
 /**
  * Breadth-first crawl from `rawUrl`, same site and folder only, up to `maxPages` pages.
- * Throws `WebsiteError` for a malformed or private address; everything else becomes a
+ * Throws `WebsiteError` for a malformed or private address, or a site that refuses the start
+ * page (401/403/429); everything else becomes a
  * `skipped` entry so the Test panel can say why a page is missing.
  */
 export async function crawlSite(
@@ -303,6 +307,9 @@ export async function crawlSite(
       const results = await Promise.all(batch.map((url) => fetchPage(url, start, dispatcher)));
       for (const result of results) {
         if (result.kind === 'skip') {
+          if (result.refused && result.url.href === start.href) {
+            throw new WebsiteError('refused');
+          }
           skip(result.url, result.reason);
           continue;
         }
