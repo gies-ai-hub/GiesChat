@@ -1,7 +1,12 @@
 const express = require('express');
 const { createEmbedSessionHandler } = require('@librechat/api');
-const { PrincipalType, ResourceType, AccessRoleIds } = require('librechat-data-provider');
-const { grantPermission } = require('~/server/services/PermissionService');
+const {
+  PrincipalType,
+  ResourceType,
+  AccessRoleIds,
+  PermissionBits,
+} = require('librechat-data-provider');
+const { checkPermission, grantPermission } = require('~/server/services/PermissionService');
 const { getAppConfig } = require('~/server/services/Config');
 const middleware = require('~/server/middleware');
 const db = require('~/models');
@@ -14,6 +19,14 @@ const startEmbedSession = createEmbedSessionHandler({
   createUser: db.createUser,
   generateToken: db.generateToken,
   getBalanceConfig: async () => (await getAppConfig()).balance,
+  canViewAgent: ({ userId, role, agentId }) =>
+    checkPermission({
+      userId,
+      role,
+      resourceType: ResourceType.AGENT,
+      resourceId: agentId,
+      requiredPermission: PermissionBits.VIEW,
+    }),
   grantAgentView: ({ userId, agentId, grantedBy }) =>
     grantPermission({
       principalType: PrincipalType.USER,

@@ -1795,7 +1795,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       if (!agent) {
         return res.status(404).json({ error: 'Agent not found' });
       }
-      if (!admin && isCollaborator(caller, scoped) && !(await holdsAgentEdit(caller, scoped))) {
+      if (!admin && isCollaborator(caller, agent) && !(await holdsAgentEdit(caller, agent))) {
         return res.status(403).json({ error: 'forbidden' });
       }
       const crawl = await crawlWebsite(url);

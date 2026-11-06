@@ -28,6 +28,16 @@ export interface EmbedSessionDeps {
   ) => Promise<Types.ObjectId | Partial<IUser>>;
   generateToken: (user: IUser, expiresIn?: number) => Promise<string>;
   getBalanceConfig: () => Promise<BalanceConfig | undefined>;
+  /** Whether the user can already open the agent, through any grant (owner, co-admin, class share). */
+  canViewAgent: (params: {
+    userId: string;
+    role?: string;
+    agentId: Types.ObjectId | string;
+  }) => Promise<boolean>;
+  /**
+   * An upsert that replaces the user's bits on the agent, so it runs only when `canViewAgent`
+   * says no; otherwise an owner opening their own Illinois link drops to viewer.
+   */
   grantAgentView: (params: {
     userId: string;
     agentId: Types.ObjectId | string;
@@ -132,7 +142,9 @@ export function createEmbedSessionHandler(
       const user = reuse ? (bearerUser as IUser) : await createGuest(agent.id);
       const userId = String(user._id);
 
-      await deps.grantAgentView({ userId, agentId: agent._id, grantedBy: agent.author });
+      if (!(await deps.canViewAgent({ userId, role: user.role, agentId: agent._id }))) {
+        await deps.grantAgentView({ userId, agentId: agent._id, grantedBy: agent.author });
+      }
       const token = await generateToken(user, EMBED_TOKEN_EXPIRY_MS);
       const body: EmbedSessionResponse = {
         agent: toAgentInfo(agent),
