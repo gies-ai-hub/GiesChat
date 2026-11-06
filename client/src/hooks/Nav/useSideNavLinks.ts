@@ -171,7 +171,7 @@ export default function useSideNavLinks({
     }
 
     links.push({
-      title: 'com_sidepanel_attach_files',
+      title: 'com_sidepanel_manage_files',
       label: '',
       icon: AttachmentIcon,
       id: 'files',
