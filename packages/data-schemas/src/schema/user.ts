@@ -159,12 +159,18 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       ],
       default: [],
     },
-    /** Weekly agent email from the class dashboard: picked agents, recipients, last send. */
+    /** Weekly agent email from the class dashboard: picked agents, recipients, schedule, last send. */
     weeklyDigest: {
       type: {
         _id: false,
         agentIds: { type: [String], default: undefined },
         emails: { type: [String], default: undefined },
+        /** 0 = Sunday … 6 = Saturday, in `timezone`; unset means Friday. */
+        sendDay: { type: Number, min: 0, max: 6 },
+        /** 0–23, in `timezone`; unset means 17 (5 PM). */
+        sendHour: { type: Number, min: 0, max: 23 },
+        /** IANA zone; unset means America/Chicago. */
+        timezone: { type: String, maxlength: 64 },
         lastSentAt: { type: Date },
       },
       default: undefined,

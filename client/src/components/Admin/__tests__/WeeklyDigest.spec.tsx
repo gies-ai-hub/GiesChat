@@ -52,8 +52,39 @@ async function openDialog() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGet.mockResolvedValue({ agentIds: [], emails: [] });
+  mockGet.mockResolvedValue({ agentIds: [], emails: [], ...FRIDAY_5_CENTRAL });
   mockUpdate.mockImplementation(async (settings: unknown) => settings);
+});
+
+const FRIDAY_5_CENTRAL = { sendDay: 5, sendHour: 17, timezone: 'America/Chicago' };
+
+it('starts on Friday at 5 PM Central', async () => {
+  renderDigest();
+  await openDialog();
+  expect(screen.getByLabelText('Day')).toHaveValue('5');
+  expect(screen.getByLabelText('Time')).toHaveValue('17');
+  expect(screen.getByLabelText('Timezone')).toHaveValue('America/Chicago');
+  expect(screen.getByRole('option', { name: 'Friday' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: '5 PM' })).toBeInTheDocument();
+  expect(screen.getByRole('option', { name: /Central.*Chicago/ })).toBeInTheDocument();
+});
+
+it('saves the day, time and timezone that were picked', async () => {
+  renderDigest();
+  await openDialog();
+  await userEvent.selectOptions(screen.getByLabelText('Day'), '1');
+  await userEvent.selectOptions(screen.getByLabelText('Time'), '8');
+  await userEvent.selectOptions(screen.getByLabelText('Timezone'), 'America/New_York');
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() =>
+    expect(mockUpdate).toHaveBeenCalledWith({
+      agentIds: ['agent_a'],
+      emails: ['dwhitfield@illinois.edu'],
+      sendDay: 1,
+      sendHour: 8,
+      timezone: 'America/New_York',
+    }),
+  );
 });
 
 it('prefills my own address and checks the agent that has activity', async () => {
@@ -84,6 +115,7 @@ it('saves the picked agents and every address', async () => {
     expect(mockUpdate).toHaveBeenCalledWith({
       agentIds: ['agent_a'],
       emails: ['dwhitfield@illinois.edu', 'jkim42@illinois.edu'],
+      ...FRIDAY_5_CENTRAL,
     }),
   );
 });
@@ -100,11 +132,19 @@ it('turns the email off', async () => {
   renderDigest();
   await openDialog();
   await userEvent.click(screen.getByRole('button', { name: 'Turn off' }));
-  await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ agentIds: [], emails: [] }));
+  await waitFor(() =>
+    expect(mockUpdate).toHaveBeenCalledWith({ agentIds: [], emails: [], ...FRIDAY_5_CENTRAL }),
+  );
 });
 
-it('shows On and reopens with what was saved', async () => {
-  mockGet.mockResolvedValue({ agentIds: ['agent_b'], emails: ['ta@illinois.edu'] });
+it('shows On and reopens with what was saved, schedule included', async () => {
+  mockGet.mockResolvedValue({
+    agentIds: ['agent_b'],
+    emails: ['ta@illinois.edu'],
+    sendDay: 1,
+    sendHour: 8,
+    timezone: 'America/Denver',
+  });
   renderDigest();
   expect(await screen.findByText('On')).toBeInTheDocument();
   await openDialog();
@@ -112,4 +152,7 @@ it('shows On and reopens with what was saved', async () => {
   expect(screen.queryByText('dwhitfield@illinois.edu')).not.toBeInTheDocument();
   expect(screen.getByRole('checkbox', { name: 'Resume Reviewer' })).toBeChecked();
   expect(screen.getByRole('checkbox', { name: 'ACCY 502A Case Coach' })).not.toBeChecked();
+  expect(screen.getByLabelText('Day')).toHaveValue('1');
+  expect(screen.getByLabelText('Time')).toHaveValue('8');
+  expect(screen.getByLabelText('Timezone')).toHaveValue('America/Denver');
 });

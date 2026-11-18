@@ -554,10 +554,16 @@ export type AdminDashboardLayoutResponse = {
   panels: AdminDashboardPanel[];
 };
 
-/** The caller's weekly agent email: which dashboard agents, sent to which Illinois addresses. */
+/** The caller's weekly agent email: which dashboard agents, to which Illinois addresses, and when. */
 export type AdminWeeklyDigest = {
   agentIds: string[];
   emails: string[];
+  /** 0 = Sunday … 6 = Saturday, in `timezone`. Defaults to Friday. */
+  sendDay: number;
+  /** 0–23, in `timezone`. Defaults to 17 (5 PM). */
+  sendHour: number;
+  /** IANA zone. Defaults to America/Chicago. */
+  timezone: string;
 };
 
 export interface MCPServerStatus {

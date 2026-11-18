@@ -9,6 +9,9 @@ import type { CacheStore } from '~/types';
 import { escapeRegExp } from '~/utils/string';
 import { signPayload } from '~/crypto';
 
+/** What the weekly email dialog saves: everything on `weeklyDigest` except the sweep's stamp. */
+type WeeklyDigestSettings = Omit<NonNullable<IUser['weeklyDigest']>, 'lastSentAt'>;
+
 /** Default JWT session expiry: 15 minutes in milliseconds */
 export const DEFAULT_SESSION_EXPIRY: number = 1000 * 60 * 15;
 
@@ -46,7 +49,7 @@ export function createUserMethods(
   releaseWeeklyDigest: (userId: string, claimedAt: Date, previous: Date | null) => Promise<void>;
   saveWeeklyDigestSettings: (
     userId: string,
-    settings: { agentIds: string[]; emails: string[] },
+    settings: WeeklyDigestSettings,
     stampAt?: Date,
   ) => Promise<void>;
   acceptTerms: (userId: string) => Promise<IUser | null>;
@@ -313,22 +316,22 @@ export function createUserMethods(
   }
 
   /**
-   * The dialog's save: agents and addresses only, so it can never roll back a stamp the sweep
-   * just wrote. `stampAt` is passed when the email is being turned on, so the first one waits
-   * for the next Monday.
+   * The dialog's save: everything but the stamp, so it can never roll back one the sweep just
+   * wrote. `stampAt` is passed when the email turns on or its schedule changes, so the next one
+   * waits for the chosen day and hour instead of going out at once.
    */
   async function saveWeeklyDigestSettings(
     userId: string,
-    settings: { agentIds: string[]; emails: string[] },
+    settings: WeeklyDigestSettings,
     stampAt?: Date,
   ): Promise<void> {
     const User = mongoose.models.User;
+    const fields = Object.entries(settings).filter(([, value]) => value !== undefined);
     await User.updateOne(
       { _id: userId },
       {
         $set: {
-          'weeklyDigest.agentIds': settings.agentIds,
-          'weeklyDigest.emails': settings.emails,
+          ...Object.fromEntries(fields.map(([key, value]) => [`weeklyDigest.${key}`, value])),
           ...(stampAt ? { 'weeklyDigest.lastSentAt': stampAt } : {}),
         },
       },

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRecoilValue } from 'recoil';
 import { Mail, X } from 'lucide-react';
 import {
@@ -19,8 +19,47 @@ import store from '~/store';
 /** The server accepts at most this many addresses; the dialog says so before it has to. */
 const MAX_EMAILS = 10;
 const EMAIL_INPUT_ID = 'weekly-digest-email';
+const DAY_ID = 'weekly-digest-day';
+const HOUR_ID = 'weekly-digest-hour';
+const TIMEZONE_ID = 'weekly-digest-timezone';
 
 type DigestAgent = Pick<AdminAgentUsage, 'agent_id' | 'name' | 'conversationCount'>;
+type Schedule = Pick<AdminWeeklyDigest, 'sendDay' | 'sendHour' | 'timezone'>;
+
+/** Friday 5 PM Central; the server fills the same defaults. */
+const DEFAULT_SCHEDULE: Schedule = { sendDay: 5, sendHour: 17, timezone: 'America/Chicago' };
+const DAYS = [0, 1, 2, 3, 4, 5, 6];
+const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
+/** US zones first; the viewer's own zone and a saved one join the list when they are elsewhere. */
+const US_TIMEZONES = [
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Phoenix',
+  'America/Los_Angeles',
+  'America/Anchorage',
+  'Pacific/Honolulu',
+];
+
+/** Day and hour names come from the browser's locale, so they read naturally in any language. */
+const dayName = (day: number): string =>
+  new Intl.DateTimeFormat(undefined, { weekday: 'long', timeZone: 'UTC' }).format(
+    Date.UTC(2023, 0, 1 + day),
+  );
+
+const hourName = (hour: number): string =>
+  new Intl.DateTimeFormat(undefined, { hour: 'numeric', timeZone: 'UTC' }).format(
+    Date.UTC(2023, 0, 1, hour),
+  );
+
+/** "Central Time (Chicago)": the generic name, plus the city so Denver and Phoenix differ. */
+function timezoneName(timeZone: string): string {
+  const generic = new Intl.DateTimeFormat(undefined, { timeZone, timeZoneName: 'longGeneric' })
+    .formatToParts(new Date())
+    .find((part) => part.type === 'timeZoneName')?.value;
+  const city = timeZone.split('/').pop()?.replace(/_/g, ' ') ?? timeZone;
+  return generic ? `${generic} (${city})` : timeZone;
+}
 
 interface WeeklyDigestProps {
   agents: DigestAgent[];
@@ -45,11 +84,20 @@ export default function WeeklyDigest({ agents }: WeeklyDigestProps) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<TranslationKeys | null>(null);
+  const [schedule, setSchedule] = useState<Schedule>(DEFAULT_SCHEDULE);
 
   const ownEmail = user?.email?.toLowerCase() ?? '';
   const isOn = (saved?.emails.length ?? 0) > 0;
   const needsAgent = emails.length > 0 && picked.size === 0;
   const message = error ?? (needsAgent ? 'com_ui_admin_digest_pick_agent' : null);
+
+  const timezones = useMemo(() => {
+    const own = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return [...new Set([...US_TIMEZONES, own, schedule.timezone])].map((zone) => ({
+      zone,
+      name: timezoneName(zone),
+    }));
+  }, [schedule.timezone]);
 
   const handleOpenChange = (next: boolean) => {
     if (next) {
@@ -60,6 +108,12 @@ export default function WeeklyDigest({ agents }: WeeklyDigestProps) {
         setEmails(ILLINOIS_EMAIL.test(ownEmail) ? [ownEmail] : []);
         setPicked(new Set(defaultAgentIds(agents)));
       }
+      /** A schedule outlives turning the email off, so turning it back on keeps the old time. */
+      setSchedule({
+        sendDay: saved?.sendDay ?? DEFAULT_SCHEDULE.sendDay,
+        sendHour: saved?.sendHour ?? DEFAULT_SCHEDULE.sendHour,
+        timezone: saved?.timezone ?? DEFAULT_SCHEDULE.timezone,
+      });
       setDraft('');
       setError(null);
     }
@@ -101,9 +155,13 @@ export default function WeeklyDigest({ agents }: WeeklyDigestProps) {
     update.mutate(settings, {
       onSuccess: (result) => {
         showToast({
-          message: localize(
-            result.emails.length > 0 ? 'com_ui_admin_digest_saved' : 'com_ui_admin_digest_off',
-          ),
+          message:
+            result.emails.length > 0
+              ? localize('com_ui_admin_digest_saved', {
+                  day: dayName(result.sendDay),
+                  time: hourName(result.sendHour),
+                })
+              : localize('com_ui_admin_digest_off'),
           severity: NotificationSeverity.SUCCESS,
         });
         setOpen(false);
@@ -119,7 +177,11 @@ export default function WeeklyDigest({ agents }: WeeklyDigestProps) {
     save({
       agentIds: agents.map((agent) => agent.agent_id).filter((id) => picked.has(id)),
       emails,
+      ...schedule,
     });
+
+  const selectClass =
+    'mt-1 block w-full rounded-lg border border-border-medium bg-surface-primary px-2 py-2 text-sm text-text-primary';
 
   return (
     <OGDialog open={open} onOpenChange={handleOpenChange}>
@@ -156,6 +218,69 @@ export default function WeeklyDigest({ agents }: WeeklyDigestProps) {
               {agent.name}
             </label>
           ))}
+        </fieldset>
+
+        <fieldset className="mt-3">
+          <legend className="text-sm font-medium text-text-primary">
+            {localize('com_ui_admin_digest_when')}
+          </legend>
+          <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_2fr]">
+            <div>
+              <label htmlFor={DAY_ID} className="text-xs text-text-secondary">
+                {localize('com_ui_admin_digest_day')}
+              </label>
+              <select
+                id={DAY_ID}
+                className={selectClass}
+                value={schedule.sendDay}
+                onChange={(event) =>
+                  setSchedule({ ...schedule, sendDay: Number(event.target.value) })
+                }
+              >
+                {DAYS.map((day) => (
+                  <option key={day} value={day}>
+                    {dayName(day)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor={HOUR_ID} className="text-xs text-text-secondary">
+                {localize('com_ui_admin_digest_time')}
+              </label>
+              <select
+                id={HOUR_ID}
+                className={selectClass}
+                value={schedule.sendHour}
+                onChange={(event) =>
+                  setSchedule({ ...schedule, sendHour: Number(event.target.value) })
+                }
+              >
+                {HOURS.map((hour) => (
+                  <option key={hour} value={hour}>
+                    {hourName(hour)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label htmlFor={TIMEZONE_ID} className="text-xs text-text-secondary">
+                {localize('com_ui_admin_digest_timezone')}
+              </label>
+              <select
+                id={TIMEZONE_ID}
+                className={selectClass}
+                value={schedule.timezone}
+                onChange={(event) => setSchedule({ ...schedule, timezone: event.target.value })}
+              >
+                {timezones.map(({ zone, name }) => (
+                  <option key={zone} value={zone}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </fieldset>
 
         <label
@@ -223,7 +348,7 @@ export default function WeeklyDigest({ agents }: WeeklyDigestProps) {
           <Button
             variant="ghost"
             disabled={update.isLoading}
-            onClick={() => save({ agentIds: [], emails: [] })}
+            onClick={() => save({ agentIds: [], emails: [], ...schedule })}
           >
             {localize('com_ui_admin_digest_turn_off')}
           </Button>

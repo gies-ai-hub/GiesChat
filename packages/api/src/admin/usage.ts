@@ -5,6 +5,7 @@ import type {
   AdminAgentRole,
   AdminDraftChoice,
   AdminDashboardPanel,
+  AdminWeeklyDigest,
   AdminModelTestAnswer,
   AdminDraftUpdatePreview,
   AdminCollaboratorsResponse,
@@ -153,7 +154,7 @@ export interface AdminUsageDeps {
   /** Writes agents and addresses only; `stampAt` sets `lastSentAt` when the email turns on. */
   saveWeeklyDigestSettings: (
     userId: string,
-    settings: WeeklyDigestSettings,
+    settings: AdminWeeklyDigest,
     stampAt?: Date,
   ) => Promise<void>;
   setAgentEmbed: (agentId: string, embed: IAgentEmbed | null) => Promise<IAgent | null>;
@@ -322,23 +323,56 @@ export function parseInviteEmails(
 const MAX_DIGEST_EMAILS = 10;
 const MAX_DIGEST_AGENTS = 100;
 
-/** The caller's weekly email settings, as the dialog saves them. */
-export interface WeeklyDigestSettings {
-  agentIds: string[];
-  emails: string[];
-}
+export type DigestSchedule = Pick<AdminWeeklyDigest, 'sendDay' | 'sendHour' | 'timezone'>;
+
+/** Friday 5 PM Central, for anyone who never picked a time. */
+export const DIGEST_DEFAULTS: DigestSchedule = {
+  sendDay: 5,
+  sendHour: 17,
+  timezone: 'America/Chicago',
+};
 
 /** On means at least one address and one agent; anything less sends nothing. */
 export function isDigestOn(digest: IUser['weeklyDigest']): boolean {
   return (digest?.emails?.length ?? 0) > 0 && (digest?.agentIds?.length ?? 0) > 0;
 }
 
-/** Untrusted body → deduped agent ids and at most 10 Illinois addresses, or `null`. */
-export function parseDigestSettings(body: unknown): WeeklyDigestSettings | null {
+/** The stored schedule with the defaults filled in. */
+export function digestSchedule(digest: IUser['weeklyDigest']): DigestSchedule {
+  return {
+    sendDay: digest?.sendDay ?? DIGEST_DEFAULTS.sendDay,
+    sendHour: digest?.sendHour ?? DIGEST_DEFAULTS.sendHour,
+    timezone: digest?.timezone ?? DIGEST_DEFAULTS.timezone,
+  };
+}
+
+const isWholeIn = (value: unknown, max: number): value is number =>
+  Number.isInteger(value) && (value as number) >= 0 && (value as number) <= max;
+
+/** A zone the runtime can format in; anything else would make every boundary throw. */
+function isTimezone(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 64) {
+    return false;
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Untrusted body → deduped agent ids, at most 10 Illinois addresses and a real schedule
+ * (missing parts take the Friday 5 PM Central defaults), or `null`.
+ */
+export function parseDigestSettings(body: unknown): AdminWeeklyDigest | null {
   if (body == null || typeof body !== 'object') {
     return null;
   }
-  const { agentIds } = body as { agentIds?: unknown };
+  const { agentIds, sendDay, sendHour, timezone } = body as Partial<
+    Record<keyof AdminWeeklyDigest, unknown>
+  >;
   if (
     !Array.isArray(agentIds) ||
     agentIds.length > MAX_DIGEST_AGENTS ||
@@ -350,7 +384,25 @@ export function parseDigestSettings(body: unknown): WeeklyDigestSettings | null 
   if (emails === null || emails.length > MAX_DIGEST_EMAILS) {
     return null;
   }
-  return { agentIds: [...new Set(agentIds)], emails };
+  const schedule = {
+    sendDay: sendDay ?? DIGEST_DEFAULTS.sendDay,
+    sendHour: sendHour ?? DIGEST_DEFAULTS.sendHour,
+    timezone: timezone ?? DIGEST_DEFAULTS.timezone,
+  };
+  if (
+    !isWholeIn(schedule.sendDay, 6) ||
+    !isWholeIn(schedule.sendHour, 23) ||
+    !isTimezone(schedule.timezone)
+  ) {
+    return null;
+  }
+  return {
+    agentIds: [...new Set(agentIds)],
+    emails,
+    sendDay: schedule.sendDay,
+    sendHour: schedule.sendHour,
+    timezone: schedule.timezone,
+  };
 }
 
 /**
@@ -1091,17 +1143,19 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
       return res.status(401).json({ error: 'Authentication required' });
     }
     const digest = caller.weeklyDigest;
-    const settings: WeeklyDigestSettings = {
+    const settings: AdminWeeklyDigest = {
       agentIds: digest?.agentIds ?? [],
       emails: digest?.emails ?? [],
+      ...digestSchedule(digest),
     };
     return res.status(200).json(settings);
   }
 
   /**
    * The caller's own weekly email. Agents outside their dashboard scope are dropped here and
-   * again at send time. Turning it on (from never set, or from off) stamps `lastSentAt` so the
-   * first email waits for Monday; while it is on, the stamp belongs to the sweep alone.
+   * again at send time. Turning it on, or moving it to another day, hour or timezone, stamps
+   * `lastSentAt` so the next email waits for the chosen time instead of going out at once
+   * because that time already passed this week. Otherwise the stamp belongs to the sweep alone.
    */
   async function updateWeeklyDigestHandler(req: ServerRequest, res: Response) {
     const caller = req.user;
@@ -1115,12 +1169,21 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
 
     try {
       const scoped = new Set((await findScopedAgents(caller, undefined, 'id')).map((a) => a.id));
-      const settings: WeeklyDigestSettings = {
+      const settings: AdminWeeklyDigest = {
+        ...parsed,
         agentIds: parsed.agentIds.filter((id) => scoped.has(id)),
-        emails: parsed.emails,
       };
-      const wasOn = isDigestOn(caller.weeklyDigest);
-      await saveWeeklyDigestSettings(String(caller._id), settings, wasOn ? undefined : new Date());
+      const before = digestSchedule(caller.weeklyDigest);
+      const keepsStamp =
+        isDigestOn(caller.weeklyDigest) &&
+        before.sendDay === settings.sendDay &&
+        before.sendHour === settings.sendHour &&
+        before.timezone === settings.timezone;
+      await saveWeeklyDigestSettings(
+        String(caller._id),
+        settings,
+        keepsStamp ? undefined : new Date(),
+      );
       return res.status(200).json(settings);
     } catch (error) {
       logger.error('[adminUsage] updateWeeklyDigest error:', error);

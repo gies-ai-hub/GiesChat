@@ -995,4 +995,22 @@ describe('weekly digest writes', () => {
     await methods.saveWeeklyDigestSettings(id, { agentIds: ['agent_b'], emails: [] }, at);
     expect(await stampOf(id)).toEqual(at);
   });
+
+  it('saves the send day, hour and timezone alongside the list', async () => {
+    const id = await subscriber(lastWeek);
+    await methods.saveWeeklyDigestSettings(id, {
+      agentIds: ['agent_a'],
+      emails: ['prof@illinois.edu'],
+      sendDay: 1,
+      sendHour: 8,
+      timezone: 'America/New_York',
+    });
+    const saved = await User.findById(id).lean<t.IUser>();
+    expect(saved?.weeklyDigest).toMatchObject({
+      sendDay: 1,
+      sendHour: 8,
+      timezone: 'America/New_York',
+      lastSentAt: lastWeek,
+    });
+  });
 });

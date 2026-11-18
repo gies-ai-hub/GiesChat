@@ -2,21 +2,18 @@ import { z } from 'zod';
 import { logger, runAsSystem } from '@librechat/data-schemas';
 import type { AdminAnalyticsResponse } from 'librechat-data-provider';
 import type { IAgent, IUser } from '@librechat/data-schemas';
-import type { AdminUsageDeps } from './usage';
+import type { AdminUsageDeps, DigestSchedule } from './usage';
 import type { TopicsModel } from './topics';
+import { findDashboardAgents, isDigestOn, digestSchedule } from './usage';
 import { askJsonModel, numberMessages } from './topics';
-import { findDashboardAgents, isDigestOn } from './usage';
 import { toAnalyticsBody } from './analytics';
 import { isLeader } from '~/cluster';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const WEEK_MS = 7 * DAY_MS;
-const DIGEST_HOUR = 8;
 const WINDOW_COUNT = 4;
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-export const DIGEST_TIMEZONE = 'America/Chicago';
 
 /** One week of activity: `since` inclusive, `until` exclusive. */
 export interface DigestWindow {
@@ -24,28 +21,38 @@ export interface DigestWindow {
   until: Date;
 }
 
-const wallClockFormat = new Intl.DateTimeFormat('en-US', {
-  timeZone: DIGEST_TIMEZONE,
-  hourCycle: 'h23',
-  weekday: 'short',
-  year: 'numeric',
-  month: 'numeric',
-  day: 'numeric',
-  hour: 'numeric',
-  minute: 'numeric',
-  second: 'numeric',
-});
+const formats = new Map<string, Intl.DateTimeFormat>();
 
-const dayFormat = new Intl.DateTimeFormat('en-US', {
-  timeZone: DIGEST_TIMEZONE,
-  month: 'short',
-  day: 'numeric',
-});
+/** One formatter per zone and style, kept: building them is the slow part of a sweep. */
+function formatFor(timeZone: string, style: 'wall' | 'day'): Intl.DateTimeFormat {
+  const key = `${style}|${timeZone}`;
+  let format = formats.get(key);
+  if (!format) {
+    format =
+      style === 'wall'
+        ? new Intl.DateTimeFormat('en-US', {
+            timeZone,
+            hourCycle: 'h23',
+            weekday: 'short',
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+          })
+        : new Intl.DateTimeFormat('en-US', { timeZone, month: 'short', day: 'numeric' });
+    formats.set(key, format);
+  }
+  return format;
+}
 
-/** Chicago's wall clock at `instant`, written as if it were UTC, and its weekday (0 = Sunday). */
-function chicagoWall(instant: Date): { wall: number; weekday: number } {
+/** The wall clock in `timeZone` at `instant`, written as if it were UTC, and its weekday (0 = Sunday). */
+function wallClock(instant: Date, timeZone: string): { wall: number; weekday: number } {
   const parts = Object.fromEntries(
-    wallClockFormat.formatToParts(instant).map((part) => [part.type, part.value]),
+    formatFor(timeZone, 'wall')
+      .formatToParts(instant)
+      .map((part) => [part.type, part.value]),
   );
   const wall = Date.UTC(
     Number(parts.year),
@@ -58,22 +65,23 @@ function chicagoWall(instant: Date): { wall: number; weekday: number } {
   return { wall, weekday: WEEKDAYS.indexOf(parts.weekday) };
 }
 
-const offsetAt = (instant: Date): number =>
-  chicagoWall(instant).wall - (instant.getTime() - instant.getUTCMilliseconds());
+const offsetAt = (instant: Date, timeZone: string): number =>
+  wallClock(instant, timeZone).wall - (instant.getTime() - instant.getUTCMilliseconds());
 
 /**
- * The most recent Monday 8 AM in Chicago at or before `now`. The UTC offset is taken at
- * the boundary itself, not at `now`, so a week that crosses a DST change still lands on 8 AM.
+ * The most recent send time on the schedule (`sendDay` at `sendHour`, in `timezone`) at or
+ * before `now`. The UTC offset is taken at the boundary itself, not at `now`, so a week that
+ * crosses a DST change still lands on the chosen hour.
  */
-export function weekBoundary(now: Date): Date {
-  const { wall, weekday } = chicagoWall(now);
-  const daysSinceMonday = (weekday + 6) % 7;
-  let mondayWall = wall - (wall % DAY_MS) - daysSinceMonday * DAY_MS + DIGEST_HOUR * HOUR_MS;
-  if (mondayWall > wall) {
-    mondayWall -= WEEK_MS;
+export function weekBoundary(now: Date, schedule: DigestSchedule): Date {
+  const { wall, weekday } = wallClock(now, schedule.timezone);
+  const daysSince = (weekday - schedule.sendDay + 7) % 7;
+  let sendWall = wall - (wall % DAY_MS) - daysSince * DAY_MS + schedule.sendHour * HOUR_MS;
+  if (sendWall > wall) {
+    sendWall -= WEEK_MS;
   }
-  const guess = new Date(mondayWall - offsetAt(now));
-  return new Date(mondayWall - offsetAt(guess));
+  const guess = new Date(sendWall - offsetAt(now, schedule.timezone));
+  return new Date(sendWall - offsetAt(guess, schedule.timezone));
 }
 
 /** Four back-to-back weeks ending at `boundary`, newest first. */
@@ -85,10 +93,14 @@ export function digestWindows(boundary: Date): DigestWindow[] {
   }));
 }
 
-/** "Nov 9 – Nov 15": a Monday-8-AM-to-Monday-8-AM week reads as Monday through Sunday. */
-export function weekLabel(window: DigestWindow): string {
-  const lastDay = new Date(window.until.getTime() - DAY_MS);
-  return `${dayFormat.format(window.since)} – ${dayFormat.format(lastDay)}`;
+/**
+ * "Nov 6 – Nov 13": the local dates of the window's first and last moment. A Friday 5 PM week
+ * runs from one Friday afternoon to the next, so both Fridays are named.
+ */
+export function weekLabel(window: DigestWindow, timeZone: string): string {
+  const format = formatFor(timeZone, 'day');
+  const lastMoment = new Date(window.until.getTime() - 1);
+  return `${format.format(window.since)} – ${format.format(lastMoment)}`;
 }
 
 /** Someone with agents and addresses who has not been sent this week's email yet. */
@@ -96,7 +108,8 @@ export function isDigestDue(digest: IUser['weeklyDigest'], now: Date): boolean {
   if (!isDigestOn(digest)) {
     return false;
   }
-  return digest?.lastSentAt == null || new Date(digest.lastSentAt) < weekBoundary(now);
+  const boundary = weekBoundary(now, digestSchedule(digest));
+  return digest?.lastSentAt == null || new Date(digest.lastSentAt) < boundary;
 }
 
 const SUMMARY_MAX = 800;
@@ -328,7 +341,8 @@ export async function buildWeeklyDigest(
     return null;
   }
 
-  const windows = digestWindows(weekBoundary(now));
+  const schedule = digestSchedule(user.weeklyDigest);
+  const windows = digestWindows(weekBoundary(now, schedule));
   const llm = await deps.resolveTopicsModel();
   // ponytail: 4 aggregations per agent per week, agents one after another; batch by `$facet` per window if subscribers grow past a few dozen.
   const cards: DigestAgentCard[] = [];
@@ -340,7 +354,7 @@ export async function buildWeeklyDigest(
   return {
     emails: user.weeklyDigest?.emails ?? [],
     ownerName: user.name || user.email,
-    weekLabel: weekLabel(windows[0]),
+    weekLabel: weekLabel(windows[0], schedule.timezone),
     headline: headline(total(THIS_WEEK), total(LAST_WEEK), cards.length),
     agents: cards,
   };
@@ -357,10 +371,10 @@ export async function sendWeeklyDigests(deps: WeeklyDigestDeps, now: Date): Prom
     { 'weeklyDigest.emails.0': { $exists: true } },
     '_id name email role weeklyDigest',
   );
-  const boundary = weekBoundary(now);
   let sent = 0;
   for (const user of users.filter((candidate) => isDigestDue(candidate.weeklyDigest, now))) {
     const userId = String(user._id);
+    const boundary = weekBoundary(now, digestSchedule(user.weeklyDigest));
     if (!(await deps.claimWeeklyDigest(userId, boundary, now))) {
       continue;
     }

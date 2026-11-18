@@ -13,7 +13,7 @@ import {
   summarizeAgentWeek,
 } from './digest';
 import { toAnalyticsBody } from './analytics';
-import { parseDigestSettings } from './usage';
+import { parseDigestSettings, DIGEST_DEFAULTS } from './usage';
 
 const llm = { baseURL: 'https://example.test/openai/v1', apiKey: 'k', model: 'm' };
 
@@ -110,6 +110,8 @@ describe('summarizeAgentWeek', () => {
   });
 });
 
+const MONDAY_8_CHICAGO = { sendDay: 1, sendHour: 8, timezone: 'America/Chicago' };
+
 describe('weekBoundary', () => {
   it.each([
     ['2026-11-18T15:00:00Z', '2026-11-16T14:00:00Z'],
@@ -118,14 +120,39 @@ describe('weekBoundary', () => {
     ['2026-07-15T12:00:00Z', '2026-07-13T13:00:00Z'],
     ['2026-11-01T20:00:00Z', '2026-10-26T13:00:00Z'],
   ])('%s → %s (Monday 8 AM Chicago, across CST/CDT)', (now, expected) => {
-    expect(weekBoundary(new Date(now)).toISOString()).toBe(new Date(expected).toISOString());
+    expect(weekBoundary(new Date(now), MONDAY_8_CHICAGO).toISOString()).toBe(
+      new Date(expected).toISOString(),
+    );
+  });
+
+  it('defaults to Friday 5 PM Central', () => {
+    expect(weekBoundary(new Date('2026-11-18T15:00:00Z'), DIGEST_DEFAULTS).toISOString()).toBe(
+      '2026-11-13T23:00:00.000Z',
+    );
+  });
+
+  it("reads the day and hour in the subscriber's own timezone", () => {
+    const london = { sendDay: 3, sendHour: 9, timezone: 'Europe/London' };
+    expect(weekBoundary(new Date('2026-11-18T15:00:00Z'), london).toISOString()).toBe(
+      '2026-11-18T09:00:00.000Z',
+    );
+    expect(weekBoundary(new Date('2026-11-18T08:59:00Z'), london).toISOString()).toBe(
+      '2026-11-11T09:00:00.000Z',
+    );
+  });
+
+  it('handles a midnight send', () => {
+    const sundayMidnight = { sendDay: 0, sendHour: 0, timezone: 'America/Chicago' };
+    expect(weekBoundary(new Date('2026-11-18T15:00:00Z'), sundayMidnight).toISOString()).toBe(
+      '2026-11-15T06:00:00.000Z',
+    );
   });
 });
 
 describe('isDigestDue', () => {
   const now = new Date('2026-11-18T15:00:00Z');
 
-  it('is due when last sent before this Monday 8 AM, and not after', () => {
+  it('is due when last sent before the latest Friday 5 PM by default, and not after', () => {
     expect(
       isDigestDue(
         {
@@ -141,11 +168,18 @@ describe('isDigestDue', () => {
         {
           agentIds: ['a'],
           emails: ['x@illinois.edu'],
-          lastSentAt: new Date('2026-11-16T14:05:00Z'),
+          lastSentAt: new Date('2026-11-14T14:05:00Z'),
         },
         now,
       ),
     ).toBe(false);
+  });
+
+  it("follows the subscriber's own day and hour", () => {
+    const lastSentAt = new Date('2026-11-14T00:00:00Z');
+    const digest = { agentIds: ['a'], emails: ['x@illinois.edu'], lastSentAt };
+    expect(isDigestDue(digest, now)).toBe(false);
+    expect(isDigestDue({ ...digest, ...MONDAY_8_CHICAGO }, now)).toBe(true);
   });
 
   it('is never due with no emails or no agents', () => {
@@ -168,25 +202,43 @@ describe('digestWindows', () => {
 });
 
 describe('weekLabel', () => {
-  it('names the Chicago dates the window covers', () => {
-    expect(weekLabel(digestWindows(new Date('2026-11-16T14:00:00Z'))[0])).toBe('Nov 9 – Nov 15');
+  it('names the local dates the window covers, end date included', () => {
+    const friday = digestWindows(new Date('2026-11-13T23:00:00Z'))[0];
+    expect(weekLabel(friday, 'America/Chicago')).toBe('Nov 6 – Nov 13');
+    const sundayMidnight = digestWindows(new Date('2026-11-15T06:00:00Z'))[0];
+    expect(weekLabel(sundayMidnight, 'America/Chicago')).toBe('Nov 8 – Nov 14');
   });
 });
 
 describe('parseDigestSettings', () => {
-  it('lowercases Illinois emails, drops others, dedupes ids', () => {
+  it('lowercases Illinois emails, drops others, dedupes ids, and fills the default schedule', () => {
     expect(
       parseDigestSettings({
         agentIds: ['a', 'a', 'b'],
         emails: ['TA@Illinois.edu', 'x@gmail.com'],
       }),
-    ).toEqual({ agentIds: ['a', 'b'], emails: ['ta@illinois.edu'] });
+    ).toEqual({ agentIds: ['a', 'b'], emails: ['ta@illinois.edu'], ...DIGEST_DEFAULTS });
   });
 
-  it('rejects more than 10 addresses, or non-arrays', () => {
+  it('keeps a chosen day, hour and timezone', () => {
+    expect(
+      parseDigestSettings({
+        agentIds: [],
+        emails: [],
+        ...MONDAY_8_CHICAGO,
+        timezone: 'Asia/Tokyo',
+      }),
+    ).toMatchObject({ sendDay: 1, sendHour: 8, timezone: 'Asia/Tokyo' });
+  });
+
+  it('rejects more than 10 addresses, non-arrays, or a schedule that is not real', () => {
     const emails = Array.from({ length: 11 }, (_, i) => `p${i}@illinois.edu`);
     expect(parseDigestSettings({ agentIds: [], emails })).toBeNull();
     expect(parseDigestSettings({ agentIds: 'a', emails: [] })).toBeNull();
+    expect(parseDigestSettings({ agentIds: [], emails: [], sendDay: 7 })).toBeNull();
+    expect(parseDigestSettings({ agentIds: [], emails: [], sendHour: 24 })).toBeNull();
+    expect(parseDigestSettings({ agentIds: [], emails: [], sendHour: 8.5 })).toBeNull();
+    expect(parseDigestSettings({ agentIds: [], emails: [], timezone: 'Mars/Olympus' })).toBeNull();
   });
 });
 
@@ -194,7 +246,7 @@ describe('weekly digest run', () => {
   type Args<K extends keyof WeeklyDigestDeps> = Parameters<WeeklyDigestDeps[K]>;
 
   const now = new Date('2026-11-18T15:00:00Z');
-  const windows = digestWindows(weekBoundary(now));
+  const windows = digestWindows(weekBoundary(now, DIGEST_DEFAULTS));
   const subscriber = {
     _id: new Types.ObjectId(),
     name: 'Dana Whitfield',
@@ -247,7 +299,7 @@ describe('weekly digest run', () => {
     const d = deps();
     const email = await buildWeeklyDigest(d, subscriber, now);
     expect(email?.emails).toEqual(['prof@illinois.edu', 'ta@illinois.edu']);
-    expect(email?.weekLabel).toBe('Nov 9 – Nov 15');
+    expect(email?.weekLabel).toBe('Nov 6 – Nov 13');
     expect(email?.headline).toBe(
       '18 conversations across the 2 agents you picked, up 6 from last week.',
     );
@@ -269,9 +321,27 @@ describe('weekly digest run', () => {
       expect.objectContaining({
         agentIds: ['agent_a'],
         userIds: null,
-        until: new Date('2026-11-16T14:00:00Z'),
+        until: new Date('2026-11-13T23:00:00Z'),
       }),
     );
+  });
+
+  it("measures the weeks that end at the subscriber's own send time", async () => {
+    const d = deps();
+    const london = {
+      ...subscriber,
+      weeklyDigest: {
+        ...subscriber.weeklyDigest,
+        sendDay: 3,
+        sendHour: 9,
+        timezone: 'Europe/London',
+      },
+    } as IUser;
+    const email = await buildWeeklyDigest(d, london, now);
+    expect(d.aggregateAgentAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({ until: new Date('2026-11-18T09:00:00Z') }),
+    );
+    expect(email?.weekLabel).toBe('Nov 11 – Nov 18');
   });
 
   it('keeps the numbers when the model is missing or fails', async () => {
@@ -291,7 +361,7 @@ describe('weekly digest run', () => {
     expect(d.sendWeeklyDigest).toHaveBeenCalledTimes(1);
     expect(d.claimWeeklyDigest).toHaveBeenCalledWith(
       String(subscriber._id),
-      new Date('2026-11-16T14:00:00Z'),
+      new Date('2026-11-13T23:00:00Z'),
       now,
     );
     expect(d.claimWeeklyDigest.mock.invocationCallOrder[0]).toBeLessThan(

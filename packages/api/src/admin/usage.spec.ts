@@ -2409,14 +2409,84 @@ describe('createAdminUsageHandlers', () => {
    * ================================================================ */
 
   describe('weekly digest settings', () => {
-    it('returns empty settings for someone who never set the weekly email', async () => {
+    const FRIDAY_5_CENTRAL = { sendDay: 5, sendHour: 17, timezone: 'America/Chicago' };
+
+    it('returns empty settings and the Friday 5 PM Central default to someone who never set it', async () => {
       const handlers = createAdminUsageHandlers(createDeps(baseWorld()));
       const { req, res, status, json } = createReqRes();
 
       await handlers.getWeeklyDigest(req, res);
 
       expect(status).toHaveBeenCalledWith(200);
-      expect(json).toHaveBeenCalledWith({ agentIds: [], emails: [] });
+      expect(json).toHaveBeenCalledWith({ agentIds: [], emails: [], ...FRIDAY_5_CENTRAL });
+    });
+
+    it('returns a saved schedule', async () => {
+      const handlers = createAdminUsageHandlers(createDeps(baseWorld()));
+      const { req, res, json } = createReqRes({
+        user: mockUser({
+          _id: callerId,
+          role: 'ADMIN',
+          weeklyDigest: {
+            agentIds: ['agent_alpha'],
+            emails: ['me@illinois.edu'],
+            sendDay: 1,
+            sendHour: 8,
+            timezone: 'America/New_York',
+          },
+        }),
+      });
+
+      await handlers.getWeeklyDigest(req, res);
+
+      expect(json).toHaveBeenCalledWith({
+        agentIds: ['agent_alpha'],
+        emails: ['me@illinois.edu'],
+        sendDay: 1,
+        sendHour: 8,
+        timezone: 'America/New_York',
+      });
+    });
+
+    it('stamps when the schedule moves, so a time already past this week does not send at once', async () => {
+      const deps = createDeps(baseWorld());
+      const handlers = createAdminUsageHandlers(deps);
+      const { req, res } = createReqRes({
+        body: { agentIds: ['agent_alpha'], emails: ['me@illinois.edu'], sendDay: 1, sendHour: 8 },
+        user: mockUser({
+          _id: callerId,
+          role: 'ADMIN',
+          weeklyDigest: {
+            agentIds: ['agent_alpha'],
+            emails: ['me@illinois.edu'],
+            lastSentAt: new Date('2026-11-13T23:00:00Z'),
+          },
+        }),
+      });
+      const before = Date.now();
+
+      await handlers.updateWeeklyDigest(req, res);
+
+      const [, settings, stampAt] = deps.saveWeeklyDigestSettings.mock.calls[0] as [
+        string,
+        object,
+        Date,
+      ];
+      expect(settings).toMatchObject({ sendDay: 1, sendHour: 8, timezone: 'America/Chicago' });
+      expect(stampAt.getTime()).toBeGreaterThanOrEqual(before);
+    });
+
+    it('rejects a day, hour or timezone that does not exist', async () => {
+      const deps = createDeps(baseWorld());
+      const handlers = createAdminUsageHandlers(deps);
+      const { req, res, status } = createReqRes({
+        body: { agentIds: [], emails: [], timezone: 'Mars/Olympus' },
+      });
+
+      await handlers.updateWeeklyDigest(req, res);
+
+      expect(status).toHaveBeenCalledWith(400);
+      expect(deps.saveWeeklyDigestSettings).not.toHaveBeenCalled();
     });
 
     it('keeps only in-scope agents and Illinois addresses, and stamps lastSentAt on first save', async () => {
@@ -2432,15 +2502,16 @@ describe('createAdminUsageHandlers', () => {
 
       await handlers.updateWeeklyDigest(req, res);
 
+      const saved = { agentIds: ['agent_alpha'], emails: ['ta@illinois.edu'], ...FRIDAY_5_CENTRAL };
       expect(status).toHaveBeenCalledWith(200);
-      expect(json).toHaveBeenCalledWith({ agentIds: ['agent_alpha'], emails: ['ta@illinois.edu'] });
+      expect(json).toHaveBeenCalledWith(saved);
       const [userId, settings, stampAt] = deps.saveWeeklyDigestSettings.mock.calls[0] as [
         string,
-        { agentIds: string[]; emails: string[] },
+        object,
         Date,
       ];
       expect(userId).toBe(callerId.toString());
-      expect(settings).toEqual({ agentIds: ['agent_alpha'], emails: ['ta@illinois.edu'] });
+      expect(settings).toEqual(saved);
       expect(stampAt.getTime()).toBeGreaterThanOrEqual(before);
     });
 
@@ -2464,12 +2535,12 @@ describe('createAdminUsageHandlers', () => {
 
       expect(deps.saveWeeklyDigestSettings).toHaveBeenCalledWith(
         callerId.toString(),
-        { agentIds: ['agent_beta'], emails: ['ta@illinois.edu'] },
+        { agentIds: ['agent_beta'], emails: ['ta@illinois.edu'], ...FRIDAY_5_CENTRAL },
         undefined,
       );
     });
 
-    it('stamps again when the email is turned back on, so it waits for Monday', async () => {
+    it('stamps again when the email is turned back on, so it waits for the chosen time', async () => {
       const deps = createDeps(baseWorld());
       const handlers = createAdminUsageHandlers(deps);
       const { req, res } = createReqRes({
