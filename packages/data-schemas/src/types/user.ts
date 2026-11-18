@@ -57,6 +57,8 @@ export interface IUser extends Document {
   };
   /** Ordered analytics panels for the professor dashboard. Empty means the default layout. */
   dashboardPanels?: Array<{ id: string; visible: boolean }>;
+  /** Weekly agent email from the class dashboard; missing or no emails means off. */
+  weeklyDigest?: { agentIds: string[]; emails: string[]; lastSentAt?: Date | null };
   favorites?: TUserFavorite[];
   /** Per-skill active/inactive overrides. Key = skillId, value = active state. */
   skillStates?: Record<string, boolean>;

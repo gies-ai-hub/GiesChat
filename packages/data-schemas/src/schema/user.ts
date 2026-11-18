@@ -159,6 +159,16 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       ],
       default: [],
     },
+    /** Weekly agent email from the class dashboard: picked agents, recipients, last send. */
+    weeklyDigest: {
+      type: {
+        _id: false,
+        agentIds: { type: [String], default: undefined },
+        emails: { type: [String], default: undefined },
+        lastSentAt: { type: Date },
+      },
+      default: undefined,
+    },
     favorites: {
       type: [
         {

@@ -7,6 +7,7 @@ let mongoServer: InstanceType<typeof MongoMemoryServer>;
 let aggregateAgentUsage: ReturnType<typeof createUsageMethods>['aggregateAgentUsage'];
 let aggregateStudentUsage: ReturnType<typeof createUsageMethods>['aggregateStudentUsage'];
 let aggregateAgentAnalytics: ReturnType<typeof createUsageMethods>['aggregateAgentAnalytics'];
+let sampleStudentMessages: ReturnType<typeof createUsageMethods>['sampleStudentMessages'];
 
 const HOUR = 60 * 60 * 1000;
 const now = new Date('2026-07-01T12:00:00.000Z');
@@ -61,6 +62,7 @@ async function seed(fixtures: ConvoFixture[]): Promise<void> {
     return [
       ...(fixture.userMessages ?? []).map((createdAt, index) => ({
         messageId: `${fixture.conversationId}${suffix}-u${index}`,
+        text: `${fixture.conversationId}${suffix}-u${index}`,
         conversationId: fixture.conversationId,
         user: fixture.user,
         isCreatedByUser: true,
@@ -94,6 +96,7 @@ beforeAll(async () => {
   aggregateAgentUsage = methods.aggregateAgentUsage;
   aggregateStudentUsage = methods.aggregateStudentUsage;
   aggregateAgentAnalytics = methods.aggregateAgentAnalytics;
+  sampleStudentMessages = methods.sampleStudentMessages;
   await mongoose.connect(mongoServer.getUri());
 });
 
@@ -616,6 +619,59 @@ describe('tenant scoping of the message join', () => {
         lastActivity: ago(HOUR),
       },
     ]);
+  });
+});
+
+describe('until bound', () => {
+  const until = ago(6 * HOUR);
+  beforeEach(() =>
+    seed([
+      {
+        conversationId: 'old',
+        user: 'alice',
+        agentId: 'agent_a',
+        updatedAt: ago(HOUR),
+        userMessages: [ago(10 * HOUR), ago(HOUR)],
+        assistantMessages: [ago(10 * HOUR), ago(HOUR)],
+      },
+      {
+        conversationId: 'new',
+        user: 'bob',
+        agentId: 'agent_a',
+        updatedAt: ago(HOUR),
+        userMessages: [ago(HOUR)],
+      },
+    ]),
+  );
+
+  it('counts only messages before until and drops conversations with none', async () => {
+    const raw = await aggregateAgentAnalytics({
+      agentIds: ['agent_a'],
+      userIds: null,
+      since,
+      until,
+    });
+    expect(raw.conversationCount).toBe(1);
+    expect(raw.activeStudents).toBe(1);
+    expect(raw.turnDistribution).toEqual([{ turns: 1, conversations: 1 }]);
+    expect(raw.assistantMessageCount).toBe(1);
+  });
+
+  it('leaves the unbounded window exactly as before', async () => {
+    const raw = await aggregateAgentAnalytics({ agentIds: ['agent_a'], userIds: null, since });
+    expect(raw.conversationCount).toBe(2);
+    expect(raw.turnDistribution).toEqual([
+      { turns: 1, conversations: 1 },
+      { turns: 2, conversations: 1 },
+    ]);
+  });
+
+  it('bounds the message sample too', async () => {
+    const texts = await sampleStudentMessages(
+      { agentIds: ['agent_a'], userIds: null, since, until },
+      10,
+    );
+    expect(texts).toEqual(['old-u0']);
   });
 });
 

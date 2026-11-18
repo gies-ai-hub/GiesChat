@@ -39,7 +39,15 @@ export interface AgentAnalyticsScope {
   since: Date;
   /** Extra conversation conditions (the dashboard's Source filter), ANDed with the rest. */
   match?: FilterQuery<IConversation>;
+  /** Exclusive upper bound on message time; only the weekly digest sets it. */
+  until?: Date;
 }
+
+/** Message `createdAt` inside the window; unbounded above unless `until` is given. */
+const inWindow = (since: Date, until?: Date) => ({
+  $gte: since,
+  ...(until ? { $lt: until } : {}),
+});
 
 /**
  * `$and` keeps a source `user` condition from colliding with the roster's `match.user`,
@@ -106,11 +114,14 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
   /**
    * Matched conversations joined to their in-window student messages. One
    * round trip: the join runs inside the server, never per agent or per student.
+   * With `until`, a conversation counts only if a student wrote in the window: its
+   * `updatedAt` may be later than the window it is measured in.
    */
   function scopedActivityStages(
     agentFilter: FilterQuery<IConversation>,
     userIds: string[] | null,
     since: Date,
+    until?: Date,
   ): PipelineStage[] {
     const match: FilterQuery<IConversation> = {
       ...agentFilter,
@@ -148,7 +159,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
             {
               $match: {
                 isCreatedByUser: true,
-                createdAt: { $gte: since },
+                createdAt: inWindow(since, until),
                 $expr: {
                   $and: [
                     { $eq: ['$conversationId', '$$conversationId'] },
@@ -163,6 +174,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
           as: 'activity',
         },
       },
+      ...(until ? [{ $match: { 'activity.0': { $exists: true } } }] : []),
     ];
   }
 
@@ -242,6 +254,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
     userIds,
     since,
     match,
+    until,
   }: AgentAnalyticsScope): Promise<AgentAnalyticsRaw> {
     if (agentIds.length === 0 || userIds?.length === 0) {
       return EMPTY_ANALYTICS;
@@ -252,7 +265,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
     const Conversation = mongoose.models.Conversation as Model<IConversation>;
 
     const [result] = await Conversation.aggregate<AgentAnalyticsRaw>([
-      ...scopedActivityStages(analyticsFilter(agentIds, match), userIds, since),
+      ...scopedActivityStages(analyticsFilter(agentIds, match), userIds, since, until),
       {
         $lookup: {
           from: messageCollection,
@@ -265,7 +278,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
             {
               $match: {
                 isCreatedByUser: false,
-                createdAt: { $gte: since },
+                createdAt: inWindow(since, until),
                 $expr: {
                   $and: [
                     { $eq: ['$conversationId', '$$conversationId'] },
@@ -357,7 +370,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
   }
 
   async function sampleStudentMessages(
-    { agentIds, userIds, since, match }: AgentAnalyticsScope,
+    { agentIds, userIds, since, match, until }: AgentAnalyticsScope,
     limit: number,
   ): Promise<string[]> {
     if (agentIds.length === 0 || userIds?.length === 0) {
@@ -369,7 +382,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
     const Conversation = mongoose.models.Conversation as Model<IConversation>;
 
     const rows = await Conversation.aggregate<{ text: string }>([
-      ...scopedActivityStages(analyticsFilter(agentIds, match), userIds, since),
+      ...scopedActivityStages(analyticsFilter(agentIds, match), userIds, since, until),
       { $match: { 'activity.0': { $exists: true } } },
       {
         $lookup: {
@@ -379,7 +392,7 @@ export function createUsageMethods(mongoose: typeof import('mongoose')): UsageMe
             {
               $match: {
                 isCreatedByUser: true,
-                createdAt: { $gte: since },
+                createdAt: inWindow(since, until),
                 text: { $type: 'string', $ne: '' },
                 $expr: {
                   $and: [
