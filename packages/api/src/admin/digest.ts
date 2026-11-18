@@ -115,8 +115,25 @@ export interface AgentWeekFacts {
   weeklyConversations: number[];
 }
 
-/** `enrolledStudents` only restates `activeStudents` without a class filter. */
-const chartsOf = ({ enrolledStudents: _enrolled, ...charts }: AdminAnalyticsResponse) => charts;
+const percent = (share: number): number => Math.round(share * 100);
+
+/**
+ * The charts as the model reads them. Rates become whole percentages, the way the dashboard
+ * shows them, so the paragraph says "50%" rather than "0.5". `enrolledStudents` is left out:
+ * without a class filter it only restates `activeStudents`.
+ */
+const chartsOf = ({
+  enrolledStudents: _enrolled,
+  returnRate,
+  oneTurnShare,
+  errorRate,
+  ...charts
+}: AdminAnalyticsResponse) => ({
+  ...charts,
+  returnRatePercent: percent(returnRate),
+  oneTurnPercent: percent(oneTurnShare),
+  errorRatePercent: percent(errorRate),
+});
 
 /**
  * The model reads the dashboard's own chart data and authorless message text, and writes

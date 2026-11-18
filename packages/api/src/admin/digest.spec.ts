@@ -51,6 +51,22 @@ const facts: AgentWeekFacts = {
 };
 
 describe('summarizeAgentWeek', () => {
+  it('gives the model rates as whole percentages, the way the dashboard shows them', async () => {
+    const fetchMock = stubFetch(JSON.stringify({ summary: 'Fewer came back.' }));
+    const halfReturn = {
+      ...facts,
+      thisWeek: { ...facts.thisWeek, returnRate: 0.5, oneTurnShare: 0.125, errorRate: 0 },
+    };
+    await summarizeAgentWeek(halfReturn, ['q'], llm);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const content = (JSON.parse(String(init.body)) as { messages: { content: string }[] })
+      .messages[1].content;
+    expect(content).toContain('"returnRatePercent":50');
+    expect(content).toContain('"oneTurnPercent":13');
+    expect(content).toContain('"errorRatePercent":0');
+    expect(content).not.toContain('"returnRate":');
+  });
+
   it('sends the chart data and numbered messages, with no enrolledStudents, and returns the summary', async () => {
     const fetchMock = stubFetch(JSON.stringify({ summary: 'Use grew.' }));
     await expect(summarizeAgentWeek(facts, ['how do I classify a lease'], llm)).resolves.toBe(
@@ -63,7 +79,7 @@ describe('summarizeAgentWeek', () => {
     };
     expect(body.response_format).toEqual({ type: 'json_object' });
     expect(body.messages[0].content).toContain('Never quote a message');
-    expect(body.messages[1].content).toContain('"oneTurnShare"');
+    expect(body.messages[1].content).toContain('"depthBuckets"');
     expect(body.messages[1].content).not.toContain('enrolledStudents');
     expect(body.messages[1].content).toContain('1. how do I classify a lease');
   });
