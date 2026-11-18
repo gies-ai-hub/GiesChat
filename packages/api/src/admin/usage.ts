@@ -594,6 +594,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   listAgentTopics: (req: ServerRequest, res: Response) => Promise<Response>;
   getDashboardLayout: (req: ServerRequest, res: Response) => Promise<Response>;
   updateDashboardLayout: (req: ServerRequest, res: Response) => Promise<Response>;
+  getWeeklyDigest: (req: ServerRequest, res: Response) => Promise<Response>;
+  updateWeeklyDigest: (req: ServerRequest, res: Response) => Promise<Response>;
   updateAgentEmbed: (req: ServerRequest, res: Response) => Promise<Response>;
   revokeAgentEmbed: (req: ServerRequest, res: Response) => Promise<Response>;
   updateAgentCollaborators: (req: ServerRequest, res: Response) => Promise<Response>;
@@ -1068,6 +1070,49 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     } catch (error) {
       logger.error('[adminUsage] updateDashboardLayout error:', error);
       return res.status(500).json({ error: 'Failed to save dashboard layout' });
+    }
+  }
+
+  async function getWeeklyDigestHandler(req: ServerRequest, res: Response) {
+    const caller = req.user;
+    if (!caller?._id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const digest = caller.weeklyDigest;
+    const settings: WeeklyDigestSettings = {
+      agentIds: digest?.agentIds ?? [],
+      emails: digest?.emails ?? [],
+    };
+    return res.status(200).json(settings);
+  }
+
+  /**
+   * The caller's own weekly email. Agents outside their dashboard scope are dropped here and
+   * again at send time. A first save stamps `lastSentAt` so the first email waits for Monday.
+   */
+  async function updateWeeklyDigestHandler(req: ServerRequest, res: Response) {
+    const caller = req.user;
+    if (!caller?._id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const parsed = parseDigestSettings(req.body);
+    if (parsed === null) {
+      return res.status(400).json({ error: 'Invalid weekly email settings' });
+    }
+
+    try {
+      const scoped = new Set((await findScopedAgents(caller, undefined, 'id')).map((a) => a.id));
+      const settings: WeeklyDigestSettings = {
+        agentIds: parsed.agentIds.filter((id) => scoped.has(id)),
+        emails: parsed.emails,
+      };
+      await updateUser(String(caller._id), {
+        weeklyDigest: { ...settings, lastSentAt: caller.weeklyDigest?.lastSentAt ?? new Date() },
+      });
+      return res.status(200).json(settings);
+    } catch (error) {
+      logger.error('[adminUsage] updateWeeklyDigest error:', error);
+      return res.status(500).json({ error: 'Failed to save weekly email settings' });
     }
   }
 
@@ -1837,5 +1882,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     listAgentTopics: listAgentTopicsHandler,
     getDashboardLayout: getDashboardLayoutHandler,
     updateDashboardLayout: updateDashboardLayoutHandler,
+    getWeeklyDigest: getWeeklyDigestHandler,
+    updateWeeklyDigest: updateWeeklyDigestHandler,
   };
 }

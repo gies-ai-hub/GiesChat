@@ -140,4 +140,8 @@ router.post('/model-test', handlers.testAgentModels);
 router.get('/layout', handlers.getDashboardLayout);
 router.put('/layout', handlers.updateDashboardLayout);
 
+/** The caller's own weekly email; agents are re-checked against the usage scope on save and at send time. */
+router.get('/digest', handlers.getWeeklyDigest);
+router.put('/digest', handlers.updateWeeklyDigest);
+
 module.exports = router;

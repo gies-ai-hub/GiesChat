@@ -2406,6 +2406,73 @@ describe('createAdminUsageHandlers', () => {
    * dashboard layout
    * ================================================================ */
 
+  describe('weekly digest settings', () => {
+    it('returns empty settings for someone who never set the weekly email', async () => {
+      const handlers = createAdminUsageHandlers(createDeps(baseWorld()));
+      const { req, res, status, json } = createReqRes();
+
+      await handlers.getWeeklyDigest(req, res);
+
+      expect(status).toHaveBeenCalledWith(200);
+      expect(json).toHaveBeenCalledWith({ agentIds: [], emails: [] });
+    });
+
+    it('keeps only in-scope agents and Illinois addresses, and stamps lastSentAt on first save', async () => {
+      const deps = createDeps(baseWorld());
+      const handlers = createAdminUsageHandlers(deps);
+      const { req, res, status, json } = createReqRes({
+        body: {
+          agentIds: ['agent_alpha', 'agent_gamma', 'agent_not_mine'],
+          emails: ['ta@illinois.edu', 'x@gmail.com'],
+        },
+      });
+      const before = Date.now();
+
+      await handlers.updateWeeklyDigest(req, res);
+
+      expect(status).toHaveBeenCalledWith(200);
+      expect(json).toHaveBeenCalledWith({ agentIds: ['agent_alpha'], emails: ['ta@illinois.edu'] });
+      const [userId, update] = (deps.updateUser as jest.Mock).mock.calls[0] as [
+        string,
+        { weeklyDigest: { agentIds: string[]; emails: string[]; lastSentAt: Date } },
+      ];
+      expect(userId).toBe(callerId.toString());
+      expect(update.weeklyDigest.agentIds).toEqual(['agent_alpha']);
+      expect(update.weeklyDigest.lastSentAt.getTime()).toBeGreaterThanOrEqual(before);
+    });
+
+    it('keeps an existing lastSentAt so saving mid-week never re-sends', async () => {
+      const deps = createDeps(baseWorld());
+      const handlers = createAdminUsageHandlers(deps);
+      const lastSentAt = new Date('2026-11-16T14:00:00Z');
+      const { req, res } = createReqRes({
+        body: { agentIds: ['agent_beta'], emails: ['ta@illinois.edu'] },
+        user: mockUser({
+          _id: callerId,
+          role: 'ADMIN',
+          weeklyDigest: { agentIds: ['agent_alpha'], emails: ['me@illinois.edu'], lastSentAt },
+        }),
+      });
+
+      await handlers.updateWeeklyDigest(req, res);
+
+      expect(deps.updateUser).toHaveBeenCalledWith(callerId.toString(), {
+        weeklyDigest: { agentIds: ['agent_beta'], emails: ['ta@illinois.edu'], lastSentAt },
+      });
+    });
+
+    it('rejects a malformed body without saving', async () => {
+      const deps = createDeps(baseWorld());
+      const handlers = createAdminUsageHandlers(deps);
+      const { req, res, status } = createReqRes({ body: { agentIds: 'x' } });
+
+      await handlers.updateWeeklyDigest(req, res);
+
+      expect(status).toHaveBeenCalledWith(400);
+      expect(deps.updateUser).not.toHaveBeenCalled();
+    });
+  });
+
   describe('dashboard layout', () => {
     it('returns an empty layout for a professor who has never customized', async () => {
       const deps = createDeps(baseWorld());
