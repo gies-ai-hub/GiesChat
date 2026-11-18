@@ -59,6 +59,7 @@ const handlers = createAdminUsageHandlers({
   searchDocuments: searchAgentDocuments,
   askTestModel: callTestModel,
   updateUser: db.updateUser,
+  saveWeeklyDigestSettings: db.saveWeeklyDigestSettings,
   setAgentEmbed: db.setAgentEmbed,
   getAgent: db.getAgent,
   setAgentMeta: db.setAgentMeta,

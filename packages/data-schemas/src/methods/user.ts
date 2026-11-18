@@ -42,6 +42,13 @@ export function createUserMethods(
     returnUser?: boolean,
   ) => Promise<mongoose.Types.ObjectId | Partial<IUser>>;
   updateUser: (userId: string, updateData: Partial<IUser>) => Promise<IUser | null>;
+  claimWeeklyDigest: (userId: string, boundary: Date, at: Date) => Promise<boolean>;
+  releaseWeeklyDigest: (userId: string, claimedAt: Date, previous: Date | null) => Promise<void>;
+  saveWeeklyDigestSettings: (
+    userId: string,
+    settings: { agentIds: string[]; emails: string[] },
+    stampAt?: Date,
+  ) => Promise<void>;
   acceptTerms: (userId: string) => Promise<IUser | null>;
   completeOnboarding: (userId: string) => Promise<IUser | null>;
   searchUsers: ({
@@ -271,6 +278,62 @@ export function createUserMethods(
     }).lean<IUser>();
     await invalidateAuthUserDocCache(userId);
     return updated;
+  }
+
+  /**
+   * The weekly digest sweep's claim on this week: stamps `lastSentAt` only while it is still
+   * before `boundary` (or unset), so of two passes or two servers only one ever sends.
+   */
+  async function claimWeeklyDigest(userId: string, boundary: Date, at: Date): Promise<boolean> {
+    const User = mongoose.models.User;
+    const { modifiedCount } = await User.updateOne(
+      {
+        _id: userId,
+        $or: [
+          { 'weeklyDigest.lastSentAt': { $lt: boundary } },
+          { 'weeklyDigest.lastSentAt': null },
+        ],
+      },
+      { $set: { 'weeklyDigest.lastSentAt': at } },
+    );
+    return modifiedCount === 1;
+  }
+
+  /** Puts back the stamp a failed send claimed, unless something newer has replaced it. */
+  async function releaseWeeklyDigest(
+    userId: string,
+    claimedAt: Date,
+    previous: Date | null,
+  ): Promise<void> {
+    const User = mongoose.models.User;
+    await User.updateOne(
+      { _id: userId, 'weeklyDigest.lastSentAt': claimedAt },
+      { $set: { 'weeklyDigest.lastSentAt': previous } },
+    );
+  }
+
+  /**
+   * The dialog's save: agents and addresses only, so it can never roll back a stamp the sweep
+   * just wrote. `stampAt` is passed when the email is being turned on, so the first one waits
+   * for the next Monday.
+   */
+  async function saveWeeklyDigestSettings(
+    userId: string,
+    settings: { agentIds: string[]; emails: string[] },
+    stampAt?: Date,
+  ): Promise<void> {
+    const User = mongoose.models.User;
+    await User.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          'weeklyDigest.agentIds': settings.agentIds,
+          'weeklyDigest.emails': settings.emails,
+          ...(stampAt ? { 'weeklyDigest.lastSentAt': stampAt } : {}),
+        },
+      },
+    );
+    await invalidateAuthUserDocCache(userId);
   }
 
   async function invalidateAuthUserDocCache(userId: string): Promise<void> {
@@ -600,6 +663,9 @@ export function createUserMethods(
     countUsers,
     createUser,
     updateUser,
+    claimWeeklyDigest,
+    releaseWeeklyDigest,
+    saveWeeklyDigestSettings,
     acceptTerms,
     completeOnboarding,
     searchUsers,

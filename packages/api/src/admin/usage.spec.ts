@@ -339,6 +339,7 @@ interface TestDeps extends AdminUsageDeps {
   searchDocuments: jest.Mock;
   askTestModel: jest.Mock;
   updateUser: jest.Mock;
+  saveWeeklyDigestSettings: jest.Mock;
   setAgentEmbed: jest.Mock;
   getAgent: jest.Mock;
   setAgentMeta: jest.Mock;
@@ -411,6 +412,7 @@ function createDeps(world: Partial<WorldFixture> = {}, overrides: DepOverrides =
       ms: 5,
     })),
     updateUser: jest.fn(async () => null),
+    saveWeeklyDigestSettings: jest.fn(async () => undefined),
     setAgentEmbed: jest.fn(async () => null),
     getAgent: jest.fn(
       async (filter: unknown) =>
@@ -2432,33 +2434,58 @@ describe('createAdminUsageHandlers', () => {
 
       expect(status).toHaveBeenCalledWith(200);
       expect(json).toHaveBeenCalledWith({ agentIds: ['agent_alpha'], emails: ['ta@illinois.edu'] });
-      const [userId, update] = (deps.updateUser as jest.Mock).mock.calls[0] as [
+      const [userId, settings, stampAt] = deps.saveWeeklyDigestSettings.mock.calls[0] as [
         string,
-        { weeklyDigest: { agentIds: string[]; emails: string[]; lastSentAt: Date } },
+        { agentIds: string[]; emails: string[] },
+        Date,
       ];
       expect(userId).toBe(callerId.toString());
-      expect(update.weeklyDigest.agentIds).toEqual(['agent_alpha']);
-      expect(update.weeklyDigest.lastSentAt.getTime()).toBeGreaterThanOrEqual(before);
+      expect(settings).toEqual({ agentIds: ['agent_alpha'], emails: ['ta@illinois.edu'] });
+      expect(stampAt.getTime()).toBeGreaterThanOrEqual(before);
     });
 
-    it('keeps an existing lastSentAt so saving mid-week never re-sends', async () => {
+    it('leaves the stamp to the sweep while the email is already on', async () => {
       const deps = createDeps(baseWorld());
       const handlers = createAdminUsageHandlers(deps);
-      const lastSentAt = new Date('2026-11-16T14:00:00Z');
       const { req, res } = createReqRes({
         body: { agentIds: ['agent_beta'], emails: ['ta@illinois.edu'] },
         user: mockUser({
           _id: callerId,
           role: 'ADMIN',
-          weeklyDigest: { agentIds: ['agent_alpha'], emails: ['me@illinois.edu'], lastSentAt },
+          weeklyDigest: {
+            agentIds: ['agent_alpha'],
+            emails: ['me@illinois.edu'],
+            lastSentAt: new Date('2026-11-16T14:00:00Z'),
+          },
         }),
       });
 
       await handlers.updateWeeklyDigest(req, res);
 
-      expect(deps.updateUser).toHaveBeenCalledWith(callerId.toString(), {
-        weeklyDigest: { agentIds: ['agent_beta'], emails: ['ta@illinois.edu'], lastSentAt },
+      expect(deps.saveWeeklyDigestSettings).toHaveBeenCalledWith(
+        callerId.toString(),
+        { agentIds: ['agent_beta'], emails: ['ta@illinois.edu'] },
+        undefined,
+      );
+    });
+
+    it('stamps again when the email is turned back on, so it waits for Monday', async () => {
+      const deps = createDeps(baseWorld());
+      const handlers = createAdminUsageHandlers(deps);
+      const { req, res } = createReqRes({
+        body: { agentIds: ['agent_alpha'], emails: ['ta@illinois.edu'] },
+        user: mockUser({
+          _id: callerId,
+          role: 'ADMIN',
+          weeklyDigest: { agentIds: [], emails: [], lastSentAt: new Date('2026-11-16T14:00:00Z') },
+        }),
       });
+      const before = Date.now();
+
+      await handlers.updateWeeklyDigest(req, res);
+
+      const stampAt = deps.saveWeeklyDigestSettings.mock.calls[0][2] as Date;
+      expect(stampAt.getTime()).toBeGreaterThanOrEqual(before);
     });
 
     it('rejects a malformed body without saving', async () => {
@@ -2469,7 +2496,7 @@ describe('createAdminUsageHandlers', () => {
       await handlers.updateWeeklyDigest(req, res);
 
       expect(status).toHaveBeenCalledWith(400);
-      expect(deps.updateUser).not.toHaveBeenCalled();
+      expect(deps.saveWeeklyDigestSettings).not.toHaveBeenCalled();
     });
   });
 

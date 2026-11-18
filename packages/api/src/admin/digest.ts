@@ -5,7 +5,7 @@ import type { IAgent, IUser } from '@librechat/data-schemas';
 import type { AdminUsageDeps } from './usage';
 import type { TopicsModel } from './topics';
 import { askJsonModel, numberMessages } from './topics';
-import { findDashboardAgents } from './usage';
+import { findDashboardAgents, isDigestOn } from './usage';
 import { toAnalyticsBody } from './analytics';
 import { isLeader } from '~/cluster';
 
@@ -93,17 +93,32 @@ export function weekLabel(window: DigestWindow): string {
 
 /** Someone with agents and addresses who has not been sent this week's email yet. */
 export function isDigestDue(digest: IUser['weeklyDigest'], now: Date): boolean {
-  if (!digest?.emails?.length || !digest.agentIds?.length) {
+  if (!isDigestOn(digest)) {
     return false;
   }
-  return digest.lastSentAt == null || new Date(digest.lastSentAt) < weekBoundary(now);
+  return digest?.lastSentAt == null || new Date(digest.lastSentAt) < weekBoundary(now);
 }
 
 const SUMMARY_MAX = 800;
 
+/**
+ * A link, a domain, an address or a phone-length number. Any signed-in user can build an
+ * agent, chat with it and list recipients who never asked for this email, so a paragraph that
+ * could send a reader somewhere is dropped for "Summary unavailable" rather than mailed.
+ */
+const POINTS_ELSEWHERE =
+  /https?:\/\/|www\.|@|\d{7,}|\b[a-z0-9-]+\.(?:com|net|org|edu|gov|io|co|me|info|biz|xyz|app|dev|ai|ly|us|link|site|online)\b/i;
+
 const SUMMARY_PROMPT = `You write a short weekly note to a professor about one course assistant they built. You get that assistant's dashboard numbers for this week and last week as JSON, and a numbered sample of this week's student messages. Write 2 to 4 plain sentences: first the most notable change between the two weeks, then what students asked about, then one thing worth acting on, only if the data clearly supports it. Use only numbers that appear in the data. Never quote a message and never name or describe a person. Return only JSON of the form {"summary": string}.`;
 
-const summarySchema = z.object({ summary: z.string().trim().min(1).max(SUMMARY_MAX) });
+const summarySchema = z.object({
+  summary: z
+    .string()
+    .trim()
+    .min(1)
+    .max(SUMMARY_MAX)
+    .refine((text) => !POINTS_ELSEWHERE.test(text), 'summary points recipients elsewhere'),
+});
 
 /** One agent's week as the dashboard charts it, plus the four-week conversation trend. */
 export interface AgentWeekFacts {
@@ -198,13 +213,16 @@ export interface WeeklyDigestEmail {
 export type WeeklyDigestDeps = Pick<
   AdminUsageDeps,
   | 'findUsers'
-  | 'updateUser'
   | 'findAgents'
   | 'findAccessibleResources'
   | 'aggregateAgentAnalytics'
   | 'sampleStudentMessages'
   | 'resolveTopicsModel'
 > & {
+  /** Stamps `lastSentAt` only while it is before `boundary`; `false` means another pass owns the week. */
+  claimWeeklyDigest: (userId: string, boundary: Date, at: Date) => Promise<boolean>;
+  /** Puts back the previous stamp after a failed send, unless something newer replaced the claim. */
+  releaseWeeklyDigest: (userId: string, claimedAt: Date, previous: Date | null) => Promise<void>;
   /** Sends one email per address; a failed address is logged there, not thrown. */
   sendWeeklyDigest: (email: WeeklyDigestEmail) => Promise<void>;
 };
@@ -329,35 +347,36 @@ export async function buildWeeklyDigest(
 }
 
 /**
- * Sends every subscriber whose week is due, then stamps `lastSentAt`. A subscriber with no
- * agents left is stamped without an email so the sweep stops retrying; a failed send is
- * left unstamped so the next pass tries again.
+ * Sends every subscriber whose week is due. Each one is claimed first with a conditional
+ * stamp, so two passes or two servers never both send, and the dialog's saves never touch
+ * the stamp. A subscriber with no agents left keeps the claim and gets no email, so the
+ * sweep stops retrying; a failed send releases it so the next pass tries again.
  */
 export async function sendWeeklyDigests(deps: WeeklyDigestDeps, now: Date): Promise<number> {
   const users = await deps.findUsers(
     { 'weeklyDigest.emails.0': { $exists: true } },
     '_id name email role weeklyDigest',
   );
+  const boundary = weekBoundary(now);
   let sent = 0;
   for (const user of users.filter((candidate) => isDigestDue(candidate.weeklyDigest, now))) {
+    const userId = String(user._id);
+    if (!(await deps.claimWeeklyDigest(userId, boundary, now))) {
+      continue;
+    }
     try {
       const email = await buildWeeklyDigest(deps, user, now);
       if (email) {
         await deps.sendWeeklyDigest(email);
         sent += 1;
       }
-      await deps.updateUser(String(user._id), {
-        weeklyDigest: {
-          agentIds: user.weeklyDigest?.agentIds ?? [],
-          emails: user.weeklyDigest?.emails ?? [],
-          lastSentAt: now,
-        },
-      });
     } catch (error) {
-      logger.warn(
-        `[digest] weekly email for ${String(user._id)} failed; retrying next pass`,
-        error,
-      );
+      logger.warn(`[digest] weekly email for ${userId} failed; retrying next pass`, error);
+      await deps
+        .releaseWeeklyDigest(userId, now, user.weeklyDigest?.lastSentAt ?? null)
+        .catch((releaseError: unknown) =>
+          logger.error(`[digest] could not release ${userId}'s claim`, releaseError),
+        );
     }
   }
   return sent;

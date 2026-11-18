@@ -90,6 +90,24 @@ describe('summarizeAgentWeek', () => {
     stubFetch(JSON.stringify({ summary: 'x'.repeat(801) }));
     await expect(summarizeAgentWeek(facts, ['q'], llm)).rejects.toThrow();
   });
+
+  it.each([
+    'Your NetID expires; verify at https://illinois-verify.co now.',
+    'Students should visit www.netid-check.com this week.',
+    'Log in at illinois-verify.com to keep access.',
+    'Email help@illinois.edu with questions.',
+    'Call 2175551234 to confirm.',
+  ])('refuses a summary that could send recipients somewhere: %s', async (summary) => {
+    stubFetch(JSON.stringify({ summary }));
+    await expect(summarizeAgentWeek(facts, ['q'], llm)).rejects.toThrow();
+  });
+
+  it('still accepts ordinary course prose with numbers and abbreviations', async () => {
+    const summary =
+      'Use rose from 12 to 18 conversations (50% came back). Students asked about ASC 842, e.g. lease terms, and the U.S. GAAP memo.';
+    stubFetch(JSON.stringify({ summary }));
+    await expect(summarizeAgentWeek(facts, ['q'], llm)).resolves.toBe(summary);
+  });
 });
 
 describe('weekBoundary', () => {
@@ -203,7 +221,10 @@ describe('weekly digest run', () => {
   function deps() {
     return {
       findUsers: jest.fn<Promise<IUser[]>, Args<'findUsers'>>(async () => [subscriber]),
-      updateUser: jest.fn<Promise<IUser | null>, Args<'updateUser'>>(async () => null),
+      claimWeeklyDigest: jest.fn<Promise<boolean>, Args<'claimWeeklyDigest'>>(async () => true),
+      releaseWeeklyDigest: jest.fn<Promise<void>, Args<'releaseWeeklyDigest'>>(
+        async () => undefined,
+      ),
       findAgents: jest.fn<Promise<IAgent[]>, Args<'findAgents'>>(async () => agents),
       findAccessibleResources: jest.fn<Promise<Types.ObjectId[]>, Args<'findAccessibleResources'>>(
         async () => [],
@@ -264,13 +285,18 @@ describe('weekly digest run', () => {
     expect((await buildWeeklyDigest(d, subscriber, now))?.agents[0].summary).toBeNull();
   });
 
-  it('sends due digests once and marks them; a second pass the same week sends nothing', async () => {
+  it('claims the week before sending; a second pass the same week sends nothing', async () => {
     const d = deps();
     expect(await sendWeeklyDigests(d, now)).toBe(1);
     expect(d.sendWeeklyDigest).toHaveBeenCalledTimes(1);
-    expect(d.updateUser).toHaveBeenCalledWith(String(subscriber._id), {
-      weeklyDigest: expect.objectContaining({ lastSentAt: now }),
-    });
+    expect(d.claimWeeklyDigest).toHaveBeenCalledWith(
+      String(subscriber._id),
+      new Date('2026-11-16T14:00:00Z'),
+      now,
+    );
+    expect(d.claimWeeklyDigest.mock.invocationCallOrder[0]).toBeLessThan(
+      d.sendWeeklyDigest.mock.invocationCallOrder[0],
+    );
     d.findUsers.mockResolvedValueOnce([
       {
         ...subscriber,
@@ -281,18 +307,31 @@ describe('weekly digest run', () => {
     expect(d.sendWeeklyDigest).toHaveBeenCalledTimes(1);
   });
 
-  it('marks without sending when no picked agent is in scope any more', async () => {
+  it('sends nothing when another pass or server already claimed the week', async () => {
+    const d = deps();
+    d.claimWeeklyDigest.mockResolvedValueOnce(false);
+    expect(await sendWeeklyDigests(d, now)).toBe(0);
+    expect(d.sendWeeklyDigest).not.toHaveBeenCalled();
+    expect(d.aggregateAgentAnalytics).not.toHaveBeenCalled();
+  });
+
+  it('keeps the claim without sending when no picked agent is in scope any more', async () => {
     const d = deps();
     d.findAgents.mockResolvedValue([]);
     expect(await sendWeeklyDigests(d, now)).toBe(0);
     expect(d.sendWeeklyDigest).not.toHaveBeenCalled();
-    expect(d.updateUser).toHaveBeenCalled();
+    expect(d.claimWeeklyDigest).toHaveBeenCalled();
+    expect(d.releaseWeeklyDigest).not.toHaveBeenCalled();
   });
 
-  it('leaves a failed send unmarked so the next pass retries', async () => {
+  it('releases the claim when the send fails, so the next pass retries', async () => {
     const d = deps();
     d.sendWeeklyDigest.mockRejectedValueOnce(new Error('ACS down'));
     expect(await sendWeeklyDigests(d, now)).toBe(0);
-    expect(d.updateUser).not.toHaveBeenCalled();
+    expect(d.releaseWeeklyDigest).toHaveBeenCalledWith(
+      String(subscriber._id),
+      now,
+      new Date('2026-11-09T14:00:00Z'),
+    );
   });
 });

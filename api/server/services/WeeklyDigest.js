@@ -46,7 +46,8 @@ const sendWeeklyDigest = async (digest) => {
 const startWeeklyDigestEmails = () =>
   startWeeklyDigest({
     findUsers: db.findUsers,
-    updateUser: db.updateUser,
+    claimWeeklyDigest: db.claimWeeklyDigest,
+    releaseWeeklyDigest: db.releaseWeeklyDigest,
     findAgents: db.getAgents,
     /** The PermissionService wrapper, same as routes/admin/usage.js: it resolves group and role principals. */
     findAccessibleResources,

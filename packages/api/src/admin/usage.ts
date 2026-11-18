@@ -150,6 +150,12 @@ export interface AdminUsageDeps {
     question: string;
   }) => Promise<AdminModelTestAnswer>;
   updateUser: (userId: string, updateData: Partial<IUser>) => Promise<IUser | null>;
+  /** Writes agents and addresses only; `stampAt` sets `lastSentAt` when the email turns on. */
+  saveWeeklyDigestSettings: (
+    userId: string,
+    settings: WeeklyDigestSettings,
+    stampAt?: Date,
+  ) => Promise<void>;
   setAgentEmbed: (agentId: string, embed: IAgentEmbed | null) => Promise<IAgent | null>;
   /** The full document (tool_resources, versions), for cloning and posting. */
   getAgent: (filter: FilterQuery<IAgent>) => Promise<IAgent | null>;
@@ -320,6 +326,11 @@ const MAX_DIGEST_AGENTS = 100;
 export interface WeeklyDigestSettings {
   agentIds: string[];
   emails: string[];
+}
+
+/** On means at least one address and one agent; anything less sends nothing. */
+export function isDigestOn(digest: IUser['weeklyDigest']): boolean {
+  return (digest?.emails?.length ?? 0) > 0 && (digest?.agentIds?.length ?? 0) > 0;
 }
 
 /** Untrusted body → deduped agent ids and at most 10 Illinois addresses, or `null`. */
@@ -622,6 +633,7 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     searchDocuments,
     askTestModel,
     updateUser,
+    saveWeeklyDigestSettings,
     setAgentEmbed,
     getAgent,
     setAgentMeta,
@@ -1088,7 +1100,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
 
   /**
    * The caller's own weekly email. Agents outside their dashboard scope are dropped here and
-   * again at send time. A first save stamps `lastSentAt` so the first email waits for Monday.
+   * again at send time. Turning it on (from never set, or from off) stamps `lastSentAt` so the
+   * first email waits for Monday; while it is on, the stamp belongs to the sweep alone.
    */
   async function updateWeeklyDigestHandler(req: ServerRequest, res: Response) {
     const caller = req.user;
@@ -1106,9 +1119,8 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
         agentIds: parsed.agentIds.filter((id) => scoped.has(id)),
         emails: parsed.emails,
       };
-      await updateUser(String(caller._id), {
-        weeklyDigest: { ...settings, lastSentAt: caller.weeklyDigest?.lastSentAt ?? new Date() },
-      });
+      const wasOn = isDigestOn(caller.weeklyDigest);
+      await saveWeeklyDigestSettings(String(caller._id), settings, wasOn ? undefined : new Date());
       return res.status(200).json(settings);
     } catch (error) {
       logger.error('[adminUsage] updateWeeklyDigest error:', error);

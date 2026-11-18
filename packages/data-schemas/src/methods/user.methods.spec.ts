@@ -930,3 +930,69 @@ describe('User Methods - Database Tests', () => {
     });
   });
 });
+
+describe('weekly digest writes', () => {
+  const boundary = new Date('2026-11-16T14:00:00Z');
+  const at = new Date('2026-11-18T15:00:00Z');
+  const lastWeek = new Date('2026-11-09T14:00:00Z');
+
+  async function subscriber(lastSentAt?: Date) {
+    const user = await User.create({
+      email: 'prof@illinois.edu',
+      provider: 'local',
+      weeklyDigest: { agentIds: ['agent_a'], emails: ['prof@illinois.edu'], lastSentAt },
+    });
+    return String(user._id);
+  }
+
+  const stampOf = async (id: string) =>
+    (await User.findById(id).lean<t.IUser>())?.weeklyDigest?.lastSentAt ?? null;
+
+  it('claims a due week exactly once, so two passes cannot both send', async () => {
+    const id = await subscriber(lastWeek);
+    const [first, second] = await Promise.all([
+      methods.claimWeeklyDigest(id, boundary, at),
+      methods.claimWeeklyDigest(id, boundary, at),
+    ]);
+    expect([first, second].sort()).toEqual([false, true]);
+    expect(await stampOf(id)).toEqual(at);
+  });
+
+  it('claims a subscriber who was never stamped, and refuses one already sent this week', async () => {
+    const fresh = await subscriber();
+    expect(await methods.claimWeeklyDigest(fresh, boundary, at)).toBe(true);
+    await User.deleteMany({});
+    const sent = await subscriber(new Date('2026-11-16T14:05:00Z'));
+    expect(await methods.claimWeeklyDigest(sent, boundary, at)).toBe(false);
+  });
+
+  it('releases a claim back to the previous stamp, unless something replaced it', async () => {
+    const id = await subscriber(lastWeek);
+    await methods.claimWeeklyDigest(id, boundary, at);
+    await methods.releaseWeeklyDigest(id, at, lastWeek);
+    expect(await stampOf(id)).toEqual(lastWeek);
+
+    await methods.claimWeeklyDigest(id, boundary, at);
+    const later = new Date('2026-11-18T16:00:00Z');
+    await User.updateOne({ _id: id }, { $set: { 'weeklyDigest.lastSentAt': later } });
+    await methods.releaseWeeklyDigest(id, at, lastWeek);
+    expect(await stampOf(id)).toEqual(later);
+  });
+
+  it('saves agents and addresses without touching the stamp unless told to', async () => {
+    const id = await subscriber(lastWeek);
+    await methods.saveWeeklyDigestSettings(id, {
+      agentIds: ['agent_b'],
+      emails: ['ta@illinois.edu'],
+    });
+    const kept = await User.findById(id).lean<t.IUser>();
+    expect(kept?.weeklyDigest).toMatchObject({
+      agentIds: ['agent_b'],
+      emails: ['ta@illinois.edu'],
+      lastSentAt: lastWeek,
+    });
+
+    await methods.saveWeeklyDigestSettings(id, { agentIds: ['agent_b'], emails: [] }, at);
+    expect(await stampOf(id)).toEqual(at);
+  });
+});
