@@ -1,10 +1,42 @@
 import {
   toBuckets,
   zeroFillDays,
+  toAnalyticsBody,
   medianFromDistribution,
   TURN_BUCKETS,
   REACH_BUCKETS,
 } from './analytics';
+
+describe('toAnalyticsBody', () => {
+  it('shapes raw analytics the way the dashboard draws them', () => {
+    const body = toAnalyticsBody(
+      {
+        conversationCount: 4,
+        activeStudents: 2,
+        returningStudents: 1,
+        assistantMessageCount: 10,
+        erroredMessageCount: 1,
+        turnDistribution: [
+          { turns: 1, conversations: 2 },
+          { turns: 5, conversations: 2 },
+        ],
+        studentDistribution: [{ conversations: 2, students: 2 }],
+        daily: [{ date: '2026-11-10', conversations: 4 }],
+      },
+      { since: new Date('2026-11-10T14:00:00Z'), until: new Date('2026-11-12T14:00:00Z') },
+      2,
+    );
+    expect(body).toMatchObject({
+      activeStudents: 2,
+      enrolledStudents: 2,
+      conversationCount: 4,
+      returnRate: 0.5,
+      oneTurnShare: 0.5,
+      errorRate: 0.1,
+    });
+    expect(body.dailyActivity.map((point) => point.conversationCount)).toEqual([4, 0, 0]);
+  });
+});
 
 describe('medianFromDistribution', () => {
   it('returns 0 for an empty distribution', () => {

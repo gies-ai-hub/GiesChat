@@ -1,3 +1,6 @@
+import type { AdminAnalyticsResponse } from 'librechat-data-provider';
+import type { AgentAnalyticsRaw } from './usage';
+
 export interface BucketEdge {
   label: string;
   /** Inclusive lower bound. */
@@ -106,4 +109,33 @@ export function zeroFillDays(
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return points;
+}
+
+/** Guards a rate against a zero denominator so the dashboard never receives NaN. */
+export function rate(numerator: number, denominator: number): number {
+  return denominator === 0 ? 0 : numerator / denominator;
+}
+
+/**
+ * Raw pipeline output → what the dashboard's analytics panels draw. The weekly digest
+ * feeds the same shape to its summary, so the email and the charts cannot disagree.
+ */
+export function toAnalyticsBody(
+  raw: AgentAnalyticsRaw,
+  window: { since: Date; until: Date },
+  enrolledStudents: number,
+): AdminAnalyticsResponse {
+  const oneTurnCount = raw.turnDistribution.find((entry) => entry.turns === 1)?.conversations ?? 0;
+  return {
+    activeStudents: raw.activeStudents,
+    enrolledStudents,
+    conversationCount: raw.conversationCount,
+    medianTurns: medianFromDistribution(raw.turnDistribution, 'turns', 'conversations'),
+    returnRate: rate(raw.returningStudents, raw.activeStudents),
+    dailyActivity: zeroFillDays(raw.daily, window.since, window.until),
+    reachBuckets: toBuckets(raw.studentDistribution, 'conversations', 'students', REACH_BUCKETS),
+    depthBuckets: toBuckets(raw.turnDistribution, 'turns', 'conversations', TURN_BUCKETS),
+    oneTurnShare: rate(oneTurnCount, raw.conversationCount),
+    errorRate: rate(raw.erroredMessageCount, raw.assistantMessageCount),
+  };
 }

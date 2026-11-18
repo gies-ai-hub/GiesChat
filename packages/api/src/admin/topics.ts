@@ -53,18 +53,27 @@ export function topicsModelFromConfig(appConfig: AppConfig): TopicsModel | null 
   return { baseURL: baseURL.replace(/\/$/, ''), apiKey, model: endpoint.titleModel ?? '' };
 }
 
-async function askModel(texts: string[], llm: TopicsModel): Promise<Topic[]> {
-  const numbered = texts
+/** Numbered, whitespace-collapsed, each cut to `TOPIC_TEXT_LIMIT`: what the model reads. */
+export function numberMessages(texts: string[]): string {
+  return texts
     .map((text, index) => `${index + 1}. ${text.slice(0, TOPIC_TEXT_LIMIT).replace(/\s+/g, ' ')}`)
     .join('\n');
+}
+
+/** One JSON-mode chat completion on the topics model; the caller validates the shape. */
+export async function askJsonModel(
+  llm: TopicsModel,
+  system: string,
+  user: string,
+): Promise<unknown> {
   const response = await fetch(`${llm.baseURL}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${llm.apiKey}` },
     body: JSON.stringify({
       model: llm.model,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `${texts.length} student messages:\n${numbered}` },
+        { role: 'system', content: system },
+        { role: 'user', content: user },
       ],
       response_format: { type: 'json_object' },
     }),
@@ -73,9 +82,16 @@ async function askModel(texts: string[], llm: TopicsModel): Promise<Topic[]> {
     throw new Error(`topics model responded ${response.status}`);
   }
   const body = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-  const content = body.choices?.[0]?.message?.content ?? '';
-  const parsed = topicsSchema.parse(JSON.parse(content));
-  return parsed.topics.sort((a, b) => b.count - a.count);
+  return JSON.parse(body.choices?.[0]?.message?.content ?? '');
+}
+
+async function askModel(texts: string[], llm: TopicsModel): Promise<Topic[]> {
+  const raw = await askJsonModel(
+    llm,
+    SYSTEM_PROMPT,
+    `${texts.length} student messages:\n${numberMessages(texts)}`,
+  );
+  return topicsSchema.parse(raw).topics.sort((a, b) => b.count - a.count);
 }
 
 // ponytail: in-process cache, one instance in prod; move to the keyv store if the app scales out.

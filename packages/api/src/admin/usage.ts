@@ -36,13 +36,7 @@ import { toWebsiteItem } from '~/sites/store';
 import { WebsiteError } from '~/sites/crawl';
 import { extractFileContext } from '~/files/context';
 import { countTokens } from '~/utils/tokenizer';
-import {
-  toBuckets,
-  zeroFillDays,
-  medianFromDistribution,
-  TURN_BUCKETS,
-  REACH_BUCKETS,
-} from './analytics';
+import { toAnalyticsBody } from './analytics';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_DAYS = 30;
@@ -102,6 +96,8 @@ export interface AgentAnalyticsScope {
   since: Date;
   /** Extra conversation conditions from the Source filter; see `resolveSourceMatch`. */
   match?: Record<string, unknown>;
+  /** Exclusive upper bound on message time; only the weekly digest sets it. */
+  until?: Date;
 }
 
 /** Raw distributions from the pipeline. Buckets, medians, and zero-fill happen here. */
@@ -317,6 +313,35 @@ export function parseInviteEmails(
   return [...new Set(emails)];
 }
 
+const MAX_DIGEST_EMAILS = 10;
+const MAX_DIGEST_AGENTS = 100;
+
+/** The caller's weekly email settings, as the dialog saves them. */
+export interface WeeklyDigestSettings {
+  agentIds: string[];
+  emails: string[];
+}
+
+/** Untrusted body → deduped agent ids and at most 10 Illinois addresses, or `null`. */
+export function parseDigestSettings(body: unknown): WeeklyDigestSettings | null {
+  if (body == null || typeof body !== 'object') {
+    return null;
+  }
+  const { agentIds } = body as { agentIds?: unknown };
+  if (
+    !Array.isArray(agentIds) ||
+    agentIds.length > MAX_DIGEST_AGENTS ||
+    !agentIds.every((id): id is string => typeof id === 'string')
+  ) {
+    return null;
+  }
+  const emails = parseInviteEmails(body);
+  if (emails === null || emails.length > MAX_DIGEST_EMAILS) {
+    return null;
+  }
+  return { agentIds: [...new Set(agentIds)], emails };
+}
+
 /**
  * What a draft copies from production and what posting copies back. Identity,
  * sharing and bookkeeping (`id`, `author`, `embed`, `collaborators`, `versions`,
@@ -443,21 +468,6 @@ const toEmbedItem = (embed: IAgentEmbed | undefined): AgentEmbedItem | null =>
       }
     : null;
 
-/** The dashboard's analytics section — aggregate only, no student is identified. */
-interface AnalyticsResponse {
-  activeStudents: number;
-  /** Class roster size; equals `activeStudents` when no class filter is applied. */
-  enrolledStudents: number;
-  conversationCount: number;
-  medianTurns: number;
-  returnRate: number;
-  dailyActivity: { date: string; conversationCount: number }[];
-  reachBuckets: { label: string; count: number }[];
-  depthBuckets: { label: string; count: number }[];
-  oneTurnShare: number;
-  errorRate: number;
-}
-
 interface AgentUsageItem {
   agent_id: string;
   name: string;
@@ -528,6 +538,55 @@ function byUsageThenName<T extends { conversationCount: number; name: string }>(
   return b.conversationCount - a.conversationCount || a.name.localeCompare(b.name);
 }
 
+/**
+ * The security boundary: an agent is in scope when the caller authored it, holds an
+ * EDIT grant on it, or is named in its `collaborators`. Narrowing by `agentId` keeps
+ * the same boundary. A list call (no `agentId`) also drops drafts, so production
+ * agents are the only rows; a lookup by id still finds a draft, which is how its
+ * owner reaches the embed endpoints for the test link.
+ *
+ * `createdVia` narrows the list to agents built from the dashboard itself. It is a
+ * presentation filter, not a permission — a client can set it freely, so it must
+ * never be relied on for access. The `$or` below remains the only boundary.
+ *
+ * `admin` drops the `$or` for a `manage:agents` holder (see `isAgentAdmin`), the same
+ * capability that already lets them load, save and delete any agent through
+ * `/api/agents`. Resolve it with `findAgentForCaller` or `adminViewOf`, never from input.
+ * The weekly digest calls it outside a request, with `admin` always false.
+ */
+export async function findDashboardAgents(
+  deps: Pick<AdminUsageDeps, 'findAgents' | 'findAccessibleResources'>,
+  user: IUser,
+  agentId?: string,
+  fields: string = AGENT_SCOPE_FIELDS,
+  admin = false,
+): Promise<IAgent[]> {
+  const base: FilterQuery<IAgent> = {
+    createdVia: DASHBOARD_ORIGIN,
+    ...(agentId === undefined ? { draftOf: { $exists: false } } : { id: agentId }),
+  };
+  if (admin) {
+    return deps.findAgents(base, fields);
+  }
+  const callerId = String(user._id);
+  const editableIds = await deps.findAccessibleResources({
+    userId: callerId,
+    role: user.role,
+    resourceType: ResourceType.AGENT,
+    requiredPermissions: PermissionBits.EDIT,
+  });
+  const scope: FilterQuery<IAgent> = {
+    ...base,
+    $or: [
+      { author: callerId },
+      { _id: { $in: editableIds } },
+      { collaborators: callerId },
+      { coAdmins: callerId },
+    ],
+  };
+  return deps.findAgents(scope, fields);
+}
+
 export function createAdminUsageHandlers(deps: AdminUsageDeps): {
   listAgentUsage: (req: ServerRequest, res: Response) => Promise<Response>;
   listAgentStudentUsage: (req: ServerRequest, res: Response) => Promise<Response>;
@@ -578,52 +637,12 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     isAgentAdmin,
   } = deps;
 
-  /**
-   * The security boundary: an agent is in scope when the caller authored it, holds an
-   * EDIT grant on it, or is named in its `collaborators`. Narrowing by `agentId` keeps
-   * the same boundary. A list call (no `agentId`) also drops drafts, so production
-   * agents are the only rows; a lookup by id still finds a draft, which is how its
-   * owner reaches the embed endpoints for the test link.
-   *
-   * `createdVia` narrows the list to agents built from the dashboard itself. It is a
-   * presentation filter, not a permission — a client can set it freely, so it must
-   * never be relied on for access. The `$or` below remains the only boundary.
-   *
-   * `admin` drops the `$or` for a `manage:agents` holder (see `isAgentAdmin`), the same
-   * capability that already lets them load, save and delete any agent through
-   * `/api/agents`. Resolve it with `findAgentForCaller` or `adminViewOf`, never from input.
-   */
-  async function findScopedAgents(
+  const findScopedAgents = (
     user: IUser,
     agentId?: string,
-    fields: string = AGENT_SCOPE_FIELDS,
-    admin = false,
-  ): Promise<IAgent[]> {
-    const base: FilterQuery<IAgent> = {
-      createdVia: DASHBOARD_ORIGIN,
-      ...(agentId === undefined ? { draftOf: { $exists: false } } : { id: agentId }),
-    };
-    if (admin) {
-      return findAgents(base, fields);
-    }
-    const callerId = String(user._id);
-    const editableIds = await findAccessibleResources({
-      userId: callerId,
-      role: user.role,
-      resourceType: ResourceType.AGENT,
-      requiredPermissions: PermissionBits.EDIT,
-    });
-    const scope: FilterQuery<IAgent> = {
-      ...base,
-      $or: [
-        { author: callerId },
-        { _id: { $in: editableIds } },
-        { collaborators: callerId },
-        { coAdmins: callerId },
-      ],
-    };
-    return findAgents(scope, fields);
-  }
+    fields?: string,
+    admin?: boolean,
+  ): Promise<IAgent[]> => findDashboardAgents(deps, user, agentId, fields, admin);
 
   /** One agent by id. `admin` reports author powers through `manage:agents`, whatever the agent. */
   async function findAgentForCaller(
@@ -909,11 +928,6 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
     }
   }
 
-  /** Guards a rate against a zero denominator so the dashboard never receives NaN. */
-  function rate(numerator: number, denominator: number): number {
-    return denominator === 0 ? 0 : numerator / denominator;
-  }
-
   /** Embed guests of these agents; their only mark is on the user. */
   async function findGuestIds(agentIds: string[]): Promise<string[]> {
     const guests = await findUsers({ provider: 'guest', embedAgentId: { $in: agentIds } }, '_id');
@@ -956,27 +970,11 @@ export function createAdminUsageHandlers(deps: AdminUsageDeps): {
         match,
       });
 
-      const oneTurnCount =
-        raw.turnDistribution.find((entry) => entry.turns === 1)?.conversations ?? 0;
-
-      const body: AnalyticsResponse = {
-        activeStudents: raw.activeStudents,
-        enrolledStudents: scope.userIds?.length ?? raw.activeStudents,
-        conversationCount: raw.conversationCount,
-        medianTurns: medianFromDistribution(raw.turnDistribution, 'turns', 'conversations'),
-        returnRate: rate(raw.returningStudents, raw.activeStudents),
-        dailyActivity: zeroFillDays(raw.daily, since, new Date()),
-        reachBuckets: toBuckets(
-          raw.studentDistribution,
-          'conversations',
-          'students',
-          REACH_BUCKETS,
-        ),
-        depthBuckets: toBuckets(raw.turnDistribution, 'turns', 'conversations', TURN_BUCKETS),
-        oneTurnShare: rate(oneTurnCount, raw.conversationCount),
-        errorRate: rate(raw.erroredMessageCount, raw.assistantMessageCount),
-      };
-
+      const body = toAnalyticsBody(
+        raw,
+        { since, until: new Date() },
+        scope.userIds?.length ?? raw.activeStudents,
+      );
       return res.status(200).json(body);
     } catch (error) {
       logger.error('[adminUsage] listAgentAnalytics error:', error);
