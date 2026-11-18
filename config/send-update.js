@@ -116,6 +116,9 @@ function assertSendable(update, { audience, confirm, count }) {
       `"${update.id}" already went to ${update.sent.count} people on ${update.sent.at}`,
     );
   }
+  if (update.skipped) {
+    throw new Error(`"${update.id}" was skipped: ${update.skipped}`);
+  }
   if (!AUDIENCES.includes(audience)) {
     throw new Error(`--audience must be one of ${AUDIENCES.join(', ')}`);
   }

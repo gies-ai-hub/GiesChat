@@ -147,13 +147,17 @@ describe('greeting', () => {
 });
 
 describe('assertSendable', () => {
-  it('refuses an update already sent, an unknown audience, an empty one, and a wrong head count', () => {
+  it('refuses an update already sent or skipped, an unknown audience, an empty one, and a wrong head count', () => {
     const sent = {
       ...update,
       sent: { at: '2026-10-25T15:00:00.000Z', count: 11, audience: 'faculty' },
     };
     expect(() => assertSendable(sent, { audience: 'faculty', confirm: 11, count: 11 })).toThrow(
       /already went to 11/,
+    );
+    const skipped = { ...update, skipped: 'Folded into 2026-11.' };
+    expect(() => assertSendable(skipped, { audience: 'all', confirm: 31, count: 31 })).toThrow(
+      /skipped: Folded into 2026-11/,
     );
     expect(() => assertSendable(update, { audience: 'students', confirm: 3, count: 3 })).toThrow(
       /--audience/,
