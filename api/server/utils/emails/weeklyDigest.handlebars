@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{subject}}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f6f7f9;">
+    <div style="display:none;max-height:0;overflow:hidden;">{{headline}}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f9;padding:8px 4px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:720px;width:100%;background:#ffffff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">
+            <tr>
+              <td style="background:#13294b;padding:16px 26px;font-family:Helvetica,Arial,sans-serif;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="font-size:19px;font-weight:bold;color:#ffffff;">{{appName}}</td>
+                    <td align="right" style="font-size:14px;color:#c7d2e3;">Weekly summary · {{weekLabel}}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr><td style="height:4px;background:#ff5f05;font-size:0;line-height:0;">&nbsp;</td></tr>
+            <tr>
+              <td style="padding:20px 26px 6px 26px;font-family:Helvetica,Arial,sans-serif;color:#222222;">
+                <h1 style="margin:0 0 6px 0;font-size:21px;line-height:1.3;color:#13294b;">Your agents this week</h1>
+                <p style="margin:0 0 10px 0;font-size:15px;line-height:1.55;">{{headline}}</p>
+              </td>
+            </tr>
+            {{#each agents}}
+            <tr>
+              <td style="padding:6px 26px;font-family:Helvetica,Arial,sans-serif;color:#222222;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fbfcfe;border:1px solid #e3e8f0;border-radius:10px;">
+                  <tr>
+                    <td style="padding:14px 16px;">
+                      <div style="font-size:16px;font-weight:bold;color:#13294b;margin:0 0 6px 0;">{{name}}</div>
+                      <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:13px;color:#555555;margin:0 0 8px 0;">
+                        <tr>
+                          <td style="padding:0 14px 0 0;white-space:nowrap;"><b style="color:#222222;">{{conversations}}</b> conversations <span style="color:{{conversationsChange.color}};font-weight:bold;font-size:12px;">{{conversationsChange.text}}</span></td>
+                          <td style="padding:0 14px 0 0;white-space:nowrap;"><b style="color:#222222;">{{students}}</b> students <span style="color:{{studentsChange.color}};font-weight:bold;font-size:12px;">{{studentsChange.text}}</span></td>
+                          <td valign="bottom" style="padding:0 6px 0 0;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="height:22px;">
+                              <tr>
+                                {{#each trend}}
+                                <td valign="bottom" style="padding:0 1px;">
+                                  <div style="width:9px;height:{{height}}px;background:{{#if @last}}#ff5f05{{else}}#c7d2e3{{/if}};border-radius:2px 2px 0 0;font-size:0;line-height:0;">&nbsp;</div>
+                                </td>
+                                {{/each}}
+                              </tr>
+                            </table>
+                          </td>
+                          <td style="white-space:nowrap;">{{#each trend}}{{value}}{{#unless @last}} · {{/unless}}{{/each}} over 4 weeks</td>
+                        </tr>
+                      </table>
+                      {{#if quiet}}
+                      <p style="margin:0;font-size:15px;line-height:1.6;color:#555555;">No conversations this week.</p>
+                      {{else}}
+                      {{#if summary}}
+                      <p style="margin:0;font-size:15px;line-height:1.6;"><span style="display:inline-block;font-size:11px;font-weight:bold;color:#6d28d9;background:#f3efff;border:1px solid #d9ccff;border-radius:999px;padding:1px 8px;margin-right:4px;">AI summary</span> {{summary}}</p>
+                      <p style="margin:8px 0 0 0;font-size:12px;color:#777777;">Based on this agent's Activity, Reach, Depth and Signals charts for this week and last, plus {{sampleSize}} student messages.</p>
+                      {{else}}
+                      <p style="margin:0;font-size:15px;line-height:1.6;color:#555555;">Summary unavailable this week.</p>
+                      {{/if}}
+                      {{/if}}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            {{/each}}
+            <tr>
+              <td style="padding:8px 26px 22px 26px;font-family:Helvetica,Arial,sans-serif;">
+                <p style="margin:4px 0 0 0;font-size:13px;color:#666666;">Summaries are written by AI from this week's conversations and may contain mistakes. The numbers come straight from the dashboard.</p>
+                <a href="{{dashboardUrl}}" style="display:inline-block;margin-top:16px;background:#ff5f05;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:11px 18px;border-radius:8px;">Open your dashboard</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:12px 26px 16px 26px;border-top:1px solid #eeeeee;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#666666;">
+                {{ownerName}} set up this weekly {{appName}} summary and added you to it. To stop getting it, ask them to remove you, or turn it off under Weekly email on the class dashboard. No student is named or quoted. Sent by {{appName}}, Gies College of Business, University of Illinois Urbana-Champaign.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

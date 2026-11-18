@@ -43,6 +43,7 @@ const createValidateImageRequest = require('./middleware/validateImageRequest');
 const { startExpiredFileSweep } = require('./services/Files/process');
 const { startWebsiteRefresh } = require('./services/Websites');
 const { startDraftEmails } = require('./services/AgentInvites');
+const { startWeeklyDigestEmails } = require('./services/WeeklyDigest');
 const { initializeGitHubSkillSync } = require('./services/Skills/sync');
 const { jwtLogin, ldapLogin, passportLogin } = require('~/strategies');
 const { checkMigrations } = require('./services/start/migration');
@@ -143,6 +144,7 @@ const startServer = async () => {
   startExpiredFileSweep({ appConfig, loadAppConfig: getAppConfig });
   startWebsiteRefresh();
   startDraftEmails();
+  startWeeklyDigestEmails();
   // Register any programmatic tool-approval policy hooks declared in
   // `endpoints.agents.toolApproval.hooks`. Honor the `enabled` kill switch: when tool
   // approval is off we pass no hooks, so a disabled endpoint imports/runs nothing (and any
