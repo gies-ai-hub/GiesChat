@@ -1,4 +1,8 @@
+import { z } from 'zod';
+import type { AdminAnalyticsResponse } from 'librechat-data-provider';
 import type { IUser } from '@librechat/data-schemas';
+import type { TopicsModel } from './topics';
+import { askJsonModel, numberMessages } from './topics';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -88,4 +92,46 @@ export function isDigestDue(digest: IUser['weeklyDigest'], now: Date): boolean {
     return false;
   }
   return digest.lastSentAt == null || new Date(digest.lastSentAt) < weekBoundary(now);
+}
+
+const SUMMARY_MAX = 800;
+
+const SUMMARY_PROMPT = `You write a short weekly note to a professor about one course assistant they built. You get that assistant's dashboard numbers for this week and last week as JSON, and a numbered sample of this week's student messages. Write 2 to 4 plain sentences: first the most notable change between the two weeks, then what students asked about, then one thing worth acting on, only if the data clearly supports it. Use only numbers that appear in the data. Never quote a message and never name or describe a person. Return only JSON of the form {"summary": string}.`;
+
+const summarySchema = z.object({ summary: z.string().trim().min(1).max(SUMMARY_MAX) });
+
+/** One agent's week as the dashboard charts it, plus the four-week conversation trend. */
+export interface AgentWeekFacts {
+  name: string;
+  description: string;
+  thisWeek: AdminAnalyticsResponse;
+  lastWeek: AdminAnalyticsResponse;
+  /** Conversations per week, oldest → newest. */
+  weeklyConversations: number[];
+}
+
+/** `enrolledStudents` only restates `activeStudents` without a class filter. */
+const chartsOf = ({ enrolledStudents: _enrolled, ...charts }: AdminAnalyticsResponse) => charts;
+
+/**
+ * The model reads the dashboard's own chart data and authorless message text, and writes
+ * prose only: the numbers in the email are rendered from the aggregation, never from this.
+ */
+export async function summarizeAgentWeek(
+  facts: AgentWeekFacts,
+  messages: string[],
+  llm: TopicsModel,
+): Promise<string> {
+  const data = {
+    agent: { name: facts.name, description: facts.description },
+    thisWeek: chartsOf(facts.thisWeek),
+    lastWeek: chartsOf(facts.lastWeek),
+    weeklyConversations: facts.weeklyConversations,
+  };
+  const raw = await askJsonModel(
+    llm,
+    SUMMARY_PROMPT,
+    `Dashboard data:\n${JSON.stringify(data)}\n\n${messages.length} student messages:\n${numberMessages(messages)}`,
+  );
+  return summarySchema.parse(raw).summary;
 }

@@ -1,5 +1,69 @@
-import { weekLabel, weekBoundary, isDigestDue, digestWindows } from './digest';
+import type { AgentAnalyticsRaw } from './usage';
+import type { AgentWeekFacts } from './digest';
+import { weekLabel, weekBoundary, isDigestDue, digestWindows, summarizeAgentWeek } from './digest';
+import { toAnalyticsBody } from './analytics';
 import { parseDigestSettings } from './usage';
+
+const llm = { baseURL: 'https://example.test/openai/v1', apiKey: 'k', model: 'm' };
+
+function stubFetch(content: string, ok = true) {
+  const fetchMock = jest.fn().mockResolvedValue({
+    ok,
+    status: ok ? 200 : 500,
+    json: async () => ({ choices: [{ message: { content } }] }),
+  });
+  global.fetch = fetchMock as unknown as typeof fetch;
+  return fetchMock;
+}
+
+function raw(conversations: number, students = conversations): AgentAnalyticsRaw {
+  return {
+    conversationCount: conversations,
+    activeStudents: students,
+    returningStudents: 0,
+    assistantMessageCount: conversations * 2,
+    erroredMessageCount: 0,
+    turnDistribution: conversations > 0 ? [{ turns: 2, conversations }] : [],
+    studentDistribution: students > 0 ? [{ conversations: 1, students }] : [],
+    daily: [],
+  };
+}
+
+const [thisWindow, lastWindow] = digestWindows(new Date('2026-11-16T14:00:00Z'));
+
+const facts: AgentWeekFacts = {
+  name: 'ACCY 502A Case Coach',
+  description: 'Helps with lease accounting cases',
+  thisWeek: toAnalyticsBody(raw(18, 11), thisWindow, 11),
+  lastWeek: toAnalyticsBody(raw(12, 8), lastWindow, 8),
+  weeklyConversations: [4, 7, 12, 18],
+};
+
+describe('summarizeAgentWeek', () => {
+  it('sends the chart data and numbered messages, with no enrolledStudents, and returns the summary', async () => {
+    const fetchMock = stubFetch(JSON.stringify({ summary: 'Use grew.' }));
+    await expect(summarizeAgentWeek(facts, ['how do I classify a lease'], llm)).resolves.toBe(
+      'Use grew.',
+    );
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as {
+      response_format: unknown;
+      messages: { content: string }[];
+    };
+    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body.messages[0].content).toContain('Never quote a message');
+    expect(body.messages[1].content).toContain('"oneTurnShare"');
+    expect(body.messages[1].content).not.toContain('enrolledStudents');
+    expect(body.messages[1].content).toContain('1. how do I classify a lease');
+  });
+
+  it('rejects an empty or over-long summary', async () => {
+    stubFetch(JSON.stringify({ summary: '' }));
+    await expect(summarizeAgentWeek(facts, ['q'], llm)).rejects.toThrow();
+    stubFetch(JSON.stringify({ summary: 'x'.repeat(801) }));
+    await expect(summarizeAgentWeek(facts, ['q'], llm)).rejects.toThrow();
+  });
+});
 
 describe('weekBoundary', () => {
   it.each([
