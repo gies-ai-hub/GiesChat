@@ -9,7 +9,12 @@ export { createAdminUsageHandlers, setCoAdminAccess } from './usage';
 export { createAdminApiKeyHandlers } from './apiKeys';
 export type { AdminApiKeyDeps, AdminApiKeyHandlers } from './apiKeys';
 export { notifyOutdatedDrafts, startDraftNotify } from './notify';
-export { startWeeklyDigest, sendWeeklyDigests, buildWeeklyDigest } from './digest';
+export {
+  startWeeklyDigest,
+  sendWeeklyDigests,
+  buildWeeklyDigest,
+  createWeeklyDigestTestHandler,
+} from './digest';
 export type { WeeklyDigestDeps, WeeklyDigestEmail, DigestAgentCard } from './digest';
 export type { AdminConfigDeps } from './config';
 export type { AdminGrantsDeps, GrantPrincipalType } from './grants';

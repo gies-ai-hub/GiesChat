@@ -566,6 +566,9 @@ export type AdminWeeklyDigest = {
   timezone: string;
 };
 
+/** Where the test email went: always the caller's own address. */
+export type AdminWeeklyDigestTestResponse = { email: string };
+
 export interface MCPServerStatus {
   requiresOAuth: boolean;
   connectionState: 'disconnected' | 'connecting' | 'connected' | 'error';

@@ -1312,6 +1312,13 @@ export function updateAdminWeeklyDigest(
   return request.put(endpoints.adminWeeklyDigest(), settings);
 }
 
+/** Emails a sample of the weekly email, for the settings in the dialog, to the caller only. */
+export function sendAdminWeeklyDigestTest(
+  settings: q.AdminWeeklyDigest,
+): Promise<q.AdminWeeklyDigestTestResponse> {
+  return request.post(endpoints.adminWeeklyDigestTest(), settings);
+}
+
 export function updateAdminAgentEmbed(
   agentId: string,
   settings: q.AgentEmbedSettings,

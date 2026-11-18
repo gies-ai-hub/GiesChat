@@ -17,6 +17,7 @@ import type {
   AdminCollaboratorsResponse,
   AdminDashboardLayoutResponse,
   AdminWeeklyDigest,
+  AdminWeeklyDigestTestResponse,
   AdminWebsiteSaveResponse,
   AdminWebsitePreviewResponse,
 } from 'librechat-data-provider';
@@ -65,6 +66,16 @@ export const useUpdateAdminWeeklyDigestMutation = (): UseMutationResult<
     },
   );
 };
+
+/** Emails the caller a sample of the weekly email; nothing is saved. */
+export const useSendAdminWeeklyDigestTestMutation = (): UseMutationResult<
+  AdminWeeklyDigestTestResponse,
+  unknown,
+  AdminWeeklyDigest
+> =>
+  useMutation((settings: AdminWeeklyDigest) => dataService.sendAdminWeeklyDigestTest(settings), {
+    mutationKey: [MutationKeys.sendAdminWeeklyDigestTest],
+  });
 
 /** Both embed mutations refresh the usage list, which is where the row's embed state lives. */
 export const useUpdateAdminAgentEmbedMutation = (): UseMutationResult<

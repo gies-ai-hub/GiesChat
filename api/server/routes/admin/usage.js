@@ -9,6 +9,7 @@ const {
   createAdminUsageHandlers,
   createAdminApiKeyHandlers,
   modelTestEndpointFromConfig,
+  createWeeklyDigestTestHandler,
 } = require('@librechat/api');
 const { SystemCapabilities } = require('@librechat/data-schemas');
 const { requireCapability, hasCapability } = require('~/server/middleware/roles/capabilities');
@@ -17,6 +18,7 @@ const { copyAgentDocuments } = require('~/server/services/Files/copy');
 const { sendCollaboratorInvite, sendRoleChange } = require('~/server/services/AgentInvites');
 const { grantAgentAccess, revokeAgentAccess } = require('~/server/services/AgentAccess');
 const { siteStore, replaceWebsiteCopy } = require('~/server/services/Websites');
+const { sendWeeklyDigest } = require('~/server/services/WeeklyDigest');
 const { requireJwtAuth } = require('~/server/middleware');
 const { getAppConfig } = require('~/server/services/Config');
 const db = require('~/models');
@@ -144,5 +146,14 @@ router.put('/layout', handlers.updateDashboardLayout);
 /** The caller's own weekly email; agents are re-checked against the usage scope on save and at send time. */
 router.get('/digest', handlers.getWeeklyDigest);
 router.put('/digest', handlers.updateWeeklyDigest);
+/** A sample of the weekly email, to the caller's own address only; one a minute. */
+router.post(
+  '/digest/test',
+  createWeeklyDigestTestHandler({
+    findAgents: db.getAgents,
+    findAccessibleResources,
+    sendWeeklyDigest,
+  }),
+);
 
 module.exports = router;

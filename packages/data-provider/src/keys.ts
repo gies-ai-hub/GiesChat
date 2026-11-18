@@ -139,6 +139,7 @@ export enum MutationKeys {
   updateMemoryPreferences = 'updateMemoryPreferences',
   updateAdminDashboardLayout = 'updateAdminDashboardLayout',
   updateAdminWeeklyDigest = 'updateAdminWeeklyDigest',
+  sendAdminWeeklyDigestTest = 'sendAdminWeeklyDigestTest',
   updateAdminAgentEmbed = 'updateAdminAgentEmbed',
   createAdminApiKey = 'createAdminApiKey',
   revokeAdminApiKey = 'revokeAdminApiKey',

@@ -3,8 +3,10 @@ import { logger, runAsSystem } from '@librechat/data-schemas';
 import type { AdminAnalyticsResponse } from 'librechat-data-provider';
 import type { IAgent, IUser } from '@librechat/data-schemas';
 import type { AdminUsageDeps, DigestSchedule } from './usage';
+import type { ServerRequest } from '~/types/http';
 import type { TopicsModel } from './topics';
-import { findDashboardAgents, isDigestOn, digestSchedule } from './usage';
+import type { Response } from 'express';
+import { findDashboardAgents, isDigestOn, digestSchedule, parseDigestSettings } from './usage';
 import { askJsonModel, numberMessages } from './topics';
 import { toAnalyticsBody } from './analytics';
 import { isLeader } from '~/cluster';
@@ -221,6 +223,8 @@ export interface WeeklyDigestEmail {
   weekLabel: string;
   headline: string;
   agents: DigestAgentCard[];
+  /** A "Send me a test" email: made-up numbers, marked as a test in the subject and body. */
+  test?: boolean;
 }
 
 export type WeeklyDigestDeps = Pick<
@@ -236,8 +240,8 @@ export type WeeklyDigestDeps = Pick<
   claimWeeklyDigest: (userId: string, boundary: Date, at: Date) => Promise<boolean>;
   /** Puts back the previous stamp after a failed send, unless something newer replaced the claim. */
   releaseWeeklyDigest: (userId: string, claimedAt: Date, previous: Date | null) => Promise<void>;
-  /** Sends one email per address; a failed address is logged there, not thrown. */
-  sendWeeklyDigest: (email: WeeklyDigestEmail) => Promise<void>;
+  /** Sends one email per address and returns how many arrived; a failed address is logged there, not thrown. */
+  sendWeeklyDigest: (email: WeeklyDigestEmail) => Promise<number>;
 };
 
 export function changeLabel(now: number, before: number): ChangeLabel {
@@ -360,6 +364,55 @@ export async function buildWeeklyDigest(
   };
 }
 
+/** Made-up weeks, oldest → newest, cycled across the sample cards. */
+const SAMPLE_WEEKS = [
+  { conversations: [5, 7, 9, 12], students: [6, 8] },
+  { conversations: [4, 2, 3, 3], students: [3, 2] },
+];
+const SAMPLE_SUMMARY =
+  'This is a sample paragraph. In the real email, AI describes how use of this agent changed compared with the week before, what students asked about, and one thing worth acting on when the numbers support it.';
+
+/**
+ * The "Send me a test" email: the real template, laid out for the agents the person picked,
+ * with made-up numbers and no model call, sent to their own address only.
+ */
+export function sampleWeeklyDigest(
+  owner: Pick<IUser, 'name' | 'email'>,
+  agentNames: string[],
+  schedule: DigestSchedule,
+  now: Date,
+): WeeklyDigestEmail {
+  const names = agentNames.length > 0 ? agentNames : ['Your agent'];
+  const cards = names.map((name, index): DigestAgentCard => {
+    const week = SAMPLE_WEEKS[index % SAMPLE_WEEKS.length];
+    const [lastStudents, students] = week.students;
+    return {
+      name,
+      conversations: week.conversations[THIS_WEEK],
+      conversationsChange: changeLabel(
+        week.conversations[THIS_WEEK],
+        week.conversations[LAST_WEEK],
+      ),
+      students,
+      studentsChange: changeLabel(students, lastStudents),
+      trend: toTrend(week.conversations),
+      summary: SAMPLE_SUMMARY,
+      sampleSize: 40,
+      quiet: false,
+    };
+  });
+  const total = (week: number) => cards.reduce((sum, card) => sum + card.trend[week].value, 0);
+  const windows = digestWindows(weekBoundary(now, schedule));
+  return {
+    emails: [owner.email],
+    ownerName: owner.name || owner.email,
+    weekLabel: weekLabel(windows[0], schedule.timezone),
+    headline: headline(total(THIS_WEEK), total(LAST_WEEK), cards.length),
+    agents: cards,
+    test: true,
+  };
+}
+
 /**
  * Sends every subscriber whose week is due. Each one is claimed first with a conditional
  * stamp, so two passes or two servers never both send, and the dialog's saves never touch
@@ -381,8 +434,9 @@ export async function sendWeeklyDigests(deps: WeeklyDigestDeps, now: Date): Prom
     try {
       const email = await buildWeeklyDigest(deps, user, now);
       if (email) {
-        await deps.sendWeeklyDigest(email);
-        sent += 1;
+        if ((await deps.sendWeeklyDigest(email)) > 0) {
+          sent += 1;
+        }
       }
     } catch (error) {
       logger.warn(`[digest] weekly email for ${userId} failed; retrying next pass`, error);
@@ -394,6 +448,61 @@ export async function sendWeeklyDigests(deps: WeeklyDigestDeps, now: Date): Prom
     }
   }
   return sent;
+}
+
+const TEST_COOLDOWN_MS = 60 * 1000;
+
+/**
+ * "Send me a test": the sample email for the agents and schedule currently in the dialog,
+ * saved or not, sent to the caller's own address and nobody else. Picked agents are checked
+ * against the dashboard scope, like a save. One test a minute per person.
+ */
+export function createWeeklyDigestTestHandler(
+  deps: Pick<WeeklyDigestDeps, 'findAgents' | 'findAccessibleResources' | 'sendWeeklyDigest'>,
+): (req: ServerRequest, res: Response) => Promise<Response> {
+  // ponytail: in-process cooldown, one instance in prod; move to the keyv store if the app scales out.
+  const lastSent = new Map<string, number>();
+
+  return async function sendWeeklyDigestTest(req, res) {
+    const caller = req.user;
+    if (!caller?._id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (!caller.email) {
+      return res.status(400).json({ error: 'Your account has no email address' });
+    }
+    const settings = parseDigestSettings({ ...(req.body ?? {}), emails: [] });
+    if (settings === null) {
+      return res.status(400).json({ error: 'Invalid weekly email settings' });
+    }
+    const callerId = String(caller._id);
+    const last = lastSent.get(callerId);
+    if (last !== undefined && Date.now() - last < TEST_COOLDOWN_MS) {
+      return res.status(429).json({ error: 'Wait a minute before sending another test' });
+    }
+
+    lastSent.set(callerId, Date.now());
+    try {
+      const scoped = await findDashboardAgents(deps, caller, undefined, 'id name');
+      const names = new Map(scoped.map((agent) => [agent.id, agent.name ?? '']));
+      const picked = settings.agentIds.flatMap((id) => {
+        const name = names.get(id);
+        return name === undefined ? [] : [name];
+      });
+      const delivered = await deps.sendWeeklyDigest(
+        sampleWeeklyDigest(caller, picked, settings, new Date()),
+      );
+      if (delivered === 0) {
+        lastSent.delete(callerId);
+        return res.status(502).json({ error: 'The test email could not be sent' });
+      }
+      return res.status(200).json({ email: caller.email });
+    } catch (error) {
+      lastSent.delete(callerId);
+      logger.error('[digest] test email failed', error);
+      return res.status(500).json({ error: 'The test email could not be sent' });
+    }
+  };
 }
 
 /** Hourly, leader only, never overlapping. `WEEKLY_DIGEST_INTERVAL_MS=0` turns it off. */

@@ -10,7 +10,12 @@ import {
 } from '@librechat/client';
 import type { AdminAgentUsage, AdminWeeklyDigest } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks';
-import { useAdminWeeklyDigestQuery, useUpdateAdminWeeklyDigestMutation } from '~/data-provider';
+import {
+  useAdminWeeklyDigestQuery,
+  useUpdateAdminWeeklyDigestMutation,
+  useSendAdminWeeklyDigestTestMutation,
+} from '~/data-provider';
+import { getResponseStatus } from '~/utils/errors';
 import { NotificationSeverity } from '~/common';
 import { ILLINOIS_EMAIL } from '~/utils/email';
 import { useLocalize } from '~/hooks';
@@ -78,6 +83,7 @@ export default function WeeklyDigest({ agents }: WeeklyDigestProps) {
   const { showToast } = useToastContext();
   const { data: saved, isLoading } = useAdminWeeklyDigestQuery();
   const update = useUpdateAdminWeeklyDigestMutation();
+  const sendTest = useSendAdminWeeklyDigestTestMutation();
 
   const [open, setOpen] = useState(false);
   const [emails, setEmails] = useState<string[]>([]);
@@ -173,11 +179,30 @@ export default function WeeklyDigest({ agents }: WeeklyDigestProps) {
         }),
     });
 
-  const handleSave = () =>
-    save({
-      agentIds: agents.map((agent) => agent.agent_id).filter((id) => picked.has(id)),
-      emails,
-      ...schedule,
+  const current = (): AdminWeeklyDigest => ({
+    agentIds: agents.map((agent) => agent.agent_id).filter((id) => picked.has(id)),
+    emails,
+    ...schedule,
+  });
+
+  const handleSave = () => save(current());
+
+  const handleSendTest = () =>
+    sendTest.mutate(current(), {
+      onSuccess: (result) =>
+        showToast({
+          message: localize('com_ui_admin_digest_test_sent', { email: result.email }),
+          severity: NotificationSeverity.SUCCESS,
+        }),
+      onError: (testError) =>
+        showToast({
+          message: localize(
+            getResponseStatus(testError) === 429
+              ? 'com_ui_admin_digest_test_wait'
+              : 'com_ui_admin_digest_test_error',
+          ),
+          severity: NotificationSeverity.ERROR,
+        }),
     });
 
   const selectClass =
@@ -343,6 +368,26 @@ export default function WeeklyDigest({ agents }: WeeklyDigestProps) {
           ))}
         </ul>
         <p className="mt-2 text-xs text-text-secondary">{localize('com_ui_admin_digest_hint')}</p>
+
+        {ownEmail !== '' && (
+          <div className="mt-3 flex items-center gap-3 rounded-lg border border-border-light p-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={sendTest.isLoading}
+              onClick={handleSendTest}
+            >
+              {localize(
+                sendTest.isLoading
+                  ? 'com_ui_admin_digest_test_sending'
+                  : 'com_ui_admin_digest_test',
+              )}
+            </Button>
+            <p className="text-xs text-text-secondary">
+              {localize('com_ui_admin_digest_test_hint', { email: ownEmail })}
+            </p>
+          </div>
+        )}
 
         <div className="mt-4 flex items-center justify-between">
           <Button

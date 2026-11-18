@@ -10,6 +10,7 @@ import store from '~/store';
 
 const mockGet = jest.fn();
 const mockUpdate = jest.fn();
+const mockSendTest = jest.fn();
 
 jest.mock('librechat-data-provider', () => {
   const actual = jest.requireActual('librechat-data-provider');
@@ -19,6 +20,7 @@ jest.mock('librechat-data-provider', () => {
       ...actual.dataService,
       getAdminWeeklyDigest: () => mockGet(),
       updateAdminWeeklyDigest: (settings: unknown) => mockUpdate(settings),
+      sendAdminWeeklyDigestTest: (settings: unknown) => mockSendTest(settings),
     },
   };
 });
@@ -57,6 +59,24 @@ beforeEach(() => {
 });
 
 const FRIDAY_5_CENTRAL = { sendDay: 5, sendHour: 17, timezone: 'America/Chicago' };
+
+it('sends a test of what is in the dialog, saved or not, to my own address', async () => {
+  mockSendTest.mockResolvedValue({ email: 'dwhitfield@illinois.edu' });
+  renderDigest();
+  await openDialog();
+  expect(screen.getByText(/made-up numbers to dwhitfield@illinois\.edu/)).toBeInTheDocument();
+  await userEvent.selectOptions(screen.getByLabelText('Day'), '1');
+  await userEvent.click(screen.getByRole('button', { name: 'Send me a test' }));
+  await waitFor(() =>
+    expect(mockSendTest).toHaveBeenCalledWith({
+      agentIds: ['agent_a'],
+      emails: ['dwhitfield@illinois.edu'],
+      ...FRIDAY_5_CENTRAL,
+      sendDay: 1,
+    }),
+  );
+  expect(mockUpdate).not.toHaveBeenCalled();
+});
 
 it('starts on Friday at 5 PM Central', async () => {
   renderDigest();

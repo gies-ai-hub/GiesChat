@@ -1,6 +1,8 @@
 import { Types } from 'mongoose';
 import type { IAgent, IUser } from '@librechat/data-schemas';
-import type { AgentWeekFacts, WeeklyDigestDeps } from './digest';
+import type { AgentWeekFacts, WeeklyDigestDeps, WeeklyDigestEmail } from './digest';
+import type { ServerRequest } from '~/types/http';
+import type { Response } from 'express';
 import type { AgentAnalyticsRaw } from './usage';
 import type { TopicsModel } from './topics';
 import {
@@ -11,6 +13,8 @@ import {
   sendWeeklyDigests,
   buildWeeklyDigest,
   summarizeAgentWeek,
+  sampleWeeklyDigest,
+  createWeeklyDigestTestHandler,
 } from './digest';
 import { toAnalyticsBody } from './analytics';
 import { parseDigestSettings, DIGEST_DEFAULTS } from './usage';
@@ -291,7 +295,7 @@ describe('weekly digest run', () => {
         'how do I classify a lease',
       ]),
       resolveTopicsModel: jest.fn<Promise<TopicsModel | null>, []>(async () => llm),
-      sendWeeklyDigest: jest.fn<Promise<void>, Args<'sendWeeklyDigest'>>(async () => undefined),
+      sendWeeklyDigest: jest.fn<Promise<number>, Args<'sendWeeklyDigest'>>(async () => 2),
     };
   }
 
@@ -394,6 +398,13 @@ describe('weekly digest run', () => {
     expect(d.releaseWeeklyDigest).not.toHaveBeenCalled();
   });
 
+  it('counts a subscriber as emailed only when at least one address was reached', async () => {
+    const d = deps();
+    d.sendWeeklyDigest.mockResolvedValueOnce(0);
+    expect(await sendWeeklyDigests(d, now)).toBe(0);
+    expect(d.releaseWeeklyDigest).not.toHaveBeenCalled();
+  });
+
   it('releases the claim when the send fails, so the next pass retries', async () => {
     const d = deps();
     d.sendWeeklyDigest.mockRejectedValueOnce(new Error('ACS down'));
@@ -403,5 +414,105 @@ describe('weekly digest run', () => {
       now,
       new Date('2026-11-09T14:00:00Z'),
     );
+  });
+});
+
+describe('sampleWeeklyDigest', () => {
+  const now = new Date('2026-11-18T15:00:00Z');
+
+  it('builds a test email for one address, with made-up numbers on the named agents', () => {
+    const email = sampleWeeklyDigest(
+      { name: 'Dana Whitfield', email: 'dwhitfield@illinois.edu' },
+      ['ACCY 502A Case Coach', 'FIN 300 Office Hours'],
+      DIGEST_DEFAULTS,
+      now,
+    );
+    expect(email.test).toBe(true);
+    expect(email.emails).toEqual(['dwhitfield@illinois.edu']);
+    expect(email.weekLabel).toBe('Nov 6 – Nov 13');
+    expect(email.agents.map((card) => card.name)).toEqual([
+      'ACCY 502A Case Coach',
+      'FIN 300 Office Hours',
+    ]);
+    expect(email.agents.every((card) => card.summary && !card.quiet)).toBe(true);
+    expect(email.headline).toMatch(/^\d+ conversations across the 2 agents you picked/);
+  });
+
+  it('still shows a card when no agent is picked yet', () => {
+    const email = sampleWeeklyDigest({ email: 'me@illinois.edu' }, [], DIGEST_DEFAULTS, now);
+    expect(email.agents).toHaveLength(1);
+    expect(email.ownerName).toBe('me@illinois.edu');
+  });
+});
+
+describe('createWeeklyDigestTestHandler', () => {
+  const owner = {
+    _id: new Types.ObjectId(),
+    name: 'Dana Whitfield',
+    email: 'dwhitfield@illinois.edu',
+    role: 'USER',
+  } as IUser;
+
+  function testDeps() {
+    return {
+      findAgents: jest.fn(
+        async () =>
+          [
+            { id: 'agent_a', name: 'ACCY 502A Case Coach' },
+            { id: 'agent_b', name: 'Resume Reviewer' },
+          ] as IAgent[],
+      ),
+      findAccessibleResources: jest.fn(async () => [] as Types.ObjectId[]),
+      sendWeeklyDigest: jest.fn(async (_email: WeeklyDigestEmail) => 1),
+    };
+  }
+
+  async function call(
+    handler: ReturnType<typeof createWeeklyDigestTestHandler>,
+    body: unknown,
+    user: IUser | null = owner,
+  ) {
+    const json = jest.fn();
+    const status = jest.fn().mockReturnValue({ json });
+    const partial: Pick<Response, 'status' | 'json'> = { status, json };
+    await handler({ body, user: user ?? undefined } as ServerRequest, partial as Response);
+    return { status, json };
+  }
+
+  it('sends a marked sample to my own address only, naming the agents I picked', async () => {
+    const d = testDeps();
+    const { status, json } = await call(createWeeklyDigestTestHandler(d), {
+      agentIds: ['agent_a', 'agent_not_mine'],
+      emails: ['ta@illinois.edu'],
+    });
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({ email: 'dwhitfield@illinois.edu' });
+    const email = d.sendWeeklyDigest.mock.calls[0][0];
+    expect(email).toMatchObject({ emails: ['dwhitfield@illinois.edu'], test: true });
+    expect(email.agents.map((card) => card.name)).toEqual(['ACCY 502A Case Coach']);
+  });
+
+  it('asks for a minute between tests', async () => {
+    const d = testDeps();
+    const handler = createWeeklyDigestTestHandler(d);
+    await call(handler, { agentIds: [] });
+    const { status } = await call(handler, { agentIds: [] });
+    expect(status).toHaveBeenCalledWith(429);
+    expect(d.sendWeeklyDigest).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a test that reached nobody, and lets them try again straight away', async () => {
+    const d = testDeps();
+    d.sendWeeklyDigest.mockResolvedValueOnce(0);
+    const handler = createWeeklyDigestTestHandler(d);
+    expect((await call(handler, { agentIds: [] })).status).toHaveBeenCalledWith(502);
+    expect((await call(handler, { agentIds: [] })).status).toHaveBeenCalledWith(200);
+  });
+
+  it('refuses without a signed-in user', async () => {
+    const d = testDeps();
+    const { status } = await call(createWeeklyDigestTestHandler(d), {}, null);
+    expect(status).toHaveBeenCalledWith(401);
+    expect(d.sendWeeklyDigest).not.toHaveBeenCalled();
   });
 });

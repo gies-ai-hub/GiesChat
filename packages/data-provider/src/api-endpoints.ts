@@ -507,6 +507,7 @@ export const adminAgentTopics = (params: q.AdminUsageParams = {}) =>
 /** Per-professor analytics panel layout. A display preference, not class data. */
 export const adminDashboardLayout = () => `${BASE_URL}/api/admin/usage/layout`;
 export const adminWeeklyDigest = () => `${BASE_URL}/api/admin/usage/digest`;
+export const adminWeeklyDigestTest = () => `${BASE_URL}/api/admin/usage/digest/test`;
 
 export const adminAgentEmbed = (agentId: string) =>
   `${BASE_URL}/api/admin/usage/agents/${encodeURIComponent(agentId)}/embed`;

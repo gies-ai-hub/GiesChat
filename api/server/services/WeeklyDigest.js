@@ -6,21 +6,23 @@ const sendEmail = require('~/server/utils/sendEmail');
 const db = require('~/models');
 
 /**
- * Emails one weekly digest to each of its addresses. A failed address is logged and skipped,
- * never thrown: the subscriber is still marked sent, so the others are not emailed twice.
+ * Emails one weekly digest to each of its addresses and returns how many were sent. A failed
+ * address is logged and skipped, never thrown: the subscriber is still marked sent, so the
+ * others are not emailed twice. A test email says so in its subject.
  *
  * @param {import('@librechat/api').WeeklyDigestEmail} digest
- * @returns {Promise<void>}
+ * @returns {Promise<number>}
  */
 const sendWeeklyDigest = async (digest) => {
   if (!checkEmailConfig()) {
     logger.warn(
       `[WeeklyDigest] No email provider configured; ${digest.emails.join(', ')} were not emailed`,
     );
-    return;
+    return 0;
   }
   const appName = process.env.APP_TITLE || 'GiesChat';
-  const subject = `Your ${appName} agents this week: ${digest.weekLabel}`;
+  const subject = `${digest.test ? '[Test] ' : ''}Your ${appName} agents this week: ${digest.weekLabel}`;
+  let delivered = 0;
   for (const email of digest.emails) {
     try {
       await sendEmail({
@@ -36,10 +38,12 @@ const sendWeeklyDigest = async (digest) => {
         },
         template: 'weeklyDigest.handlebars',
       });
+      delivered += 1;
     } catch (error) {
       logger.warn(`[WeeklyDigest] could not email ${email}`, error);
     }
   }
+  return delivered;
 };
 
 /** Starts the leader-only Monday sweep that sends {@link sendWeeklyDigest}. */
