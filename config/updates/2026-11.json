@@ -1,0 +1,49 @@
+{
+  "id": "2026-11",
+  "edition": "November 2026",
+  "commits": "cde97da4c..c7f287068 (Oct 24 to Nov 18)",
+  "subject": "What's new in GiesChat: a weekly email about your agents",
+  "preheader": "Get a short AI summary of how students used your agents, every week, at the time you choose.",
+  "headline": "A weekly email about your agents",
+  "intro": {
+    "faculty": "Here is what changed in GiesChat since October and what it means for the agents you run for your classes.",
+    "all": "Here is what changed in GiesChat since October. Items marked Faculty are for people who build agents for their classes."
+  },
+  "clip": {
+    "gif": "updates/2026-11/main.gif",
+    "mp4": "updates/2026-11/main.mp4",
+    "alt": "Before and after: the Agent dashboard used to be the only place to see how agents were doing; now a Weekly email button lets you pick agents, people and a time, and each week an email arrives with the numbers and an AI summary for each agent.",
+    "caption": "Before: you had to open the dashboard to see how your agents were doing. After: a summary comes to your inbox every week."
+  },
+  "changes": [
+    {
+      "title": "How the weekly email works",
+      "body": "On the Agent dashboard, click Weekly email and pick the agents you want to hear about and up to 10 Illinois addresses (yours is already filled in). Each week, at the day and time you choose (Friday 5 PM Central unless you change it), everyone on the list gets a short summary for each agent: conversations and students compared with the week before, a four-week trend, and a paragraph written by AI about what changed and what students asked. No student is named or quoted.",
+      "faculty": true
+    },
+    {
+      "title": "Send yourself a test first",
+      "body": "Send me a test emails you a sample with made-up numbers right away, so you can see how it looks and confirm it reaches your inbox. If you don't see it within a few minutes, check your spam or junk folder: GiesChat mail comes from a DoNotReply address.",
+      "faculty": true
+    },
+    {
+      "title": "Connect an agent to your course website",
+      "body": "If your course site has its own server, it can now send students' questions to one of your agents and show the answers on the page. Students sign in with their Illinois account, and those chats show up in GiesChat too. Click the key icon on an agent's row to create a key. The Agent API page in the GiesChat docs walks through the rest.",
+      "faculty": true
+    },
+    {
+      "title": "Anyone can build an agent on the dashboard",
+      "body": "The Agent dashboard is now open to everyone with a GiesChat account, not just faculty. Build an agent there and see how people use it."
+    },
+    {
+      "title": "Agents hold up to 100 documents",
+      "body": "Agents built on the dashboard can now hold up to 100 documents, up from 50.",
+      "faculty": true
+    },
+    {
+      "title": "Fixes",
+      "body": "Some course websites refused to let GiesChat read them. Many of those now work, and when a site still says no, GiesChat tells you and suggests uploading a PDF instead. Also, opening your own Illinois-only chat link no longer takes away your ability to edit that agent.",
+      "faculty": true
+    }
+  ]
+}
