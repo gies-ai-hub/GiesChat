@@ -100,6 +100,11 @@ function clipAttachments(update) {
   ];
 }
 
+/** Production names are "First Last" (all 56 Illinois accounts, checked 2026-11-18). */
+function greetingName(name) {
+  return name?.trim().split(/\s+/)[0] || null;
+}
+
 function renderUpdate(payload) {
   return handlebars.compile(fs.readFileSync(TEMPLATE_PATH, 'utf8'))(payload);
 }
@@ -201,10 +206,11 @@ async function main(argv) {
   if (args.to) {
     const audience = args.audience ?? 'faculty';
     const payload = buildPayload(update, audience, baseUrl, { inline: true });
+    const tester = await models.User.findOne({ email: args.to }, 'name').lean();
     await sendEmail({
       email: args.to,
       subject: update.subject,
-      payload: { ...payload, name: args.to },
+      payload: { ...payload, name: tester?.name || args.to, firstName: greetingName(tester?.name) },
       template: TEMPLATE,
       attachments: clipAttachments(update),
     });
@@ -239,7 +245,11 @@ async function main(argv) {
       await sendEmail({
         email: recipient.email,
         subject: update.subject,
-        payload: { ...payload, name: recipient.name || recipient.email },
+        payload: {
+          ...payload,
+          name: recipient.name || recipient.email,
+          firstName: greetingName(recipient.name),
+        },
         template: TEMPLATE,
         attachments,
       });
@@ -271,6 +281,7 @@ module.exports = {
   buildPayload,
   clipAttachments,
   renderUpdate,
+  greetingName,
   assertSendable,
   AUDIENCES,
 };

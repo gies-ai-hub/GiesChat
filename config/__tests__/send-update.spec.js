@@ -6,6 +6,7 @@ const {
   buildPayload,
   clipAttachments,
   renderUpdate,
+  greetingName,
   assertSendable,
 } = require('../send-update');
 
@@ -127,6 +128,21 @@ describe('renderUpdate', () => {
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('Faculty</span>');
     expect(html).toContain('alt="Before and after"');
+  });
+});
+
+describe('greeting', () => {
+  it('greets each person by first name, and says "there" when the account has no name', () => {
+    expect(greetingName('Maria Chen')).toBe('Maria');
+    expect(greetingName('  Sam  Ortiz ')).toBe('Sam');
+    expect(greetingName('')).toBeNull();
+    expect(greetingName(undefined)).toBeNull();
+
+    const payload = buildPayload(update, 'all', 'https://gieschat.azurewebsites.net');
+    expect(renderUpdate({ ...payload, firstName: 'Maria' })).toContain('Hi Maria,');
+    const unnamed = renderUpdate(payload);
+    expect(unnamed).toContain('Hi there,');
+    expect(unnamed).toContain("This is What's new in GiesChat");
   });
 });
 
