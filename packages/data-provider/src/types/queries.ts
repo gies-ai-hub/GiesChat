@@ -554,6 +554,12 @@ export type AdminDashboardLayoutResponse = {
   panels: AdminDashboardPanel[];
 };
 
+/** The caller's weekly agent email: which dashboard agents, sent to which Illinois addresses. */
+export type AdminWeeklyDigest = {
+  agentIds: string[];
+  emails: string[];
+};
+
 export interface MCPServerStatus {
   requiresOAuth: boolean;
   connectionState: 'disconnected' | 'connecting' | 'connected' | 'error';

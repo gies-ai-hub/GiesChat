@@ -1302,6 +1302,16 @@ export function updateAdminDashboardLayout(
   return request.put(endpoints.adminDashboardLayout(), { panels });
 }
 
+export function getAdminWeeklyDigest(): Promise<q.AdminWeeklyDigest> {
+  return request.get(endpoints.adminWeeklyDigest());
+}
+
+export function updateAdminWeeklyDigest(
+  settings: q.AdminWeeklyDigest,
+): Promise<q.AdminWeeklyDigest> {
+  return request.put(endpoints.adminWeeklyDigest(), settings);
+}
+
 export function updateAdminAgentEmbed(
   agentId: string,
   settings: q.AgentEmbedSettings,

@@ -97,6 +97,7 @@ export enum QueryKeys {
   adminAgentTopics = 'adminAgentTopics',
   /* The caller's own analytics panel layout */
   adminDashboardLayout = 'adminDashboardLayout',
+  adminWeeklyDigest = 'adminWeeklyDigest',
   /* Drafts of one production agent */
   adminAgentDrafts = 'adminAgentDrafts',
   /* API keys on the agents the caller authors or co-runs */
@@ -137,6 +138,7 @@ export enum MutationKeys {
   verifyTwoFactor = 'verifyTwoFactor',
   updateMemoryPreferences = 'updateMemoryPreferences',
   updateAdminDashboardLayout = 'updateAdminDashboardLayout',
+  updateAdminWeeklyDigest = 'updateAdminWeeklyDigest',
   updateAdminAgentEmbed = 'updateAdminAgentEmbed',
   createAdminApiKey = 'createAdminApiKey',
   revokeAdminApiKey = 'revokeAdminApiKey',

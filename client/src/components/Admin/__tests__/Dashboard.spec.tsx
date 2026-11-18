@@ -43,6 +43,7 @@ jest.mock('librechat-data-provider', () => {
       deleteAgent: (body: unknown) => mockDeleteAgent(body),
       getAdminAgentDrafts: (id: string) => mockGetAdminAgentDrafts(id),
       openAdminAgentDraft: (id: string) => mockOpenAdminAgentDraft(id),
+      getAdminWeeklyDigest: () => Promise.resolve({ agentIds: [], emails: [] }),
     },
   };
 });

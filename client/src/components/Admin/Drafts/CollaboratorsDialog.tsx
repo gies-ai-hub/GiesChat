@@ -19,6 +19,7 @@ import type {
 import UnifiedPeopleSearch from '~/components/Sharing/PeoplePicker/UnifiedPeopleSearch';
 import { useUpdateAdminAgentCollaboratorsMutation } from '~/data-provider';
 import { NotificationSeverity } from '~/common';
+import { ILLINOIS_EMAIL } from '~/utils/email';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
 
@@ -38,7 +39,6 @@ type Member = AdminUserRef & { role: AdminAgentRole };
 type Invite = { email: string; role: AdminAgentRole };
 
 /** Sign-in is Illinois SSO, so no other domain could ever claim an invite. */
-const ILLINOIS_EMAIL = /^[a-z0-9][a-z0-9._%+-]*@illinois\.edu$/;
 /** Long enough to read the spam reminder that follows an email going out. */
 const EMAILED_TOAST_MS = 9000;
 const ROLES: AdminAgentRole[] = ['collaborator', 'coAdmin'];

@@ -15,6 +15,7 @@ import type {
   AdminDraftUpdatePreview,
   AdminGroupListResponse,
   AdminDashboardLayoutResponse,
+  AdminWeeklyDigest,
   AdminAgentStudentUsageResponse,
   AdminEffectiveCapabilitiesResponse,
 } from 'librechat-data-provider';
@@ -178,6 +179,16 @@ export const useAdminDashboardLayoutQuery = (
     [QueryKeys.adminDashboardLayout],
     () => dataService.getAdminDashboardLayout(),
     { ...adminQueryConfig, retry: false, ...config },
+  );
+
+/** The caller's own weekly email settings: which agents, which addresses. */
+export const useAdminWeeklyDigestQuery = (
+  config?: UseQueryOptions<AdminWeeklyDigest>,
+): QueryObserverResult<AdminWeeklyDigest> =>
+  useQuery<AdminWeeklyDigest>(
+    [QueryKeys.adminWeeklyDigest],
+    () => dataService.getAdminWeeklyDigest(),
+    { ...adminQueryConfig, ...config },
   );
 
 /** Drafts of one production agent, fetched only while its row is expanded. */

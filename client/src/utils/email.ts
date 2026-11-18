@@ -26,3 +26,6 @@ export const validateEmail = (email: string, errorMessage?: string): true | stri
     'Please enter a valid email address'
   );
 };
+
+/** A University of Illinois address: sign-in is Illinois SSO, so no other address can claim an invite. */
+export const ILLINOIS_EMAIL = /^[a-z0-9][a-z0-9._%+-]*@illinois\.edu$/;

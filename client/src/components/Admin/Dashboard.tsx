@@ -23,6 +23,7 @@ import Views, { VIEW_PANEL_ID, viewTabId } from './Views';
 import StudentProgressTable from './StudentProgressTable';
 import AgentUsageTable from './AgentUsageTable';
 import ShareWithClass from './ShareWithClass';
+import WeeklyDigest from './WeeklyDigest';
 import EmbedDialog from './EmbedDialog';
 import ApiAccessDialog from './ApiAccessDialog';
 import AgentCards from './AgentCards';
@@ -361,6 +362,7 @@ export default function AdminDashboard() {
               testId="admin-source-select"
             />
             <div className="ml-auto flex items-center gap-2">
+              {view == null && <WeeklyDigest agents={usageData?.agents ?? []} />}
               {selectedAgent != null && !ownedByOther(selectedAgent) && (
                 <Button variant="outline" onClick={() => handleOpenAgent(selectedAgent)}>
                   <MessageSquare className="mr-2 size-4" aria-hidden="true" />

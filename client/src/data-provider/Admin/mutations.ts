@@ -16,6 +16,7 @@ import type {
   AdminAgentEmbedResponse,
   AdminCollaboratorsResponse,
   AdminDashboardLayoutResponse,
+  AdminWeeklyDigest,
   AdminWebsiteSaveResponse,
   AdminWebsitePreviewResponse,
 } from 'librechat-data-provider';
@@ -41,6 +42,25 @@ export const useUpdateAdminDashboardLayoutMutation = (): UseMutationResult<
       },
       onError: () => {
         queryClient.invalidateQueries([QueryKeys.adminDashboardLayout]);
+      },
+    },
+  );
+};
+
+/** Saves the caller's weekly email; the response is what the server kept after its scope check. */
+export const useUpdateAdminWeeklyDigestMutation = (): UseMutationResult<
+  AdminWeeklyDigest,
+  unknown,
+  AdminWeeklyDigest
+> => {
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    (settings: AdminWeeklyDigest) => dataService.updateAdminWeeklyDigest(settings),
+    {
+      mutationKey: [MutationKeys.updateAdminWeeklyDigest],
+      onSuccess: (data) => {
+        queryClient.setQueryData([QueryKeys.adminWeeklyDigest], data);
       },
     },
   );
