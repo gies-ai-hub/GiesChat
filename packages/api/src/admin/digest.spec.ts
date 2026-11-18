@@ -1,6 +1,17 @@
+import { Types } from 'mongoose';
+import type { IAgent, IUser } from '@librechat/data-schemas';
+import type { AgentWeekFacts, WeeklyDigestDeps } from './digest';
 import type { AgentAnalyticsRaw } from './usage';
-import type { AgentWeekFacts } from './digest';
-import { weekLabel, weekBoundary, isDigestDue, digestWindows, summarizeAgentWeek } from './digest';
+import type { TopicsModel } from './topics';
+import {
+  weekLabel,
+  weekBoundary,
+  isDigestDue,
+  digestWindows,
+  sendWeeklyDigests,
+  buildWeeklyDigest,
+  summarizeAgentWeek,
+} from './digest';
 import { toAnalyticsBody } from './analytics';
 import { parseDigestSettings } from './usage';
 
@@ -142,5 +153,130 @@ describe('parseDigestSettings', () => {
     const emails = Array.from({ length: 11 }, (_, i) => `p${i}@illinois.edu`);
     expect(parseDigestSettings({ agentIds: [], emails })).toBeNull();
     expect(parseDigestSettings({ agentIds: 'a', emails: [] })).toBeNull();
+  });
+});
+
+describe('weekly digest run', () => {
+  type Args<K extends keyof WeeklyDigestDeps> = Parameters<WeeklyDigestDeps[K]>;
+
+  const now = new Date('2026-11-18T15:00:00Z');
+  const windows = digestWindows(weekBoundary(now));
+  const subscriber = {
+    _id: new Types.ObjectId(),
+    name: 'Dana Whitfield',
+    email: 'dwhitfield@illinois.edu',
+    role: 'USER',
+    weeklyDigest: {
+      agentIds: ['agent_a', 'agent_gone', 'agent_quiet'],
+      emails: ['prof@illinois.edu', 'ta@illinois.edu'],
+      lastSentAt: new Date('2026-11-09T14:00:00Z'),
+    },
+  } as IUser;
+  const agents = [
+    { id: 'agent_quiet', name: 'Resume Reviewer', description: '' },
+    { id: 'agent_a', name: 'ACCY 502A Case Coach', description: 'Lease cases' },
+  ] as IAgent[];
+  /** Conversations per window, newest first, the order `digestWindows` returns. */
+  const weekly: Record<string, number[]> = { agent_a: [18, 12, 7, 4], agent_quiet: [0, 0, 0, 0] };
+
+  let fetchMock: jest.Mock;
+  beforeEach(() => {
+    fetchMock = stubFetch(JSON.stringify({ summary: 'Use grew.' }));
+  });
+
+  function deps() {
+    return {
+      findUsers: jest.fn<Promise<IUser[]>, Args<'findUsers'>>(async () => [subscriber]),
+      updateUser: jest.fn<Promise<IUser | null>, Args<'updateUser'>>(async () => null),
+      findAgents: jest.fn<Promise<IAgent[]>, Args<'findAgents'>>(async () => agents),
+      findAccessibleResources: jest.fn<Promise<Types.ObjectId[]>, Args<'findAccessibleResources'>>(
+        async () => [],
+      ),
+      aggregateAgentAnalytics: jest.fn<Promise<AgentAnalyticsRaw>, Args<'aggregateAgentAnalytics'>>(
+        async (scope) => {
+          const index = windows.findIndex((w) => w.since.getTime() === scope.since.getTime());
+          return raw(weekly[scope.agentIds[0]][index]);
+        },
+      ),
+      sampleStudentMessages: jest.fn<Promise<string[]>, Args<'sampleStudentMessages'>>(async () => [
+        'how do I classify a lease',
+      ]),
+      resolveTopicsModel: jest.fn<Promise<TopicsModel | null>, []>(async () => llm),
+      sendWeeklyDigest: jest.fn<Promise<void>, Args<'sendWeeklyDigest'>>(async () => undefined),
+    };
+  }
+
+  it('builds one card per picked agent still in scope, summarizing only busy ones', async () => {
+    const d = deps();
+    const email = await buildWeeklyDigest(d, subscriber, now);
+    expect(email?.emails).toEqual(['prof@illinois.edu', 'ta@illinois.edu']);
+    expect(email?.weekLabel).toBe('Nov 9 – Nov 15');
+    expect(email?.headline).toBe(
+      '18 conversations across the 2 agents you picked, up 6 from last week.',
+    );
+    expect(email?.agents.map((card) => card.name)).toEqual([
+      'ACCY 502A Case Coach',
+      'Resume Reviewer',
+    ]);
+    expect(email?.agents[0]).toMatchObject({
+      conversations: 18,
+      conversationsChange: { text: '▲ 6', tone: 'up' },
+      summary: 'Use grew.',
+      quiet: false,
+      sampleSize: 1,
+    });
+    expect(email?.agents[0].trend.map((point) => point.value)).toEqual([4, 7, 12, 18]);
+    expect(email?.agents[1]).toMatchObject({ quiet: true, summary: null });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(d.aggregateAgentAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentIds: ['agent_a'],
+        userIds: null,
+        until: new Date('2026-11-16T14:00:00Z'),
+      }),
+    );
+  });
+
+  it('keeps the numbers when the model is missing or fails', async () => {
+    const d = deps();
+    d.resolveTopicsModel.mockResolvedValueOnce(null);
+    expect((await buildWeeklyDigest(d, subscriber, now))?.agents[0]).toMatchObject({
+      conversations: 18,
+      summary: null,
+    });
+    stubFetch('not json');
+    expect((await buildWeeklyDigest(d, subscriber, now))?.agents[0].summary).toBeNull();
+  });
+
+  it('sends due digests once and marks them; a second pass the same week sends nothing', async () => {
+    const d = deps();
+    expect(await sendWeeklyDigests(d, now)).toBe(1);
+    expect(d.sendWeeklyDigest).toHaveBeenCalledTimes(1);
+    expect(d.updateUser).toHaveBeenCalledWith(String(subscriber._id), {
+      weeklyDigest: expect.objectContaining({ lastSentAt: now }),
+    });
+    d.findUsers.mockResolvedValueOnce([
+      {
+        ...subscriber,
+        weeklyDigest: { agentIds: ['agent_a'], emails: ['prof@illinois.edu'], lastSentAt: now },
+      } as IUser,
+    ]);
+    expect(await sendWeeklyDigests(d, now)).toBe(0);
+    expect(d.sendWeeklyDigest).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks without sending when no picked agent is in scope any more', async () => {
+    const d = deps();
+    d.findAgents.mockResolvedValue([]);
+    expect(await sendWeeklyDigests(d, now)).toBe(0);
+    expect(d.sendWeeklyDigest).not.toHaveBeenCalled();
+    expect(d.updateUser).toHaveBeenCalled();
+  });
+
+  it('leaves a failed send unmarked so the next pass retries', async () => {
+    const d = deps();
+    d.sendWeeklyDigest.mockRejectedValueOnce(new Error('ACS down'));
+    expect(await sendWeeklyDigests(d, now)).toBe(0);
+    expect(d.updateUser).not.toHaveBeenCalled();
   });
 });
