@@ -4,7 +4,7 @@ const { createModels } = require('@librechat/data-schemas');
 const {
   findRecipients,
   buildPayload,
-  clipAttachments,
+  inlineImages,
   renderUpdate,
   greetingName,
   assertSendable,
@@ -109,10 +109,38 @@ describe('inline clip', () => {
     expect(payload.clip.mp4Url).toBe(
       'https://gieschat.azurewebsites.net/docs/updates/2026-10/main.mp4',
     );
-    const [gif] = clipAttachments(update);
+    const [gif] = inlineImages(update);
     expect(gif).toMatchObject({ contentId: 'update-clip.gif', contentType: 'image/gif' });
     expect(Buffer.from(gif.contentInBase64, 'base64').subarray(0, 6).toString()).toBe('GIF89a');
-    expect(clipAttachments({ ...update, clip: undefined })).toEqual([]);
+    expect(inlineImages({ ...update, clip: undefined })).toEqual([]);
+  });
+});
+
+describe('change pictures', () => {
+  it('shows a picture on a change, widens every card, and attaches it inline when sent', () => {
+    const base = 'https://gieschat.azurewebsites.net';
+    const image = { src: 'updates/2026-11/websites.png', alt: 'Saved websites', width: 600 };
+    const pictured = { ...update, changes: [update.changes[0], { ...update.changes[1], image }] };
+
+    const web = buildPayload(pictured, 'all', base);
+    expect(web.changes.map((change) => change.wide)).toEqual([true, true]);
+    expect(web.changes[0].image).toBeNull();
+    expect(web.changes[1].image).toEqual({
+      url: `${base}/docs/updates/2026-11/websites.png`,
+      alt: 'Saved websites',
+      width: 600,
+    });
+
+    const sent = buildPayload(pictured, 'all', base, { inline: true });
+    expect(sent.changes[1].image.url).toBe('cid:update-image-2.png');
+    const [gif, png] = inlineImages(pictured);
+    expect(gif.contentId).toBe('update-clip.gif');
+    expect(png).toMatchObject({ contentId: 'update-image-2.png', contentType: 'image/png' });
+    expect(Buffer.from(png.contentInBase64, 'base64').subarray(1, 4).toString()).toBe('PNG');
+
+    const html = renderUpdate(sent);
+    expect(html).toContain('src="cid:update-image-2.png"');
+    expect(html).toContain('alt="Saved websites"');
   });
 });
 

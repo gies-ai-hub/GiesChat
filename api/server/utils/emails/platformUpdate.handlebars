@@ -52,6 +52,9 @@
                   <div style="margin:8px;padding:14px 16px;background:#f6f8fb;border:1px solid #e3e8f0;border-radius:10px;">
                     <div style="font-size:17px;font-weight:bold;color:#13294b;">{{number}}. {{title}}{{#if tagged}} <span style="display:inline-block;font-size:11px;font-weight:bold;color:#9a3412;background:#fff3ec;border:1px solid #ffc7a6;border-radius:999px;padding:0 8px;vertical-align:middle;">Faculty</span>{{/if}}</div>
                     <p style="margin:6px 0 0 0;font-size:15px;line-height:1.55;">{{body}}</p>
+                    {{#if image}}
+                    <img src="{{image.url}}" width="{{image.width}}" alt="{{image.alt}}" style="display:block;width:100%;max-width:{{image.width}}px;height:auto;margin:14px auto 4px auto;border:1px solid #d5dce8;border-radius:8px;" />
+                    {{/if}}
                   </div>
                 </div>
                 {{/each}}

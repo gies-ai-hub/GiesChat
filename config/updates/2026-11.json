@@ -24,35 +24,70 @@
     {
       "title": "Send yourself a test first",
       "body": "Send me a test emails you a sample with made-up numbers right away, so you can see how it looks and confirm it reaches your inbox. If you don't see it within a few minutes, check your spam or junk folder, and mark GiesChat as a safe sender so the weekly email lands in your inbox.",
-      "faculty": true
+      "faculty": true,
+      "image": {
+        "src": "updates/2026-11/test.png",
+        "alt": "The Send me a test button in the Weekly email dialog",
+        "width": 600
+      }
     },
     {
       "title": "Your TAs' drafts keep up with your changes",
       "body": "If you change an agent while a TA is working on a draft, they get a note and can bring their draft up to date in one step. Where you both edited the same thing, they see both versions and choose.",
-      "faculty": true
+      "faculty": true,
+      "image": {
+        "src": "updates/2026-11/drafts.png",
+        "alt": "Before and after: a TA's draft now says when you have changed the agent, with an Update my draft button",
+        "width": 900
+      }
     },
     {
       "title": "Agents can learn from your course website",
       "body": "In the agent builder, paste a course or department web address under Websites. GiesChat reads up to 50 pages from that site, saves a clean copy for your agent, and checks it again every night, so answers keep up when your site changes. If a site blocks GiesChat, it tells you and suggests uploading a PDF instead.",
-      "faculty": true
+      "faculty": true,
+      "image": {
+        "src": "updates/2026-11/websites.png",
+        "alt": "Two saved websites in the agent builder, each with its page count and the date it was last checked",
+        "width": 600
+      }
     },
     {
       "title": "More room for documents, and pictures count",
       "body": "Agents built on the dashboard can now hold up to 100 documents, up from 50. Add a photo or screenshot of a table or chart and GiesChat reads the numbers into text, so students can ask about them.",
-      "faculty": true
+      "faculty": true,
+      "image": {
+        "src": "updates/2026-11/documents.png",
+        "alt": "File Context in the agent builder with two pictures of tables and charts attached",
+        "width": 600
+      }
     },
     {
       "title": "Run an agent inside your own course site",
       "body": "If your course site has its own server, it can now send students' questions to one of your agents and show the answers on the page. Students sign in with their Illinois account, and those chats show up in GiesChat too. Click the key icon on an agent's row to create a key. The Agent API page in the GiesChat docs walks through the rest.",
-      "faculty": true
+      "faculty": true,
+      "image": {
+        "src": "updates/2026-11/api.png",
+        "alt": "The API access dialog for an agent, with setup guides and a New key button",
+        "width": 560
+      }
     },
     {
       "title": "Anyone can build an agent",
-      "body": "The class dashboard is now the Agent dashboard, and it is open to everyone with a GiesChat account, not just faculty. Build an agent there and see how people use it."
+      "body": "The class dashboard is now the Agent dashboard, and it is open to everyone with a GiesChat account, not just faculty. Build an agent there and see how people use it.",
+      "image": {
+        "src": "updates/2026-11/build.png",
+        "alt": "The Create agent form on the Agent dashboard",
+        "width": 600
+      }
     },
     {
       "title": "Newer models",
-      "body": "Chat now runs on GPT-6 Luna. Class agents can also use GPT-6.1 Sol and Claude Sonnet, Opus and Haiku 5.5."
+      "body": "Chat now runs on GPT-6 Luna. Class agents can also use GPT-6.1 Sol and Claude Sonnet, Opus and Haiku 5.5.",
+      "image": {
+        "src": "updates/2026-11/models.png",
+        "alt": "Model cards in the agent builder: GPT-6 Luna, the default, and GPT-6.1 Sol",
+        "width": 600
+      }
     },
     {
       "title": "Fixed: editing an agent after opening its chat link",

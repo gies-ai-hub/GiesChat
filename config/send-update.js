@@ -57,6 +57,7 @@ function buildPayload(update, audience, baseUrl, { inline = false } = {}) {
   const root = baseUrl.replace(/\/+$/, '');
   const asset = (file) => `${root}/docs/${file}`;
   const everyone = audience === 'all';
+  const pictured = update.changes.some((change) => change.image);
   return {
     appName: process.env.APP_TITLE || 'GiesChat',
     subject: update.subject,
@@ -77,27 +78,41 @@ function buildPayload(update, audience, baseUrl, { inline = false } = {}) {
       title: change.title,
       body: change.body,
       tagged: everyone && change.faculty === true,
-      /** Changes sit two to a row; an odd one out takes the whole row. */
-      wide: index === update.changes.length - 1 && update.changes.length % 2 === 1,
+      image: change.image
+        ? {
+            url: inline ? `cid:${imageCid(change.image, index)}` : asset(change.image.src),
+            alt: change.image.alt,
+            width: change.image.width,
+          }
+        : null,
+      /** Changes sit two to a row; an odd one out, or any update with pictures, spans the row. */
+      wide: pictured || (index === update.changes.length - 1 && update.changes.length % 2 === 1),
     })),
     appUrl: root,
     docsUrl: `${root}/docs/`,
   };
 }
 
-/** The clip's GIF as an inline attachment, or none when the update has no clip. */
-function clipAttachments(update) {
-  if (!update.clip) {
-    return [];
-  }
-  return [
-    {
-      name: CLIP_CID,
-      contentType: 'image/gif',
-      contentInBase64: fs.readFileSync(path.join(DOCS, update.clip.gif)).toString('base64'),
-      contentId: CLIP_CID,
-    },
-  ];
+const IMAGE_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.gif': 'image/gif' };
+
+const imageCid = (image, index) => `update-image-${index + 1}${path.extname(image.src)}`;
+
+function attachment(contentId, file) {
+  return {
+    name: contentId,
+    contentType: IMAGE_TYPES[path.extname(file)],
+    contentInBase64: fs.readFileSync(path.join(DOCS, file)).toString('base64'),
+    contentId,
+  };
+}
+
+/** The clip's GIF and each change's picture, attached inline so Outlook shows them. */
+function inlineImages(update) {
+  const clip = update.clip ? [attachment(CLIP_CID, update.clip.gif)] : [];
+  const pictures = update.changes.flatMap((change, index) =>
+    change.image ? [attachment(imageCid(change.image, index), change.image.src)] : [],
+  );
+  return [...clip, ...pictures];
 }
 
 /** Production names are "First Last" (all 56 Illinois accounts, checked 2026-11-18). */
@@ -215,7 +230,7 @@ async function main(argv) {
       subject: update.subject,
       payload: { ...payload, name: tester?.name || args.to, firstName: greetingName(tester?.name) },
       template: TEMPLATE,
-      attachments: clipAttachments(update),
+      attachments: inlineImages(update),
     });
     console.log(`Test email (${audience} version) sent to ${args.to}. Nothing recorded.`);
     process.exit(0);
@@ -239,7 +254,7 @@ async function main(argv) {
     count: counts[args.audience],
   });
   const payload = buildPayload(update, args.audience, baseUrl, { inline: true });
-  const attachments = clipAttachments(update);
+  const attachments = inlineImages(update);
   await assertClipLive(payload);
   const recipients = await findRecipients(models, args.audience);
   const failed = [];
@@ -282,7 +297,7 @@ async function main(argv) {
 module.exports = {
   findRecipients,
   buildPayload,
-  clipAttachments,
+  inlineImages,
   renderUpdate,
   greetingName,
   assertSendable,
