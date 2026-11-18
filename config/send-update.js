@@ -13,8 +13,11 @@ const ILLINOIS = /@illinois\.edu$/i;
 /** The clip travels inside the email, so Outlook shows it without "download pictures". */
 const CLIP_CID = 'update-clip.gif';
 const DOCS = path.resolve(__dirname, '..', 'docs', 'site');
-/** ACS caps an Azure-managed domain at about 30 emails a minute. */
-const SEND_GAP_MS = 2500;
+/**
+ * ACS caps an Azure-managed domain at 10 emails an hour per subscription, and throttled
+ * attempts count too. ponytail: drop to 2.5 s once a verified custom domain (100/hour) is in.
+ */
+const SEND_GAP_MS = 6.5 * 60 * 1000;
 
 const USAGE = `Usage:
   npm run send-update -- <update.json>                                  dry run: counts and preview, sends nothing
