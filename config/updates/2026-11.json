@@ -94,5 +94,12 @@
       "body": "Opening your own Illinois-only chat link no longer takes away your ability to edit that agent.",
       "faculty": true
     }
-  ]
+  ],
+  "sent": {
+    "at": "2026-11-18T19:56:14.689Z",
+    "audience": "faculty",
+    "count": 15,
+    "failed": 1,
+    "note": "ACS throttled 8 of 16 on the first run; 7 were resent one at a time with --to by 2026-11-18 21:16 Central. The owner (ashleyn4) received identical test copies instead."
+  }
 }
