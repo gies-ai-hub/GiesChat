@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { AdminAnalyticsResponse } from 'librechat-data-provider';
 import { KpiRow, ActivityPanel, ReachPanel, DepthPanel, SignalsPanel } from '../Panels';
@@ -36,6 +36,22 @@ const data: AdminAnalyticsResponse = {
   ],
   oneTurnShare: 0.22,
   errorRate: 0.031,
+};
+
+const dayFormat = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+});
+const day = (date: string) => dayFormat.format(new Date(date));
+const range = dayFormat.formatRange(new Date('2026-07-01'), new Date('2026-07-03'));
+
+/** Opens the panel's Show data disclosure, then reads header row and data rows as cell text. */
+const tableRows = async (name: RegExp) => {
+  fireEvent.click(screen.getByText('com_ui_admin_analytics_show_data'));
+  return within(await screen.findByRole('table', { name }))
+    .getAllByRole('row')
+    .map((row) => Array.from(row.querySelectorAll('th, td'), (cell) => cell.textContent));
 };
 
 describe('KpiRow', () => {
@@ -81,7 +97,7 @@ describe('ActivityPanel', () => {
     const surface = container.querySelector('[data-hover-surface]') as SVGRectElement;
 
     fireEvent.pointerMove(surface, { clientX: 0 });
-    expect(screen.getByTestId('chart-tooltip')).toHaveTextContent('2026-07-01');
+    expect(screen.getByTestId('chart-tooltip')).toHaveTextContent(day('2026-07-01'));
     expect(screen.getByTestId('chart-tooltip')).toHaveTextContent('4');
 
     fireEvent.pointerLeave(surface);
@@ -95,6 +111,25 @@ describe('ActivityPanel', () => {
     expect(container.querySelector('[data-hover-marker]')).not.toBeInTheDocument();
     fireEvent.pointerMove(surface, { clientX: 0 });
     expect(container.querySelector('[data-hover-marker]')).toBeInTheDocument();
+  });
+
+  it('lists every day in a collapsed Show data table and hides the chart from screen readers', async () => {
+    const { container } = render(<ActivityPanel data={data} />);
+
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(container.querySelector('details')).not.toHaveAttribute('open');
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByText('com_ui_admin_analytics_show_data').tagName).toBe('SUMMARY');
+    expect(
+      await tableRows(
+        new RegExp(`com_ui_admin_analytics_data_caption:com_ui_admin_analytics_activity,${range}`),
+      ),
+    ).toEqual([
+      ['com_ui_admin_analytics_day', 'com_ui_admin_analytics_conversations'],
+      [day('2026-07-01'), '4'],
+      [day('2026-07-02'), '9'],
+      [day('2026-07-03'), '2'],
+    ]);
   });
 });
 
@@ -111,6 +146,22 @@ describe('ReachPanel', () => {
     render(<ReachPanel data={{ ...data, enrolledStudents: 38 }} />);
 
     expect(screen.queryByRole('meter')).not.toBeInTheDocument();
+  });
+
+  it('tabulates repeat use with its unit and each bucket share', async () => {
+    render(<ReachPanel data={data} />);
+
+    expect(await tableRows(/com_ui_admin_analytics_repeat/)).toEqual([
+      [
+        'com_ui_admin_analytics_conversations_per_student',
+        'com_ui_admin_analytics_reach_unit',
+        'com_ui_admin_analytics_share',
+      ],
+      ['1', '9', '24%'],
+      ['2–4', '14', '37%'],
+      ['5–9', '10', '26%'],
+      ['10+', '5', '13%'],
+    ]);
   });
 });
 
@@ -133,6 +184,23 @@ describe('DepthPanel', () => {
 
     fireEvent.pointerLeave(targets[0]);
     expect(screen.queryByTestId('chart-tooltip')).not.toBeInTheDocument();
+  });
+
+  it('tabulates every bucket the chart draws, unit and share included', async () => {
+    const { container } = render(<DepthPanel data={data} />);
+
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    const rows = await tableRows(/com_ui_admin_analytics_depth/);
+    expect(rows[0]).toEqual([
+      'com_ui_admin_analytics_turns_per_conversation',
+      'com_ui_admin_analytics_conversations',
+      'com_ui_admin_analytics_share',
+    ]);
+    expect(rows.slice(1).map(([label, count]) => [label, count])).toEqual(
+      data.depthBuckets.map((bucket) => [bucket.label, String(bucket.count)]),
+    );
+    /** 47 of 214 conversations, the same share the tooltip shows. */
+    expect(rows[1][2]).toBe('22%');
   });
 
   it('renders nothing to divide by when every bucket is empty', () => {

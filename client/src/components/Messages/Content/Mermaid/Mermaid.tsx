@@ -7,6 +7,7 @@ import MermaidDialog from './MermaidDialog';
 import MermaidHeader from './MermaidHeader';
 import ZoomControls from './ZoomControls';
 import { useLocalize } from '~/hooks';
+import { diagramAlt } from './alt';
 import cn from '~/utils/cn';
 
 interface MermaidProps {
@@ -18,6 +19,7 @@ interface MermaidProps {
 const Mermaid: React.FC<MermaidProps> = memo(({ children, id, theme }) => {
   const localize = useLocalize();
   const [showCode, setShowCode] = useState(false);
+  const alt = diagramAlt(children, localize('com_ui_diagram_alt'));
   const [retryCount, setRetryCount] = useState(0);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -130,7 +132,7 @@ const Mermaid: React.FC<MermaidProps> = memo(({ children, id, theme }) => {
             >
               <img
                 src={blobUrl}
-                alt="Mermaid diagram"
+                alt={alt}
                 className="select-none opacity-70"
                 style={diagramStyle}
                 draggable={false}
@@ -259,7 +261,7 @@ const Mermaid: React.FC<MermaidProps> = memo(({ children, id, theme }) => {
           >
             <img
               src={blobUrl}
-              alt="Mermaid diagram"
+              alt={alt}
               className="select-none"
               style={diagramStyle}
               draggable={false}

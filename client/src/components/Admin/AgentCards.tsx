@@ -64,7 +64,7 @@ export default function AgentCards({
               className={cn(
                 'relative flex h-full w-full flex-col rounded-xl px-4 py-3',
                 'bg-surface-tertiary transition-colors duration-150 group-hover:bg-surface-hover',
-                isSelected && 'bg-surface-hover ring-2 ring-border-heavy',
+                isSelected && 'bg-surface-hover ring-2 ring-ring-primary dark:ring-border-heavy',
               )}
             >
               {categoryLabel !== '' && (
@@ -86,7 +86,7 @@ export default function AgentCards({
                     className={cn(
                       'pr-14 text-left font-semibold text-text-primary',
                       "after:absolute after:inset-0 after:rounded-xl after:content-['']",
-                      'focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-border-heavy',
+                      'focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-ring-primary dark:focus-visible:after:outline-border-heavy',
                     )}
                   >
                     <span className="line-clamp-2">{agent.name}</span>

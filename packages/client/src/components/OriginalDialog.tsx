@@ -117,12 +117,82 @@ const DialogContent: React.ForwardRefExoticComponent<
       children,
       style,
       onEscapeKeyDown: propsOnEscapeKeyDown,
+      onOpenAutoFocus: propsOnOpenAutoFocus,
+      onCloseAutoFocus: propsOnCloseAutoFocus,
       ...props
     },
     ref,
   ) => {
     const depth = React.useContext(DialogDepthContext);
     const contentZIndex = 140 + (depth - 1) * 60;
+    const openerRef = React.useRef<HTMLElement | null>(null);
+    const observedRef = React.useRef<HTMLDivElement | null>(null);
+    const observerRef = React.useRef<MutationObserver | null>(null);
+
+    /**
+     * Radix 1.0.2's focus scope cannot re-home focus when the focused node is removed (a view
+     * swap, or a form hydrating right after open), so focus fell to <body> and Tab walked the
+     * page behind the modal. Any removal that strands focus now returns it to the content.
+     * Radix re-attaches this ref on every render, in the same commit as the removal, so the
+     * observer stays bound to the node rather than to the ref's null/attach cycle.
+     */
+    const contentRef = React.useCallback(
+      (node: HTMLDivElement | null) => {
+        if (typeof ref === 'function') {
+          ref(node);
+        } else if (ref) {
+          ref.current = node;
+        }
+        if (node == null || node === observedRef.current) {
+          return;
+        }
+        observerRef.current?.disconnect();
+        observedRef.current = node;
+        observerRef.current = new MutationObserver(() => {
+          const active = document.activeElement;
+          const stranded = active == null || active === document.body;
+          if (stranded && node.isConnected && node.getAttribute('data-state') === 'open') {
+            node.focus();
+          }
+        });
+        observerRef.current.observe(node, { childList: true, subtree: true });
+      },
+      [ref],
+    );
+    React.useEffect(() => () => observerRef.current?.disconnect(), []);
+
+    const handleOpenAutoFocus = React.useCallback(
+      (event: Event) => {
+        const active = document.activeElement;
+        openerRef.current =
+          active instanceof HTMLElement && active !== document.body ? active : null;
+        propsOnOpenAutoFocus?.(event);
+      },
+      [propsOnOpenAutoFocus],
+    );
+
+    /**
+     * Radix returns focus only to an `OGDialogTrigger`, so a dialog opened from any other
+     * control dropped focus to <body> on close. Runs after Radix (and any trigger refs) have
+     * had their turn, and only restores the opener when nothing else took focus.
+     */
+    const handleCloseAutoFocus = React.useCallback(
+      (event: Event) => {
+        propsOnCloseAutoFocus?.(event);
+        const opener = openerRef.current;
+        openerRef.current = null;
+        if (event.defaultPrevented || opener == null) {
+          return;
+        }
+        setTimeout(() => {
+          const active = document.activeElement;
+          if (opener.isConnected && (active == null || active === document.body)) {
+            opener.focus();
+          }
+        }, 0);
+      },
+      [propsOnCloseAutoFocus],
+    );
 
     /* Handle Escape key to prevent closing dialog if a tooltip or dropdown has focus
     (this is a workaround in order to achieve WCAG compliance which requires
@@ -166,9 +236,11 @@ const DialogContent: React.ForwardRefExoticComponent<
       <DialogPortal>
         <DialogOverlay className={overlayClassName} />
         <DialogPrimitive.Content
-          ref={ref}
+          ref={contentRef}
           style={{ ...style, zIndex: contentZIndex }}
           onEscapeKeyDown={handleEscapeKeyDown}
+          onOpenAutoFocus={handleOpenAutoFocus}
+          onCloseAutoFocus={handleCloseAutoFocus}
           className={cn(
             'max-w-11/12 fixed left-[50%] top-[50%] grid max-h-[90vh] w-full translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-2xl bg-background p-6 text-text-primary shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]',
             className,

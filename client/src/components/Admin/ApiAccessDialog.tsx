@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import copyToClipboard from 'copy-to-clipboard';
 import { Bot, Link2, Download } from 'lucide-react';
 import {
@@ -67,6 +67,8 @@ export default function ApiAccessDialog({ agent, view, onOpenChange }: ApiAccess
   const [errors, setErrors] = useState<{ name?: boolean; audience?: boolean }>({});
   const [created, setCreated] = useState<AdminApiKeyCreateResponse | null>(null);
   const [skill, setSkill] = useState<string | null>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const audienceRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setAdding(false);
@@ -159,6 +161,7 @@ export default function ApiAccessDialog({ agent, view, onOpenChange }: ApiAccess
     };
     setErrors(next);
     if (next.name || next.audience) {
+      (next.name ? nameRef : audienceRef).current?.focus();
       return;
     }
     create.mutate(
@@ -299,6 +302,7 @@ export default function ApiAccessDialog({ agent, view, onOpenChange }: ApiAccess
                       {localize('com_ui_admin_api_name')}
                     </label>
                     <input
+                      ref={nameRef}
                       id="api-key-name"
                       value={name}
                       onChange={(event) => setName(event.target.value)}
@@ -317,6 +321,7 @@ export default function ApiAccessDialog({ agent, view, onOpenChange }: ApiAccess
                       {localize('com_ui_admin_api_audience')}
                     </label>
                     <input
+                      ref={audienceRef}
                       id="api-key-audience"
                       value={audience}
                       onChange={(event) => setAudience(event.target.value)}

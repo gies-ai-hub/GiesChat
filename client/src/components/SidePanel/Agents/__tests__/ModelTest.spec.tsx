@@ -89,6 +89,40 @@ describe('ModelTest', () => {
     expect(onUse).toHaveBeenCalledWith('gpt-6.1-sol');
   });
 
+  it('reports progress and the result count, with failures, in a status line', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    mockRun.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderTest();
+    await userEvent.click(screen.getByRole('button', { name: 'com_ui_model_test' }));
+    await userEvent.type(screen.getByLabelText('com_ui_model_test_question {"n":1}'), 'Hi');
+    await userEvent.click(screen.getByRole('button', { name: 'com_ui_model_test_run' }));
+
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('com_ui_model_test_progress');
+    const running = screen.getByRole('button', { name: 'com_ui_model_test_running' });
+    expect(running).toHaveAttribute('aria-disabled', 'true');
+    expect(running).toHaveFocus();
+    await userEvent.click(running);
+    expect(mockRun).toHaveBeenCalledTimes(1);
+
+    finish({
+      results: [
+        {
+          question: 'Hi',
+          answers: [
+            { model: 'gpt-6-luna', text: 'Hello!', ms: 900 },
+            { model: 'gpt-6.1-sol', error: 'Timed out', ms: 30000 },
+          ],
+        },
+      ],
+    });
+    await waitFor(() =>
+      expect(status).toHaveTextContent(
+        'com_ui_model_test_ready_one {"count":1} com_ui_model_test_failed {"failed":1,"total":2}',
+      ),
+    );
+  });
+
   it('refuses to run without a question and never calls the server', async () => {
     renderTest();
     await userEvent.click(screen.getByRole('button', { name: 'com_ui_model_test' }));

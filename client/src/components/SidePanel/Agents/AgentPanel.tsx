@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useCallback, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, useToastContext } from '@librechat/client';
 import { useWatch, useForm, FormProvider } from 'react-hook-form';
@@ -233,6 +233,26 @@ export const isAvatarUploadOnlyDirty = (
   return result.sawDirty && result.onlyAvatarDirty;
 };
 
+/** Work in the builder that no save has persisted yet, so a host can confirm before closing. */
+export interface UnsavedAgentChanges {
+  /** The instructions were edited. */
+  instructions: boolean;
+  /** Any other field was edited. */
+  fields: boolean;
+  /** Documents staged for an agent that is not created yet. */
+  documents: number;
+  /** Websites staged for an agent that is not created yet. */
+  websites: number;
+}
+
+/** Splits the form's dirty map into the instructions and everything else. */
+export const getDirtyFieldKinds = (
+  dirtyFields: FieldNamesMarkedBoolean<AgentForm>,
+): Pick<UnsavedAgentChanges, 'instructions' | 'fields'> => {
+  const { instructions, ...others } = dirtyFields;
+  return { instructions: instructions === true, fields: evaluateDirtyFields(others).sawDirty };
+};
+
 interface AgentPanelProps {
   /** Fired after an agent is created, so a host (e.g. a dialog) can react. */
   onAgentCreated?: (agentId: string) => void;
@@ -248,6 +268,8 @@ interface AgentPanelProps {
   documentLimit?: number;
   /** Shows the Websites section (dashboard dialogs only). */
   showWebsites?: boolean;
+  /** Called with the unsaved work whenever it changes, or null once everything is saved. */
+  onUnsavedChange?: (unsaved: UnsavedAgentChanges | null) => void;
 }
 
 export default function AgentPanel({
@@ -258,6 +280,7 @@ export default function AgentPanel({
   modelCards,
   documentLimit,
   showWebsites,
+  onUnsavedChange,
 }: AgentPanelProps = {}) {
   const localize = useLocalize();
   const { user } = useAuthContext();
@@ -307,6 +330,25 @@ export default function AgentPanel({
     setValue,
     formState: { dirtyFields },
   } = methods;
+  const { instructions: instructionsDirty, fields: fieldsDirty } = getDirtyFieldKinds(dirtyFields);
+  const stagedDocuments = pendingContextFiles.length;
+  const stagedWebsites = pendingWebsites.length;
+  useEffect(() => {
+    if (onUnsavedChange == null) {
+      return;
+    }
+    const unsaved = instructionsDirty || fieldsDirty || stagedDocuments + stagedWebsites > 0;
+    onUnsavedChange(
+      unsaved
+        ? {
+            instructions: instructionsDirty,
+            fields: fieldsDirty,
+            documents: stagedDocuments,
+            websites: stagedWebsites,
+          }
+        : null,
+    );
+  }, [onUnsavedChange, instructionsDirty, fieldsDirty, stagedDocuments, stagedWebsites]);
   const [isAvatarUploadInFlight, setIsAvatarUploadInFlight] = useState(false);
   const [isAttachingDocuments, setIsAttachingDocuments] = useState(false);
   const [contextUploads, setContextUploads] = useState<Map<string, ExtendedFile>>(new Map());

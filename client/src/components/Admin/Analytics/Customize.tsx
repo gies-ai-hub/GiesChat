@@ -1,6 +1,6 @@
-import React, { useRef, useMemo, useState, useCallback } from 'react';
+import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
-import { GripVertical, SlidersHorizontal } from 'lucide-react';
+import { ArrowUp, ArrowDown, GripVertical, SlidersHorizontal } from 'lucide-react';
 import { resolveLayout } from 'librechat-data-provider';
 import {
   Button,
@@ -12,6 +12,7 @@ import {
 import type { AdminDashboardPanel, AdminPanelId } from 'librechat-data-provider';
 import { useUpdateAdminDashboardLayoutMutation } from '~/data-provider';
 import { PANEL_ORDER, panelFor } from './registry';
+import { useLiveAnnouncer } from '~/Providers';
 import { useLocalize } from '~/hooks';
 
 const DRAG_TYPE = 'admin-analytics-panel';
@@ -20,16 +21,35 @@ const DRAG_TYPE = 'admin-analytics-panel';
 const signature = (panels: AdminDashboardPanel[]): string =>
   panels.map((panel) => `${panel.id}:${panel.visible ? 1 : 0}`).join('|');
 
+type Direction = 'up' | 'down';
+
+const moveButtonId = (id: AdminPanelId, direction: Direction): string =>
+  `admin-panel-${id}-${direction}`;
+
+/** A button disabled by the move can't hold focus, so focus hops to its twin. */
+function focusAfter(to: number, count: number, direction: Direction): Direction {
+  if (to === 0) {
+    return 'down';
+  }
+  if (to === count - 1) {
+    return 'up';
+  }
+  return direction;
+}
+
 interface RowProps {
   panel: AdminDashboardPanel;
   index: number;
+  count: number;
   label: string;
-  reorderLabel: string;
   onToggle: (id: AdminPanelId) => void;
   onMove: (from: number, to: number) => void;
+  onStep: (index: number, direction: Direction, label: string) => void;
 }
 
-function Row({ panel, index, label, reorderLabel, onToggle, onMove }: RowProps) {
+/** Dragging stays as a shortcut; the arrow buttons are the keyboard and single-pointer route. */
+function Row({ panel, index, count, label, onToggle, onMove, onStep }: RowProps) {
+  const localize = useLocalize();
   const ref = useRef<HTMLDivElement>(null);
 
   const [, drop] = useDrop<{ index: number }>({
@@ -60,7 +80,7 @@ function Row({ panel, index, label, reorderLabel, onToggle, onMove }: RowProps) 
     >
       <GripVertical
         className="size-4 shrink-0 cursor-grab text-text-secondary"
-        aria-label={reorderLabel}
+        aria-hidden="true"
       />
       <input
         type="checkbox"
@@ -73,6 +93,30 @@ function Row({ panel, index, label, reorderLabel, onToggle, onMove }: RowProps) 
       <label htmlFor={`admin-panel-${panel.id}`} className="text-sm text-text-primary">
         {label}
       </label>
+      <div className="ml-auto flex shrink-0 gap-1">
+        <Button
+          id={moveButtonId(panel.id, 'up')}
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          disabled={index === 0}
+          aria-label={localize('com_ui_admin_customize_move_up', { name: label })}
+          onClick={() => onStep(index, 'up', label)}
+        >
+          <ArrowUp className="size-4" aria-hidden="true" />
+        </Button>
+        <Button
+          id={moveButtonId(panel.id, 'down')}
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          disabled={index === count - 1}
+          aria-label={localize('com_ui_admin_customize_move_down', { name: label })}
+          onClick={() => onStep(index, 'down', label)}
+        >
+          <ArrowDown className="size-4" aria-hidden="true" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -84,9 +128,20 @@ function Row({ panel, index, label, reorderLabel, onToggle, onMove }: RowProps) 
 export default function Customize({ layout }: { layout: AdminDashboardPanel[] }) {
   const localize = useLocalize();
   const { showToast } = useToastContext();
+  const { announcePolite } = useLiveAnnouncer();
   const { mutate } = useUpdateAdminDashboardLayoutMutation();
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState<AdminDashboardPanel[]>(layout);
+  /** React re-inserts a row moved down, which drops focus; this puts it back. */
+  const focusId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const id = focusId.current;
+    focusId.current = null;
+    if (id != null) {
+      document.getElementById(id)?.focus();
+    }
+  }, [draft]);
 
   const defaultLayout = useMemo(() => resolveLayout([], PANEL_ORDER), []);
 
@@ -104,6 +159,26 @@ export default function Customize({ layout }: { layout: AdminDashboardPanel[] })
       return next;
     });
   }, []);
+
+  const handleStep = useCallback(
+    (index: number, direction: Direction, label: string) => {
+      const to = direction === 'up' ? index - 1 : index + 1;
+      if (to < 0 || to >= draft.length) {
+        return;
+      }
+      focusId.current = moveButtonId(draft[index].id, focusAfter(to, draft.length, direction));
+      handleMove(index, to);
+      announcePolite({
+        message: localize('com_ui_admin_customize_moved', {
+          name: label,
+          position: to + 1,
+          total: draft.length,
+        }),
+        isStatus: true,
+      });
+    },
+    [draft, handleMove, announcePolite, localize],
+  );
 
   const handleReset = useCallback(() => setDraft(defaultLayout), [defaultLayout]);
 
@@ -150,10 +225,11 @@ export default function Customize({ layout }: { layout: AdminDashboardPanel[] })
                   key={panel.id}
                   panel={panel}
                   index={index}
+                  count={draft.length}
                   label={label}
-                  reorderLabel={localize('com_ui_admin_customize_reorder', { name: label })}
                   onToggle={handleToggle}
                   onMove={handleMove}
+                  onStep={handleStep}
                 />
               );
             })}

@@ -4,22 +4,28 @@ import type { TShowToast } from '~/common';
 import { toastState, type ToastState } from '~/store';
 import { NotificationSeverity } from '~/common';
 
+/** Shortest time a toast stays up; long enough to read, and Radix pauses it while hovered or focused. */
+export const TOAST_DURATION = 8000;
+
+/** Errors stay until closed; anything else stays at least `TOAST_DURATION`. */
+export const toastDuration = (
+  severity: NotificationSeverity,
+  requested: number = TOAST_DURATION,
+): number =>
+  severity === NotificationSeverity.ERROR ? Infinity : Math.max(requested, TOAST_DURATION);
+
 export default function useToast(showDelay = 100): {
   toast: ToastState;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange: (open: boolean, id: number) => void;
   showToast: ({ message, severity, showIcon, duration, status }: TShowToast) => void;
 } {
   const [toast, setToast] = useAtom(toastState);
   const showTimerRef = useRef<number | null>(null);
-  const hideTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       if (showTimerRef.current !== null) {
         clearTimeout(showTimerRef.current);
-      }
-      if (hideTimerRef.current !== null) {
-        clearTimeout(hideTimerRef.current);
       }
     };
   }, []);
@@ -28,35 +34,30 @@ export default function useToast(showDelay = 100): {
     message,
     severity = NotificationSeverity.SUCCESS,
     showIcon = true,
-    duration = 3000, // default duration for the toast to be visible
+    duration,
     status,
   }: TShowToast): void => {
-    // Clear existing timeouts
     if (showTimerRef.current !== null) {
       clearTimeout(showTimerRef.current);
     }
-    if (hideTimerRef.current !== null) {
-      clearTimeout(hideTimerRef.current);
-    }
-
-    // Timeout to show the toast
+    const level = (status as NotificationSeverity) ?? severity;
     showTimerRef.current = window.setTimeout(() => {
-      setToast({
+      setToast((prev) => ({
+        id: prev.id + 1,
         open: true,
         message,
-        severity: (status as NotificationSeverity) ?? severity,
+        severity: level,
         showIcon,
-      });
-      // Hides the toast after the specified duration
-      hideTimerRef.current = window.setTimeout(() => {
-        setToast((prevToast: ToastState) => ({ ...prevToast, open: false }));
-      }, duration);
+        duration: toastDuration(level, duration),
+      }));
     }, showDelay);
   };
 
   return {
     toast,
-    onOpenChange: (open: boolean): void => setToast({ ...toast, open }),
+    /** Radix 1.1.5 never clears a replaced toast's timer, so a close from an older toast is ignored. */
+    onOpenChange: (open: boolean, id: number): void =>
+      setToast((prev) => (prev.id === id ? { ...prev, open } : prev)),
     showToast,
   };
 }

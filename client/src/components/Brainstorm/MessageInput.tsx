@@ -107,7 +107,7 @@ export default function MessageInput({ roomId, disabled }: { roomId: string; dis
               segment.mention ? (
                 <span
                   key={i}
-                  className="text-[color:var(--surface-submit)] [-webkit-text-stroke:0.5px_var(--surface-submit)]"
+                  className="text-[color:var(--illini-orange-deep)] [-webkit-text-stroke:0.5px_var(--illini-orange-deep)] dark:text-[color:var(--illini-orange)] dark:[-webkit-text-stroke:0.5px_var(--illini-orange)]"
                 >
                   {segment.text}
                 </span>

@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
+import { Check } from 'lucide-react';
 import { Input, Button } from '@librechat/client';
 import { Controller, useWatch, useFormContext } from 'react-hook-form';
 import type { AgentForm } from '~/common';
@@ -7,8 +8,14 @@ import { validateEmail, cn } from '~/utils';
 
 type Contact = { name: string; email: string };
 
+type Choice = 'me' | 'other' | 'none';
+
 const EMPTY: Contact = { name: '', email: '' };
 const fieldClass = 'h-9';
+const NAME_ID = 'support-contact-name';
+const EDIT_ID = 'support-contact-edit';
+const QUESTION_ID = 'support-contact-question';
+const choiceId = (choice: Choice) => `support-contact-${choice}`;
 
 const initials = (text: string) =>
   text
@@ -33,6 +40,15 @@ export default function SupportContact() {
   const [notNow, setNotNow] = useState(false);
   const [problem, setProblem] = useState(false);
   const beforeEdit = useRef<Contact>(EMPTY);
+  /** Each choice swaps the view, so the control that had focus is gone; land focus on its successor. */
+  const focusNext = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (focusNext.current != null) {
+      document.getElementById(focusNext.current)?.focus();
+      focusNext.current = null;
+    }
+  });
 
   useEffect(() => {
     setEditing(false);
@@ -52,13 +68,16 @@ export default function SupportContact() {
     write(from);
     setProblem(false);
     setEditing(true);
+    focusNext.current = NAME_ID;
   };
 
   const cancel = () => {
-    write(beforeEdit.current);
+    const previous = beforeEdit.current;
+    write(previous);
     clearErrors('support_contact');
     setProblem(false);
     setEditing(false);
+    focusNext.current = previous.name !== '' || previous.email !== '' ? EDIT_ID : choiceId('other');
   };
 
   const done = async () => {
@@ -73,11 +92,13 @@ export default function SupportContact() {
     write({ name, email });
     setProblem(false);
     setEditing(false);
+    focusNext.current = EDIT_ID;
   };
 
   const remove = () => {
     write(EMPTY);
     setNotNow(false);
+    focusNext.current = choiceId('me');
   };
 
   if (editing) {
@@ -98,7 +119,7 @@ export default function SupportContact() {
                 {...field}
                 value={field.value ?? ''}
                 className={cn(fieldClass, error && 'border-2 border-red-500')}
-                id="support-contact-name"
+                id={NAME_ID}
                 type="text"
                 placeholder={localize('com_ui_support_contact_other_name')}
                 aria-label={localize('com_ui_support_contact_name')}
@@ -186,6 +207,7 @@ export default function SupportContact() {
           </span>
         </span>
         <Button
+          id={EDIT_ID}
           type="button"
           size="sm"
           variant="outline"
@@ -200,7 +222,7 @@ export default function SupportContact() {
     );
   }
 
-  const options: { value: string; title: string; hint: string; pick: () => void }[] = [
+  const options: { value: Choice; title: string; hint: string; pick: () => void }[] = [
     {
       value: 'me',
       title: localize('com_ui_support_contact_me'),
@@ -208,6 +230,7 @@ export default function SupportContact() {
       pick: () => {
         write(me);
         setNotNow(false);
+        focusNext.current = EDIT_ID;
       },
     },
     {
@@ -227,30 +250,43 @@ export default function SupportContact() {
     },
   ];
 
+  /** Buttons, not radios: arrowing through radios would act on every choice it lands on. */
   return (
-    <fieldset className="flex flex-col gap-1.5">
-      <legend className="mb-1 text-sm font-medium text-text-primary">
+    <div className="flex flex-col gap-1.5">
+      <p id={QUESTION_ID} className="mb-1 text-sm font-medium text-text-primary">
         {localize('com_ui_support_contact_question')}
-      </legend>
-      {options.map((option) => (
-        <label
-          key={option.value}
-          className="flex cursor-pointer items-start gap-2 rounded-xl border border-border-light p-2.5 hover:bg-surface-hover"
-        >
-          <input
-            type="radio"
-            name="support-contact-choice"
-            value={option.value}
-            checked={option.value === 'none' && notNow}
-            onChange={option.pick}
-            className="mt-1"
-          />
-          <span className="min-w-0">
-            <span className="block text-sm text-text-primary">{option.title}</span>
-            <span className="block break-words text-xs text-text-secondary">{option.hint}</span>
-          </span>
-        </label>
-      ))}
-    </fieldset>
+      </p>
+      <div role="group" aria-labelledby={QUESTION_ID} className="flex flex-col gap-1.5">
+        {options.map((option) => {
+          const id = choiceId(option.value);
+          const pressed = option.value === 'none' && notNow;
+          return (
+            <button
+              key={option.value}
+              id={id}
+              type="button"
+              aria-pressed={pressed}
+              aria-labelledby={`${id}-title`}
+              aria-describedby={`${id}-hint`}
+              onClick={option.pick}
+              className={cn(
+                'flex w-full items-start rounded-xl border p-2.5 text-left hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-ring-primary',
+                pressed ? 'border-border-heavy bg-surface-secondary' : 'border-border-light',
+              )}
+            >
+              <span className="min-w-0">
+                <span id={`${id}-title`} className="block text-sm text-text-primary">
+                  {option.title}
+                </span>
+                <span id={`${id}-hint`} className="block break-words text-xs text-text-secondary">
+                  {option.hint}
+                </span>
+              </span>
+              {pressed && <Check className="ml-auto size-4 flex-none" aria-hidden="true" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

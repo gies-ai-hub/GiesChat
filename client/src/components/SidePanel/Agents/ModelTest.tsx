@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Scale, X } from 'lucide-react';
 import { isEphemeralAgentId } from 'librechat-data-provider';
-import { Button, OGDialog, OGDialogTitle, OGDialogContent } from '@librechat/client';
+import { Button, Spinner, OGDialog, OGDialogTitle, OGDialogContent } from '@librechat/client';
 import type { TModelSpec, AdminModelTestAnswer } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks/useLocalize';
 import { useRunAdminModelTestMutation } from '~/data-provider';
@@ -58,6 +58,9 @@ export default function ModelTest({
   };
 
   const start = () => {
+    if (run.isLoading) {
+      return;
+    }
     const asked = questions.map((question) => question.trim()).filter(Boolean);
     if (modelA === modelB) {
       setProblem(localize('com_ui_model_test_same'));
@@ -115,6 +118,20 @@ export default function ModelTest({
     results.length > 0 ? 'com_ui_model_test_again' : 'com_ui_model_test_run';
   if (run.isLoading) {
     runKey = 'com_ui_model_test_running';
+  }
+  let status = '';
+  if (run.isLoading) {
+    status = localize('com_ui_model_test_progress');
+  } else if (run.isSuccess) {
+    const answers = results.flatMap((result) => result.answers);
+    const failed = answers.filter((answer) => answer.error != null).length;
+    status = localize(
+      results.length === 1 ? 'com_ui_model_test_ready_one' : 'com_ui_model_test_ready_other',
+      { count: results.length },
+    );
+    if (failed > 0) {
+      status += ` ${localize('com_ui_model_test_failed', { failed, total: answers.length })}`;
+    }
   }
 
   return (
@@ -205,11 +222,26 @@ export default function ModelTest({
               {localize('com_ui_model_test_error')}
             </p>
           )}
-          <div className="mt-4 flex justify-end gap-2">
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+            <p
+              role="status"
+              className="mr-auto flex items-center gap-2 text-sm text-text-secondary"
+            >
+              {run.isLoading && (
+                <Spinner className="size-3.5 shrink-0 motion-reduce:!animate-none" />
+              )}
+              {status}
+            </p>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               {localize('com_ui_close')}
             </Button>
-            <Button type="button" onClick={start} disabled={run.isLoading || offered.length < 2}>
+            <Button
+              type="button"
+              onClick={start}
+              disabled={offered.length < 2}
+              aria-disabled={run.isLoading}
+              className="aria-disabled:opacity-50"
+            >
               {localize(runKey)}
             </Button>
           </div>

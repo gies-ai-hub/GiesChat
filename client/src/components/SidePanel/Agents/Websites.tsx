@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { Globe, RefreshCw, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Spinner, useToastContext } from '@librechat/client';
+import { Spinner } from '@librechat/client';
 import { DynamicQueryKeys, EToolResources, FileSources } from 'librechat-data-provider';
-import type { AdminWebsitePreviewResponse, TFile } from 'librechat-data-provider';
+import type {
+  TFile,
+  AdminWebsiteSaveResponse,
+  AdminWebsitePreviewResponse,
+} from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks/useLocalize';
 import {
   useGetAgentFiles,
@@ -27,10 +31,11 @@ export const isWebsiteFile = (file: TFile): boolean => Boolean(file.metadata?.so
 
 const selectWebsites = (files: TFile[]) => files.filter(isWebsiteFile);
 const shortUrl = (url: string) => url.replace(/^https?:\/\//, '');
+const hostOf = (url = '') => shortUrl(url).split('/')[0];
 const rowClass =
   'flex items-center gap-2.5 rounded-lg border border-border-light px-2.5 py-2 text-xs';
 const iconButtonClass =
-  'rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-50';
+  'rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary disabled:opacity-50 aria-disabled:opacity-50';
 
 function normalize(raw: string): string | null {
   try {
@@ -58,11 +63,12 @@ function errorKey(error: unknown): TranslationKeys {
 export default function Websites({ agent_id }: { agent_id: string }) {
   const localize = useLocalize();
   const queryClient = useQueryClient();
-  const { showToast } = useToastContext();
   const { pendingWebsites, setPendingWebsites } = useAgentPanelContext();
   const [input, setInput] = useState('');
   const [error, setError] = useState<TranslationKeys | null>(null);
   const [preview, setPreview] = useState<AdminWebsitePreviewResponse | null>(null);
+  /** Last result for the status line; while a request runs the line shows its progress instead. */
+  const [result, setResult] = useState('');
   const isNew = isEphemeralAgent(agent_id);
   const { data: copies = [] } = useGetAgentFiles(agent_id, { select: selectWebsites });
   const test = usePreviewAdminWebsiteMutation();
@@ -87,6 +93,21 @@ export default function Websites({ agent_id }: { agent_id: string }) {
     return url;
   };
 
+  const failed = (err: unknown) => setError(errorKey(err));
+
+  const saved = ({ website }: AdminWebsiteSaveResponse) =>
+    setResult(
+      localize('com_agents_websites_saved_toast', { 0: website.pages, 1: hostOf(website.url) }),
+    );
+
+  const refresh = (url: string) => {
+    if (save.isLoading) {
+      return;
+    }
+    setResult('');
+    save.mutate({ agentId: agent_id, url }, { onSuccess: saved, onError: failed });
+  };
+
   const saveUrl = (url: string) => {
     if (isNew) {
       setPendingWebsites((current) => [...current, url]);
@@ -94,29 +115,36 @@ export default function Websites({ agent_id }: { agent_id: string }) {
       setPreview(null);
       return;
     }
+    setResult('');
     save.mutate(
       { agentId: agent_id, url },
       {
-        onSuccess: ({ website }) => {
+        onSuccess: (data) => {
           setInput('');
           setPreview(null);
-          showToast({
-            message: localize('com_agents_websites_saved_toast', {
-              0: website.pages,
-              1: new URL(website.url).host,
-            }),
-          });
+          saved(data);
         },
-        onError: (err) => setError(errorKey(err)),
+        onError: failed,
       },
     );
   };
 
   const onTest = () => {
-    const url = validated();
-    if (url) {
-      test.mutate(url, { onSuccess: setPreview, onError: (err) => setError(errorKey(err)) });
+    if (test.isLoading) {
+      return;
     }
+    const url = validated();
+    if (!url) {
+      return;
+    }
+    setResult('');
+    test.mutate(url, {
+      onSuccess: (data) => {
+        setPreview(data);
+        setResult(localize('com_agents_websites_preview_ready', { 0: data.pages.length }));
+      },
+      onError: failed,
+    });
   };
 
   const onAdd = () => {
@@ -130,6 +158,13 @@ export default function Websites({ agent_id }: { agent_id: string }) {
   };
 
   const refreshing = save.isLoading ? save.variables?.url : undefined;
+  const working = save.isLoading || test.isLoading;
+  let status = result;
+  if (save.isLoading) {
+    status = localize('com_agents_websites_reading_host', { 0: hostOf(refreshing) });
+  } else if (test.isLoading) {
+    status = localize('com_agents_websites_testing_host', { 0: hostOf(test.variables) });
+  }
 
   return (
     /* `contain: inline-size` keeps this section's long text from widening the host dialog. */
@@ -159,8 +194,8 @@ export default function Websites({ agent_id }: { agent_id: string }) {
         <button
           type="button"
           onClick={onTest}
-          disabled={test.isLoading}
-          className="btn btn-neutral h-9 px-3 text-sm disabled:opacity-50"
+          aria-disabled={test.isLoading}
+          className="btn btn-neutral h-9 px-3 text-sm aria-disabled:opacity-50"
         >
           {test.isLoading
             ? localize('com_agents_websites_testing')
@@ -169,12 +204,16 @@ export default function Websites({ agent_id }: { agent_id: string }) {
         <button
           type="button"
           onClick={onAdd}
-          disabled={save.isLoading}
-          className="btn btn-primary h-9 px-3 text-sm disabled:opacity-50"
+          aria-disabled={save.isLoading}
+          className="btn btn-primary h-9 px-3 text-sm aria-disabled:opacity-50"
         >
           {localize('com_agents_websites_add')}
         </button>
       </div>
+      <p role="status" className="flex items-center gap-2 text-xs text-text-secondary">
+        {working && <Spinner className="size-3 shrink-0 motion-reduce:!animate-none" />}
+        {status}
+      </p>
       {error && (
         <p role="alert" className="text-xs text-red-500">
           {localize(error)}
@@ -185,7 +224,10 @@ export default function Websites({ agent_id }: { agent_id: string }) {
           preview={preview}
           isAdding={save.isLoading}
           onAdd={() => saveUrl(preview.url)}
-          onClose={() => setPreview(null)}
+          onClose={() => {
+            setPreview(null);
+            setResult('');
+          }}
         />
       )}
       <ul className="flex flex-col gap-1.5">
@@ -212,13 +254,8 @@ export default function Websites({ agent_id }: { agent_id: string }) {
               </span>
               <button
                 type="button"
-                disabled={save.isLoading}
-                onClick={() =>
-                  save.mutate(
-                    { agentId: agent_id, url },
-                    { onError: (err) => setError(errorKey(err)) },
-                  )
-                }
+                aria-disabled={save.isLoading}
+                onClick={() => refresh(url)}
                 title={localize('com_agents_websites_refresh')}
                 aria-label={localize('com_agents_websites_refresh')}
                 className={iconButtonClass}

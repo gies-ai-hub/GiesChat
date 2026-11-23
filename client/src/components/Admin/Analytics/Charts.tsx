@@ -61,15 +61,16 @@ export interface AreaPoint {
   tooltip: string;
 }
 
+/**
+ * Charts are hidden from assistive tech: each panel renders the same numbers in a
+ * "Show data" table, which is also the keyboard route to what the tooltips show.
+ */
 interface AreaChartProps {
   points: AreaPoint[];
-  ariaLabel: string;
-  /** Read by screen readers, where a hover tooltip would never reach. */
-  detail: string;
 }
 
 /** Single series over time. Hovering anywhere snaps to the nearest day. */
-export function AreaChart({ points, ariaLabel, detail }: AreaChartProps) {
+export function AreaChart({ points }: AreaChartProps) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   const { line, area, x, y } = useMemo(() => {
@@ -118,11 +119,9 @@ export function AreaChart({ points, ariaLabel, detail }: AreaChartProps) {
       <svg
         viewBox={`0 0 ${AREA_WIDTH} ${AREA_HEIGHT}`}
         className={`w-full ${SERIES_1}`}
-        role="img"
-        aria-label={ariaLabel}
+        aria-hidden="true"
         preserveAspectRatio="none"
       >
-        <title>{detail}</title>
         <path d={area} fill="currentColor" fillOpacity="0.13" />
         <path
           data-line
@@ -189,12 +188,11 @@ export interface ColumnBucket {
 
 interface ColumnChartProps {
   buckets: ColumnBucket[];
-  ariaLabel: string;
   /** Index drawn in the second hue — used to call out the one-turn bucket. */
   emphasizeIndex?: number;
 }
 
-export function ColumnChart({ buckets, ariaLabel, emphasizeIndex }: ColumnChartProps) {
+export function ColumnChart({ buckets, emphasizeIndex }: ColumnChartProps) {
   const [hovered, setHovered] = useState<number | null>(null);
   const max = Math.max(1, ...buckets.map((bucket) => bucket.count));
   const barWidth =
@@ -203,12 +201,7 @@ export function ColumnChart({ buckets, ariaLabel, emphasizeIndex }: ColumnChartP
 
   return (
     <div className="relative">
-      <svg
-        viewBox={`0 0 ${COLUMN_WIDTH} ${COLUMN_HEIGHT}`}
-        className="w-full"
-        role="img"
-        aria-label={ariaLabel}
-      >
+      <svg viewBox={`0 0 ${COLUMN_WIDTH} ${COLUMN_HEIGHT}`} className="w-full" aria-hidden="true">
         {buckets.map((bucket, index) => {
           const barHeight =
             (bucket.count / max) * (COLUMN_HEIGHT - COLUMN_PAD_TOP - COLUMN_PAD_BOTTOM);

@@ -1,12 +1,20 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { useRecoilValue } from 'recoil';
 import { ArrowLeft, Bot, Shield, MessageSquare } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Dropdown, OGDialog, OGDialogContent, OGDialogTitle } from '@librechat/client';
+import {
+  Button,
+  Dropdown,
+  OGDialog,
+  OGDialogTitle,
+  OGDialogContent,
+  OGDialogDescription,
+} from '@librechat/client';
 import { QueryKeys, Permissions, PermissionTypes } from 'librechat-data-provider';
 import type { AdminAgentUsage, AdminAgentDraft, AdminDashboardView } from 'librechat-data-provider';
 import type { Option } from '@librechat/client';
+import type { UnsavedAgentChanges } from '~/components/SidePanel/Agents/AgentPanel';
 import type { AgentPeopleLists } from './Drafts/CollaboratorsDialog';
 import type { AgentActionHandlers } from './AgentActions';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
@@ -53,6 +61,13 @@ const NO_PEOPLE: AgentPeopleLists = {
   pendingCoAdmins: [],
 };
 
+/** Unsaved builder work held back by the discard prompt, and how to close its dialog. */
+interface PendingDiscard {
+  unsaved: UnsavedAgentChanges;
+  isNew: boolean;
+  close: () => void;
+}
+
 export default function AdminDashboard() {
   const localize = useLocalize();
   const navigate = useNavigate();
@@ -97,6 +112,15 @@ export default function AdminDashboard() {
     agent: AdminAgentUsage;
     people: AgentPeopleLists;
   } | null>(null);
+  /** What the open builder holds unsaved; read only when it is about to close. */
+  const unsavedWork = useRef<UnsavedAgentChanges | null>(null);
+  const [discard, setDiscard] = useState<PendingDiscard | null>(null);
+  const [isDiscardOpen, setIsDiscardOpen] = useState(false);
+  const agentsSectionRef = useRef<HTMLElement>(null);
+  const agentsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const studentsHeadingRef = useRef<HTMLHeadingElement>(null);
+  /** Opening an agent or going back unmounts the focused control; this says where focus goes. */
+  const refocus = useRef<'students' | AdminAgentUsage | null>(null);
 
   const { data: groupData, error: groupsError } = useAdminGroupsQuery(
     { limit: GROUP_PAGE_SIZE },
@@ -119,6 +143,24 @@ export default function AdminDashboard() {
     () => usageData?.agents.find((agent) => agent.agent_id === selectedAgentId) ?? null,
     [usageData, selectedAgentId],
   );
+  const shownAgentId = selectedAgent?.agent_id ?? null;
+
+  useEffect(() => {
+    const target = refocus.current;
+    refocus.current = null;
+    const active = document.activeElement;
+    if (target == null || (active != null && active !== document.body)) {
+      return;
+    }
+    if (target === 'students') {
+      studentsHeadingRef.current?.focus();
+      return;
+    }
+    const label = localize('com_ui_admin_view_progress', { name: target.name });
+    const buttons = agentsSectionRef.current?.querySelectorAll('button') ?? [];
+    const row = Array.from(buttons).find((button) => button.getAttribute('aria-label') === label);
+    (row ?? agentsHeadingRef.current)?.focus();
+  }, [shownAgentId, localize]);
 
   const classOptions = useMemo<Option[]>(() => {
     const groups = groupData?.groups ?? [];
@@ -164,6 +206,30 @@ export default function AdminDashboard() {
   const handleDaysChange = useCallback((value: string) => {
     setDays(Number(value));
   }, []);
+
+  const handleUnsavedChange = useCallback((unsaved: UnsavedAgentChanges | null) => {
+    unsavedWork.current = unsaved;
+  }, []);
+
+  /** Escape, an outside click and the X all land here; unsaved work asks before it is lost. */
+  const confirmClose =
+    (isNew: boolean, onOpenChange: (open: boolean) => void) => (open: boolean) => {
+      const unsaved = unsavedWork.current;
+      if (open || unsaved == null) {
+        onOpenChange(open);
+        return;
+      }
+      setDiscard({
+        unsaved,
+        isNew,
+        close: () => {
+          unsavedWork.current = null;
+          setIsDiscardOpen(false);
+          onOpenChange(false);
+        },
+      });
+      setIsDiscardOpen(true);
+    };
 
   /**
    * Closing the builder refetches usage so an agent created here appears in the table
@@ -260,15 +326,20 @@ export default function AdminDashboard() {
 
   /** Switching between agents replaces the entry, so one browser back always lands on the list. */
   const handleSelectAgent = useCallback(
-    (agent: AdminAgentUsage) =>
+    (agent: AdminAgentUsage) => {
+      refocus.current = 'students';
       setSearchParams(
         { ...viewParams, [AGENT_PARAM]: agent.agent_id },
         { replace: selectedAgent != null },
-      ),
+      );
+    },
     [setSearchParams, selectedAgent, viewParams],
   );
 
-  const handleBack = useCallback(() => setSearchParams(viewParams), [setSearchParams, viewParams]);
+  const handleBack = useCallback(() => {
+    refocus.current = selectedAgent;
+    setSearchParams(viewParams);
+  }, [setSearchParams, selectedAgent, viewParams]);
 
   const handleViewChange = useCallback(
     (next: AdminDashboardView | undefined) => {
@@ -306,6 +377,15 @@ export default function AdminDashboard() {
     onToggleDrafts: handleToggleDrafts,
     onDeleted: handleAgentDeleted,
   };
+
+  /** Nested in whichever builder dialog is open, so it stacks above it and traps focus there. */
+  const discardConfirm = (
+    <DiscardConfirm
+      pending={discard}
+      open={isDiscardOpen}
+      onKeepEditing={() => setIsDiscardOpen(false)}
+    />
+  );
 
   /**
    * `Root` gives every route a fixed-height `overflow-hidden` shell and expects the
@@ -413,8 +493,13 @@ export default function AdminDashboard() {
 
           {/* The Admin view lists every owner's agents, too many for the card strip. */}
           {(view == null || selectedAgent == null) && (
-            <section aria-labelledby="admin-agents-heading">
-              <h2 id="admin-agents-heading" className="mb-3 text-lg font-medium text-text-primary">
+            <section ref={agentsSectionRef} aria-labelledby="admin-agents-heading">
+              <h2
+                id="admin-agents-heading"
+                ref={agentsHeadingRef}
+                tabIndex={-1}
+                className="mb-3 text-lg font-medium text-text-primary"
+              >
                 {localize(view ? 'com_ui_admin_all_agents_heading' : 'com_ui_admin_agents_heading')}
               </h2>
               {view == null && (
@@ -453,6 +538,8 @@ export default function AdminDashboard() {
               </Button>
               <h2
                 id="admin-students-heading"
+                ref={studentsHeadingRef}
+                tabIndex={-1}
                 className="mb-3 text-lg font-medium text-text-primary"
               >
                 {localize('com_ui_admin_students_heading', { name: selectedAgent.name })}
@@ -476,7 +563,7 @@ export default function AdminDashboard() {
         </div>
 
         {canCreateAgents && (
-          <OGDialog open={isBuilding} onOpenChange={handleBuilderOpenChange}>
+          <OGDialog open={isBuilding} onOpenChange={confirmClose(true, handleBuilderOpenChange)}>
             <OGDialogContent className="max-h-[90vh] w-11/12 max-w-lg overflow-y-auto">
               <OGDialogTitle>{localize('com_agents_create')}</OGDialogTitle>
               <AgentPanelSwitch
@@ -486,7 +573,9 @@ export default function AdminDashboard() {
                 documentLimit={DASHBOARD_DOCUMENT_LIMIT}
                 showWebsites
                 onAgentCreated={handleAgentCreated}
+                onUnsavedChange={handleUnsavedChange}
               />
+              {discardConfirm}
             </OGDialogContent>
           </OGDialog>
         )}
@@ -522,7 +611,10 @@ export default function AdminDashboard() {
 
         {/* Not gated on canCreateAgents: editing is authorised by the EDIT scope the server
             already applied to this list, not by the CREATE permission. */}
-        <OGDialog open={editingAgent != null} onOpenChange={handleEditOpenChange}>
+        <OGDialog
+          open={editingAgent != null}
+          onOpenChange={confirmClose(false, handleEditOpenChange)}
+        >
           <OGDialogContent className="max-h-[90vh] w-11/12 max-w-lg overflow-y-auto">
             <OGDialogTitle>
               {localize('com_ui_admin_edit_agent_title', { name: editingAgent?.name ?? '' })}
@@ -555,11 +647,108 @@ export default function AdminDashboard() {
                 modelCards
                 documentLimit={DASHBOARD_DOCUMENT_LIMIT}
                 showWebsites
+                onUnsavedChange={handleUnsavedChange}
               />
             )}
+            {discardConfirm}
           </OGDialogContent>
         </OGDialog>
       </div>
     </main>
+  );
+}
+
+/** Lists what would be lost, e.g. "typed instructions and 2 documents". */
+function describeUnsaved(
+  unsaved: UnsavedAgentChanges,
+  localize: ReturnType<typeof useLocalize>,
+): string {
+  const { instructions, fields, documents, websites } = unsaved;
+  const items: string[] = [];
+  if (instructions) {
+    items.push(localize('com_ui_admin_unsaved_instructions'));
+  }
+  if (fields) {
+    items.push(
+      localize(
+        instructions ? 'com_ui_admin_unsaved_other_changes' : 'com_ui_admin_unsaved_changes',
+      ),
+    );
+  }
+  if (documents > 0) {
+    items.push(
+      localize(
+        documents === 1
+          ? 'com_ui_admin_unsaved_documents_one'
+          : 'com_ui_admin_unsaved_documents_other',
+        { count: documents },
+      ),
+    );
+  }
+  if (websites > 0) {
+    items.push(
+      localize(
+        websites === 1
+          ? 'com_ui_admin_unsaved_websites_one'
+          : 'com_ui_admin_unsaved_websites_other',
+        { count: websites },
+      ),
+    );
+  }
+  const single = !instructions && !fields && documents + websites === 1;
+  return localize(single ? 'com_ui_admin_discard_body_one' : 'com_ui_admin_discard_body_other', {
+    items: new Intl.ListFormat(undefined, { type: 'conjunction' }).format(items),
+  });
+}
+
+function DiscardConfirm({
+  pending,
+  open,
+  onKeepEditing,
+}: {
+  pending: PendingDiscard | null;
+  open: boolean;
+  onKeepEditing: () => void;
+}) {
+  const localize = useLocalize();
+  const keepRef = useRef<HTMLButtonElement>(null);
+  return (
+    <OGDialog
+      open={open && pending != null}
+      onOpenChange={(next) => {
+        if (!next) {
+          onKeepEditing();
+        }
+      }}
+    >
+      <OGDialogContent
+        role="alertdialog"
+        showCloseButton={false}
+        className="w-11/12 max-w-md"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          keepRef.current?.focus();
+        }}
+      >
+        <OGDialogTitle>
+          {localize(
+            pending?.isNew === true
+              ? 'com_ui_admin_discard_agent_title'
+              : 'com_ui_admin_discard_changes_title',
+          )}
+        </OGDialogTitle>
+        <OGDialogDescription>
+          {pending != null ? describeUnsaved(pending.unsaved, localize) : null}
+        </OGDialogDescription>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={pending?.close}>
+            {localize('com_ui_admin_discard')}
+          </Button>
+          <Button ref={keepRef} variant="submit" onClick={onKeepEditing}>
+            {localize('com_ui_admin_keep_editing')}
+          </Button>
+        </div>
+      </OGDialogContent>
+    </OGDialog>
   );
 }

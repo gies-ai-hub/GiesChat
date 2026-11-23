@@ -20,6 +20,7 @@ import AgentAvatar from './AgentAvatar';
 import { Panel } from '~/common';
 
 const fieldClass = 'h-9';
+const labelClass = 'mb-1 block text-[11px] font-medium uppercase tracking-wide text-text-secondary';
 
 const selectWebsiteIds = (files: TFile[]) =>
   new Set(files.filter(isWebsiteFile).map((file) => file.file_id));
@@ -89,6 +90,13 @@ export default function AgentConfig({
             control={control}
             render={({ field }) => (
               <div className="flex flex-col">
+                <label htmlFor="name" className={labelClass}>
+                  {localize('com_ui_name')}{' '}
+                  <span className="text-red-500" aria-hidden="true">
+                    *
+                  </span>
+                </label>
+                {/* `aria-label` keeps "Agent name", which contains the visible "Name" (e2e selects by it). */}
                 <Input
                   {...field}
                   value={field.value ?? ''}
@@ -96,11 +104,15 @@ export default function AgentConfig({
                   className={cn(fieldClass, 'font-medium')}
                   id="name"
                   type="text"
-                  placeholder={localize('com_agents_name_placeholder')}
+                  placeholder={localize('com_agents_name_example')}
                   aria-label={localize('com_ui_agent_name')}
+                  aria-required="true"
                   aria-invalid={!!errors.name}
                   aria-describedby={errors.name ? 'agent-name-error' : undefined}
                 />
+                <p className="mt-1 text-[11px] text-text-secondary">
+                  {localize('com_agents_required_note')}
+                </p>
                 {errors.name && (
                   <div id="agent-name-error" className="mt-1 text-xs text-red-500" role="alert">
                     {errors.name.message}
@@ -131,10 +143,7 @@ export default function AgentConfig({
       {/* MODEL + CATEGORY — balanced 2-column grid */}
       <div className="mb-3 grid grid-cols-2 gap-2">
         <div className="flex min-w-0 flex-col">
-          <label
-            className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-text-secondary"
-            htmlFor="provider"
-          >
+          <label className={labelClass} htmlFor="provider">
             {localize('com_ui_model')} <span className="text-red-500">*</span>
           </label>
           <button
@@ -164,10 +173,7 @@ export default function AgentConfig({
           </button>
         </div>
         <div className="flex flex-col">
-          <label
-            className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-text-secondary"
-            htmlFor="category-selector"
-          >
+          <label className={labelClass} htmlFor="category-selector">
             {localize('com_ui_category')} <span className="text-red-500">*</span>
           </label>
           <AgentCategorySelector className="w-full rounded-lg" />
@@ -176,10 +182,7 @@ export default function AgentConfig({
 
       {/* COURSE — free-text label shown on the professor dashboard */}
       <div className="mb-3 flex flex-col">
-        <label
-          className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-text-secondary"
-          htmlFor="course"
-        >
+        <label className={labelClass} htmlFor="course">
           {localize('com_ui_agent_course')}
         </label>
         <Controller
@@ -222,9 +225,7 @@ export default function AgentConfig({
 
       {/* CONTACT FOR STUDENTS */}
       <div className="mb-3 flex flex-col">
-        <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-          {localize('com_ui_support_contact_heading')}
-        </span>
+        <span className={labelClass}>{localize('com_ui_support_contact_heading')}</span>
         <SupportContact />
       </div>
     </div>

@@ -62,11 +62,13 @@ jest.mock('~/components/SidePanel/Agents/AgentPanelSwitch', () => ({
   __esModule: true,
   default: ({
     onAgentCreated,
+    onUnsavedChange,
     createdVia,
     initialAgentId,
     hideAgentSelect,
   }: {
     onAgentCreated?: (agentId: string) => void;
+    onUnsavedChange?: (unsaved: Record<string, boolean | number> | null) => void;
     createdVia?: string;
     initialAgentId?: string;
     hideAgentSelect?: boolean;
@@ -81,6 +83,13 @@ jest.mock('~/components/SidePanel/Agents/AgentPanelSwitch', () => ({
         type="button"
         data-testid="simulate-create"
         onClick={() => onAgentCreated?.('agent_new')}
+      />
+      <button
+        type="button"
+        data-testid="simulate-unsaved"
+        onClick={() =>
+          onUnsavedChange?.({ instructions: true, fields: false, documents: 2, websites: 0 })
+        }
       />
     </div>
   ),
@@ -312,6 +321,73 @@ describe('AdminDashboard', () => {
     await userEvent.keyboard('{Escape}');
     await waitFor(() =>
       expect(mockGetAdminAgentUsage.mock.calls.length).toBeGreaterThan(callsBefore),
+    );
+  });
+
+  describe('unsaved work in the builder', () => {
+    it('asks before Escape discards it, and closes straight away when there is none', async () => {
+      renderDashboard();
+      await userEvent.click(await screen.findByRole('button', { name: /build an agent/i }));
+      await userEvent.click(await screen.findByTestId('simulate-unsaved'));
+
+      await userEvent.keyboard('{Escape}');
+
+      const confirm = await screen.findByRole('alertdialog', { name: 'Discard this agent?' });
+      expect(confirm).toHaveTextContent(
+        "You have typed instructions and 2 documents that aren't saved yet.",
+      );
+      await waitFor(() =>
+        expect(within(confirm).getByRole('button', { name: 'Keep editing' })).toHaveFocus(),
+      );
+
+      await userEvent.click(within(confirm).getByRole('button', { name: 'Keep editing' }));
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+      expect(screen.getByTestId('agent-panel-switch')).toBeInTheDocument();
+
+      await userEvent.keyboard('{Escape}');
+      await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+      await waitFor(() =>
+        expect(screen.queryByTestId('agent-panel-switch')).not.toBeInTheDocument(),
+      );
+
+      await userEvent.click(screen.getByRole('button', { name: /build an agent/i }));
+      await screen.findByTestId('agent-panel-switch');
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByTestId('agent-panel-switch')).not.toBeInTheDocument(),
+      );
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
+
+    it('names unsaved changes, not a new agent, in the edit dialog', async () => {
+      renderDashboard();
+      await userEvent.click(await screen.findByRole('button', { name: 'Edit Case Study Coach' }));
+      await userEvent.click(await screen.findByTestId('simulate-unsaved'));
+
+      await userEvent.keyboard('{Escape}');
+
+      expect(
+        await screen.findByRole('alertdialog', { name: 'Discard your changes?' }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  /** The control that opened or left an agent unmounts, which used to drop focus to <body>. */
+  it('moves focus to the student heading on open and back to the agent on return', async () => {
+    renderDashboard();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'View student progress for Case Study Coach' }),
+    );
+
+    const heading = await screen.findByRole('heading', { name: /Student progress/ });
+    await waitFor(() => expect(heading).toHaveFocus());
+
+    await userEvent.click(screen.getByRole('button', { name: 'Back to all agents' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'View student progress for Case Study Coach' }),
+      ).toHaveFocus(),
     );
   });
 

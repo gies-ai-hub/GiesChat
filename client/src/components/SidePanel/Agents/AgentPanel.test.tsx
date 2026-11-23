@@ -111,6 +111,8 @@ jest.mock('~/hooks/useResourcePermissions', () => ({
   }),
 }));
 
+let mockPendingContextFiles: { file: File }[] = [];
+
 jest.mock('~/Providers/AgentPanelContext', () => ({
   useAgentPanelContext: () => ({
     activePanel: 'builder',
@@ -119,8 +121,10 @@ jest.mock('~/Providers/AgentPanelContext', () => ({
     endpointsConfig: {},
     setCurrentAgentId: jest.fn(),
     agent_id: 'agent-123',
-    pendingContextFiles: [],
+    pendingContextFiles: mockPendingContextFiles,
     setPendingContextFiles: jest.fn(),
+    pendingWebsites: [],
+    setPendingWebsites: jest.fn(),
   }),
 }));
 
@@ -295,6 +299,32 @@ describe('AgentPanel - Update Agent Toast Messages', () => {
     jest.clearAllMocks();
     mockShowToast = jest.fn();
     mockFormSubmitHandler = null;
+    mockPendingContextFiles = [];
+  });
+
+  /** The /admin dialogs ask before Escape discards work, so the panel must say what is unsaved. */
+  it('reports staged documents to its host, and nothing once there are none', async () => {
+    const { mockUseGetAgentByIdQuery } = setupMocks();
+    mockAgentQuery(mockUseGetAgentByIdQuery, { name: 'Test Agent' });
+    const onUnsavedChange = jest.fn();
+    const Wrapper = createWrapper();
+
+    const { rerender } = render(<AgentPanel onUnsavedChange={onUnsavedChange} />, {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(onUnsavedChange).toHaveBeenLastCalledWith(null));
+
+    mockPendingContextFiles = [{ file: new File(['a'], 'syllabus.pdf') }];
+    rerender(<AgentPanel onUnsavedChange={onUnsavedChange} />);
+
+    await waitFor(() =>
+      expect(onUnsavedChange).toHaveBeenLastCalledWith({
+        instructions: false,
+        fields: false,
+        documents: 1,
+        websites: 0,
+      }),
+    );
   });
 
   describe('AgentPanel', () => {

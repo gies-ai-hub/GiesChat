@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useRef, useEffect } from 'react';
+import React, { memo, useMemo, useRef, useState, useEffect } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useToastContext } from '@librechat/client';
 import { PermissionTypes, Permissions, apiBaseUrl } from 'librechat-data-provider';
@@ -189,9 +189,32 @@ type TTableProps = {
   children: React.ReactNode;
 };
 
+/** A wide table becomes a named, focusable region so keyboard users can scroll it sideways. */
 export const table: React.ElementType = memo(function MarkdownTable({ children }: TTableProps) {
+  const localize = useLocalize();
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState(false);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const measure = () => setScrollable(wrapper.scrollWidth > wrapper.clientWidth);
+    const observer = new ResizeObserver(measure);
+    observer.observe(wrapper);
+    measure();
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="markdown-table-wrapper w-full max-w-full">
+    <div
+      ref={wrapperRef}
+      className="markdown-table-wrapper w-full max-w-full"
+      role={scrollable ? 'region' : undefined}
+      aria-label={scrollable ? localize('com_ui_table_scroll_region') : undefined}
+      tabIndex={scrollable ? 0 : undefined}
+    >
       <table>{children}</table>
     </div>
   );

@@ -5,9 +5,10 @@ import { Constants, type Agent } from 'librechat-data-provider';
 import type { FieldNamesMarkedBoolean } from 'react-hook-form';
 import type { AgentForm } from '~/common';
 import {
-  composeAgentUpdatePayload,
+  getDirtyFieldKinds,
   persistAvatarChanges,
   isAvatarUploadOnlyDirty,
+  composeAgentUpdatePayload,
 } from '../AgentPanel';
 
 const createForm = (): AgentForm => ({
@@ -164,5 +165,31 @@ describe('isAvatarUploadOnlyDirty', () => {
     } as FieldNamesMarkedBoolean<AgentForm>;
 
     expect(isAvatarUploadOnlyDirty(dirtyFields)).toBe(false);
+  });
+});
+
+describe('getDirtyFieldKinds', () => {
+  const kinds = (fields: object) =>
+    getDirtyFieldKinds(fields as FieldNamesMarkedBoolean<AgentForm>);
+
+  it('reports nothing for a clean form, ignoring the agent picker', () => {
+    expect(kinds({})).toEqual({ instructions: false, fields: false });
+    expect(kinds({ agent: { value: true } })).toEqual({ instructions: false, fields: false });
+  });
+
+  it('tells edited instructions apart from other fields', () => {
+    expect(kinds({ instructions: true })).toEqual({ instructions: true, fields: false });
+    expect(kinds({ instructions: true, name: true })).toEqual({ instructions: true, fields: true });
+  });
+
+  it('counts a nested field only when something in it is marked', () => {
+    expect(kinds({ support_contact: { name: false } })).toEqual({
+      instructions: false,
+      fields: false,
+    });
+    expect(kinds({ support_contact: { name: true } })).toEqual({
+      instructions: false,
+      fields: true,
+    });
   });
 });

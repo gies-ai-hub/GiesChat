@@ -202,6 +202,8 @@ async function buildClip(specPath) {
   for (const item of spec.frames) {
     entries.push({ png: await frame(item, dir, spec.brand), seconds: item.seconds ?? 2.5 });
   }
+  /** The GIF plays once (WCAG 2.2.2: email clients offer no pause) and stops on the poster. */
+  entries.push(entries[0]);
   const list = entries
     .map(({ png, seconds }, index) => {
       const file = path.join(work, `f${index}.png`);
@@ -243,7 +245,7 @@ async function buildClip(specPath) {
     '-vf',
     'fps=4,scale=1072:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4',
     '-loop',
-    '0',
+    '-1',
     path.join(out, 'main.gif'),
   ]);
   fs.copyFileSync(path.join(work, 'f0.png'), path.join(work, 'poster.png'));

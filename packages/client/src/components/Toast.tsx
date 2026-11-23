@@ -1,9 +1,11 @@
+import { X } from 'lucide-react';
 import { JSX } from 'react/jsx-runtime';
 import * as RadixToast from '@radix-ui/react-toast';
+import { useToast, useLocalize } from '~/hooks';
 import { NotificationSeverity } from '~/common';
-import { useToast } from '~/hooks';
 
 export function Toast(): JSX.Element {
+  const localize = useLocalize();
   const { toast, onOpenChange } = useToast();
   const severityClassName = {
     /* Going up by 100 units in terms of darkness (eg bg-green-500 to bg-green-600) for
@@ -20,8 +22,10 @@ export function Toast(): JSX.Element {
 
   return (
     <RadixToast.Root
+      key={toast.id}
       open={toast.open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(open) => onOpenChange(open, toast.id)}
+      duration={toast.duration}
       className="toast-root"
       style={{
         height: '74px',
@@ -57,6 +61,12 @@ export function Toast(): JSX.Element {
           <RadixToast.Description className="flex-1 justify-center gap-2">
             <div className="whitespace-pre-wrap text-left">{toast.message}</div>
           </RadixToast.Description>
+          <RadixToast.Close
+            aria-label={localize('com_ui_close')}
+            className="-mr-1 flex-shrink-0 self-start rounded p-0.5 hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </RadixToast.Close>
         </div>
       </div>
     </RadixToast.Root>

@@ -33,8 +33,8 @@ export const darkTheme: IThemeRGB = {
   'rgb-surface-tertiary': '26 26 26', // #1a1a1a
   'rgb-surface-tertiary-alt': '17 17 17', // #111111
   'rgb-surface-dialog': '5 5 5', // #050505
-  'rgb-surface-submit': '255 95 5', // #ff5f05 (Illini Orange)
-  'rgb-surface-submit-hover': '217 79 4', // #d94f04
+  'rgb-surface-submit': '200 65 19', // #c84113 (deep Illini Orange: white text 4.97:1)
+  'rgb-surface-submit-hover': '168 54 15', // #a8360f
   'rgb-surface-destructive': '153 27 27', // #991b1b (red-800)
   'rgb-surface-destructive-hover': '127 29 29', // #7f1d1d (red-900)
   'rgb-surface-chat': '0 0 0', // #000

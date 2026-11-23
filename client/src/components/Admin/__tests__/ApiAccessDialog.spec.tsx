@@ -78,8 +78,17 @@ it('explains a bad app ID next to the field', async () => {
   await userEvent.type(screen.getByLabelText("Site's Entra app ID"), 'abc');
   await userEvent.click(screen.getByRole('button', { name: 'Create key' }));
   expect(screen.getByLabelText("Site's Entra app ID")).toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByLabelText("Site's Entra app ID")).toHaveFocus();
   expect(screen.getByText(/Enter the app ID in the form/)).toBeInTheDocument();
   expect(mockCreate).not.toHaveBeenCalled();
+});
+
+it('moves focus to the first invalid field on a bad submit', async () => {
+  renderDialog();
+  await userEvent.click(await screen.findByRole('button', { name: 'New key' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Create key' }));
+  expect(screen.getByLabelText('Key name')).toHaveFocus();
+  expect(screen.getByLabelText('Key name')).toHaveAttribute('aria-invalid', 'true');
 });
 
 it('shows a new key once with a quickstart', async () => {

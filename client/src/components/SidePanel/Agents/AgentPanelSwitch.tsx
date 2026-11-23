@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useRecoilValue } from 'recoil';
 import { AgentPanelProvider, useAgentPanelContext } from '~/Providers/AgentPanelContext';
+import type { UnsavedAgentChanges } from './AgentPanel';
 import type { AgentModelDefault } from '~/utils';
 import { Panel, isEphemeralAgent } from '~/common';
 import VersionPanel from './Version/VersionPanel';
@@ -24,6 +25,8 @@ interface AgentPanelSwitchProps {
   documentLimit?: number;
   /** Shows the Websites section (dashboard dialogs only). */
   showWebsites?: boolean;
+  /** Called with the builder's unsaved work whenever it changes, or null once it is saved. */
+  onUnsavedChange?: (unsaved: UnsavedAgentChanges | null) => void;
 }
 
 export default function AgentPanelSwitch({
@@ -35,6 +38,7 @@ export default function AgentPanelSwitch({
   modelCards,
   documentLimit,
   showWebsites,
+  onUnsavedChange,
 }: AgentPanelSwitchProps = {}) {
   return (
     <AgentPanelProvider>
@@ -47,6 +51,7 @@ export default function AgentPanelSwitch({
         modelCards={modelCards}
         documentLimit={documentLimit}
         showWebsites={showWebsites}
+        onUnsavedChange={onUnsavedChange}
       />
     </AgentPanelProvider>
   );
@@ -61,6 +66,7 @@ function AgentPanelSwitchWithContext({
   modelCards,
   documentLimit,
   showWebsites,
+  onUnsavedChange,
 }: AgentPanelSwitchProps) {
   const { activePanel, setCurrentAgentId } = useAgentPanelContext();
   const agentId = useRecoilValue(store.conversationAgentIdByIndex(0));
@@ -90,6 +96,7 @@ function AgentPanelSwitchWithContext({
       modelCards={modelCards}
       documentLimit={documentLimit}
       showWebsites={showWebsites}
+      onUnsavedChange={onUnsavedChange}
     />
   );
 }

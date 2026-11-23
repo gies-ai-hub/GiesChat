@@ -111,7 +111,7 @@ export default function AgentUsageTable({
                   <TableCell>
                     <button
                       type="button"
-                      className="rounded text-left font-medium text-text-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-heavy"
+                      className="rounded text-left font-medium text-text-primary underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring-primary dark:focus-visible:outline-border-heavy"
                       aria-label={localize('com_ui_admin_view_progress', { name: agent.name })}
                       onClick={() => onSelectAgent(agent)}
                     >

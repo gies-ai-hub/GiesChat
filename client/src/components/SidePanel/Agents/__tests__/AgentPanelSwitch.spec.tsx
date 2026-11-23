@@ -11,15 +11,19 @@ jest.mock('../AgentPanel', () => ({
   default: ({
     hideAgentSelect,
     showWebsites,
+    onUnsavedChange,
   }: {
     hideAgentSelect?: boolean;
     showWebsites?: boolean;
+    onUnsavedChange?: (unsaved: null) => void;
   }) => (
     <div
       data-testid="agent-panel"
       data-hide-agent-select={String(hideAgentSelect === true)}
       data-show-websites={String(showWebsites === true)}
-    />
+    >
+      <button type="button" data-testid="report-unsaved" onClick={() => onUnsavedChange?.(null)} />
+    </div>
   ),
 }));
 
@@ -67,6 +71,15 @@ describe('AgentPanelSwitch', () => {
     const { getByTestId } = renderSwitch({ initialAgentId: 'agent_1', hideAgentSelect: true });
 
     expect(getByTestId('agent-panel')).toHaveAttribute('data-hide-agent-select', 'true');
+  });
+
+  it('forwards onUnsavedChange to the panel', () => {
+    const onUnsavedChange = jest.fn();
+    const { getByTestId } = renderSwitch({ onUnsavedChange });
+
+    getByTestId('report-unsaved').click();
+
+    expect(onUnsavedChange).toHaveBeenCalledWith(null);
   });
 
   it('forwards showWebsites to the panel', () => {

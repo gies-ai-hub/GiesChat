@@ -166,6 +166,57 @@ describe('Websites', () => {
     });
   });
 
+  it('reports Test progress and its result in a status line, keeping focus on the button', async () => {
+    const url = 'https://badm350.web.illinois.edu/readings/';
+    let finish: (value: unknown) => void = () => undefined;
+    mockPreview.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderWebsites();
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('');
+
+    await userEvent.type(screen.getByLabelText('com_agents_websites_label'), url);
+    const testButton = screen.getByRole('button', { name: 'com_agents_websites_test' });
+    await userEvent.click(testButton);
+
+    expect(status).toHaveTextContent(
+      'com_agents_websites_testing_host {"0":"badm350.web.illinois.edu"}',
+    );
+    const busyButton = screen.getByRole('button', { name: 'com_agents_websites_testing' });
+    expect(busyButton).toHaveAttribute('aria-disabled', 'true');
+    expect(busyButton).not.toBeDisabled();
+    expect(busyButton).toHaveFocus();
+
+    finish({
+      url,
+      pages: [{ url, title: 'Week 5', text: 'x', words: 1, cleaned: true }],
+      skipped: [],
+    });
+    await waitFor(() =>
+      expect(status).toHaveTextContent('com_agents_websites_preview_ready {"0":1}'),
+    );
+  });
+
+  it('reports Add progress and the saved result in the status line', async () => {
+    const url = 'https://fin300.web.illinois.edu/';
+    let finish: (value: unknown) => void = () => undefined;
+    mockSave.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderWebsites();
+
+    await userEvent.type(screen.getByLabelText('com_agents_websites_label'), url);
+    await userEvent.click(screen.getByRole('button', { name: 'com_agents_websites_add' }));
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent(
+      'com_agents_websites_reading_host {"0":"fin300.web.illinois.edu"}',
+    );
+
+    finish({ website: { file_id: 'x', url, pages: 2, checkedAt: '2026-10-13T00:00:00.000Z' } });
+    await waitFor(() =>
+      expect(status).toHaveTextContent(
+        'com_agents_websites_saved_toast {"0":2,"1":"fin300.web.illinois.edu"}',
+      ),
+    );
+  });
+
   it('stages addresses for an agent that is not created yet', async () => {
     renderWebsites('');
 

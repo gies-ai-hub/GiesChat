@@ -13,6 +13,7 @@ import {
 import useMermaidZoom from './useMermaidZoom';
 import ZoomControls from './ZoomControls';
 import { useLocalize } from '~/hooks';
+import { diagramAlt } from './alt';
 import cn from '~/utils/cn';
 
 interface MermaidDialogProps {
@@ -126,7 +127,7 @@ const MermaidDialog: React.FC<MermaidDialogProps> = memo(
             >
               <img
                 src={blobUrl}
-                alt="Mermaid diagram"
+                alt={diagramAlt(codeContent, localize('com_ui_diagram_alt'))}
                 className="max-h-full max-w-full select-none object-contain"
                 style={{
                   transform: `scale(${zoom})`,

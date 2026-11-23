@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { AdminUsageParams, AdminAnalyticsResponse } from 'librechat-data-provider';
 import { useAdminAgentTopicsQuery } from '~/data-provider';
 import { AreaChart, ColumnChart, Meter } from './Charts';
@@ -7,6 +7,15 @@ import { useLocalize } from '~/hooks';
 /** Shares arrive as 0–1; the dashboard speaks in whole percentages. */
 const percent = (value: number, digits = 0): string =>
   (value * 100).toFixed(digits).replace(/\.0$/, '');
+
+/** Days arrive as UTC `YYYY-MM-DD`, so they are formatted in UTC to keep each on its own date. */
+const dayFormat = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+});
+
+const formatDay = (date: string): string => dayFormat.format(new Date(date));
 
 interface PanelProps {
   data: AdminAnalyticsResponse;
@@ -28,6 +37,81 @@ function Card({
       {children}
     </div>
   );
+}
+
+type Cell = string | number;
+
+/**
+ * The same numbers the chart above draws, which makes this the screen reader and
+ * keyboard route to everything the hover tooltips show. The table mounts only while
+ * open, matching what a browser exposes for a closed `<details>`.
+ */
+function ShowData({
+  caption,
+  columns,
+  rows,
+}: {
+  caption: string;
+  columns: string[];
+  rows: Cell[][];
+}) {
+  const localize = useLocalize();
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <details
+      className="mt-2 text-xs text-text-secondary"
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+    >
+      <summary className="w-fit cursor-pointer rounded font-medium text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring-primary">
+        {localize('com_ui_admin_analytics_show_data')}
+      </summary>
+      {isOpen && (
+        <table className="mt-2 w-full border-collapse tabular-nums">
+          <caption className="mb-1 text-left">{caption}</caption>
+          <thead>
+            <tr>
+              {columns.map((column, index) => (
+                <th
+                  key={column}
+                  scope="col"
+                  className={`border-b border-border-light px-2 py-1 font-semibold ${
+                    index === 0 ? 'text-left' : 'text-right'
+                  }`}
+                >
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([first, ...rest], index) => (
+              <tr key={index} className="border-b border-border-light last:border-0">
+                <th scope="row" className="px-2 py-1 text-left font-normal text-text-primary">
+                  {first}
+                </th>
+                {rest.map((cell, column) => (
+                  <td key={column} className="px-2 py-1 text-right text-text-primary">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </details>
+  );
+}
+
+/** Names the chart and the window it covers, read from the zero-filled daily series. */
+function useCaption(name: string, data: AdminAnalyticsResponse): string {
+  const localize = useLocalize();
+  const days = data.dailyActivity;
+  if (days.length === 0) {
+    return name;
+  }
+  const range = dayFormat.formatRange(new Date(days[0].date), new Date(days[days.length - 1].date));
+  return localize('com_ui_admin_analytics_data_caption', { name, range });
 }
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -71,27 +155,26 @@ export function KpiRow({ data }: PanelProps) {
 
 export function ActivityPanel({ data }: PanelProps) {
   const localize = useLocalize();
-  const peak =
-    data.dailyActivity.length === 0
-      ? 0
-      : Math.max(...data.dailyActivity.map((point) => point.conversationCount));
+  const title = localize('com_ui_admin_analytics_activity');
+  const conversations = localize('com_ui_admin_analytics_conversations');
+  const caption = useCaption(title, data);
 
-  const points = data.dailyActivity.map((point) => ({
+  const days = data.dailyActivity.map((point) => ({
+    day: formatDay(point.date),
     value: point.conversationCount,
-    tooltip: `${point.date} · ${point.conversationCount} ${localize(
-      'com_ui_admin_analytics_conversations',
-    ).toLowerCase()}`,
+  }));
+  const points = days.map(({ day, value }) => ({
+    value,
+    tooltip: `${day} · ${value} ${conversations.toLowerCase()}`,
   }));
 
   return (
-    <Card
-      title={localize('com_ui_admin_analytics_activity')}
-      caption={localize('com_ui_admin_analytics_activity_caption')}
-    >
-      <AreaChart
-        points={points}
-        ariaLabel={localize('com_ui_admin_analytics_activity')}
-        detail={localize('com_ui_admin_analytics_peak', { count: peak })}
+    <Card title={title} caption={localize('com_ui_admin_analytics_activity_caption')}>
+      <AreaChart points={points} />
+      <ShowData
+        caption={caption}
+        columns={[localize('com_ui_admin_analytics_day'), conversations]}
+        rows={days.map(({ day, value }) => [day, value])}
       />
     </Card>
   );
@@ -101,15 +184,47 @@ export function ActivityPanel({ data }: PanelProps) {
 function withShares(
   buckets: AdminAnalyticsResponse['depthBuckets'],
   unit: string,
-): { label: string; count: number; tooltip: string }[] {
+): { label: string; count: number; share: string; tooltip: string }[] {
   const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
-  return buckets.map((bucket) => ({
-    ...bucket,
-    tooltip:
-      total === 0
-        ? `${bucket.count} ${unit}`
-        : `${bucket.count} ${unit} · ${Math.round((bucket.count / total) * 100)}%`,
-  }));
+  return buckets.map((bucket) => {
+    const share = `${total === 0 ? 0 : Math.round((bucket.count / total) * 100)}%`;
+    return {
+      ...bucket,
+      share,
+      tooltip: total === 0 ? `${bucket.count} ${unit}` : `${bucket.count} ${unit} · ${share}`,
+    };
+  });
+}
+
+/** A column chart plus its table; `bucketColumn` names what the bare labels ("2–4") count. */
+function BucketChart({
+  name,
+  data,
+  buckets,
+  bucketColumn,
+  countColumn,
+  emphasizeIndex,
+}: {
+  name: string;
+  data: AdminAnalyticsResponse;
+  buckets: AdminAnalyticsResponse['depthBuckets'];
+  bucketColumn: string;
+  countColumn: string;
+  emphasizeIndex?: number;
+}) {
+  const localize = useLocalize();
+  const caption = useCaption(name, data);
+  const rows = withShares(buckets, countColumn.toLowerCase());
+  return (
+    <>
+      <ColumnChart buckets={rows} emphasizeIndex={emphasizeIndex} />
+      <ShowData
+        caption={caption}
+        columns={[bucketColumn, countColumn, localize('com_ui_admin_analytics_share')]}
+        rows={rows.map((row) => [row.label, row.count, row.share])}
+      />
+    </>
+  );
 }
 
 export function ReachPanel({ data }: PanelProps) {
@@ -146,12 +261,12 @@ export function ReachPanel({ data }: PanelProps) {
       <p className="mb-2 text-xs text-text-secondary">
         {localize('com_ui_admin_analytics_repeat')}
       </p>
-      <ColumnChart
-        buckets={withShares(
-          data.reachBuckets,
-          localize('com_ui_admin_analytics_reach_unit').toLowerCase(),
-        )}
-        ariaLabel={localize('com_ui_admin_analytics_repeat')}
+      <BucketChart
+        name={localize('com_ui_admin_analytics_repeat')}
+        data={data}
+        buckets={data.reachBuckets}
+        bucketColumn={localize('com_ui_admin_analytics_conversations_per_student')}
+        countColumn={localize('com_ui_admin_analytics_reach_unit')}
       />
     </Card>
   );
@@ -164,13 +279,13 @@ export function DepthPanel({ data }: PanelProps) {
       title={localize('com_ui_admin_analytics_depth')}
       caption={localize('com_ui_admin_analytics_depth_caption')}
     >
-      <ColumnChart
-        buckets={withShares(
-          data.depthBuckets,
-          localize('com_ui_admin_analytics_conversations').toLowerCase(),
-        )}
+      <BucketChart
+        name={localize('com_ui_admin_analytics_depth')}
+        data={data}
+        buckets={data.depthBuckets}
+        bucketColumn={localize('com_ui_admin_analytics_turns_per_conversation')}
+        countColumn={localize('com_ui_admin_analytics_conversations')}
         emphasizeIndex={0}
-        ariaLabel={localize('com_ui_admin_analytics_depth')}
       />
     </Card>
   );
