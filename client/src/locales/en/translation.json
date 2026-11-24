@@ -2707,6 +2707,7 @@
   "com_ui_model_guide_retired": "Retired — switch this agent to another model.",
   "com_ui_model_guide_sol": "Most capable GPT: tough problem sets, math, long documents and careful analysis.",
   "com_ui_model_guide_sonnet": "Quick and sharp: strong at writing, editing and code.",
+  "com_ui_model_guide_terra": "Balanced speed and reasoning: course Q&A and feedback on student work.",
   "com_ui_model_test": "Test models",
   "com_ui_model_test_intro": "Ask two models the same questions using this agent's instructions and documents. Nothing is saved to chats or class analytics.",
   "com_ui_model_test_intro_new": "Ask two models the same questions using this agent's instructions. Documents are used once the agent is created. Nothing is saved to chats or class analytics.",

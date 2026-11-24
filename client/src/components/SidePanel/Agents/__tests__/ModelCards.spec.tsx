@@ -23,7 +23,7 @@ const specs = [
   },
 ] as TModelSpec[];
 
-const models = ['gpt-6-luna', 'gpt-6.1-sol', 'gpt-5.6-terra'];
+const models = ['gpt-6-luna', 'gpt-6.2-sol', 'gpt-5.6-terra'];
 const defaultModel = { provider: 'Azure OpenAI', model: 'gpt-6-luna' };
 
 describe('getModelGuide', () => {
@@ -50,9 +50,11 @@ describe('orderModels', () => {
   });
 
   it('hides retired models unless the agent is still on one', () => {
-    expect(orderModels(['gpt-6.1-sol', 'gpt-6-sol', 'gpt-5.6-terra'])).toEqual(['gpt-6.1-sol']);
-    expect(orderModels(['gpt-6.1-sol', 'gpt-6-sol'], undefined, 'gpt-6-sol')).toEqual([
-      'gpt-6.1-sol',
+    expect(orderModels(['gpt-6.2-sol', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-5.6-terra'])).toEqual([
+      'gpt-6.2-sol',
+    ]);
+    expect(orderModels(['gpt-6.2-sol', 'gpt-6-sol'], undefined, 'gpt-6-sol')).toEqual([
+      'gpt-6.2-sol',
       'gpt-6-sol',
     ]);
   });
@@ -78,7 +80,7 @@ describe('ModelCards', () => {
     expect(screen.getByText('com_ui_model_guide_retired')).toBeInTheDocument();
     expect(screen.getByText('com_ui_model_default_badge')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /GPT-5\.6 Terra/ })).toBeChecked();
-    expect(screen.getByRole('radio', { name: /GPT-6\.1 Sol/ })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: /GPT-6\.2 Sol/ })).not.toBeChecked();
     expect(screen.getByText('com_ui_model_guide_sol')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /^gpt-7-preview$/ })).not.toBeChecked();
   });

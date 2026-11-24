@@ -92,7 +92,7 @@ describe('createAgentKeyAuth', () => {
   it('runs as the student, on the key agent, granting VIEW', async () => {
     const deps = makeDeps();
     const next = jest.fn();
-    const req = makeReq({ model: 'gpt-6.1-sol', input: 'hi' });
+    const req = makeReq({ model: 'gpt-6.2-sol', input: 'hi' });
     await createAgentKeyAuth(deps)(req, makeRes(), next);
     expect(next).toHaveBeenCalled();
     expect(req.user?.id).toBe('u1');
@@ -101,7 +101,7 @@ describe('createAgentKeyAuth', () => {
       id: 'key-1',
       name: 'BADM 350 site',
       agentId: 'agent_a',
-      requestedModel: 'gpt-6.1-sol',
+      requestedModel: 'gpt-6.2-sol',
       model: null,
     });
     expect(deps.verifyUserToken).toHaveBeenCalledWith('id-token', AUDIENCE);
@@ -257,7 +257,7 @@ describe('createAgentKeyAuth', () => {
 
 describe('createAgentKeyModel', () => {
   const modelsConfig = {
-    'Azure OpenAI': ['gpt-6-luna', 'gpt-6.1-sol', 'gpt-5.5'],
+    'Azure OpenAI': ['gpt-6-luna', 'gpt-6.2-sol', 'gpt-5.5'],
     anthropic: ['claude-sonnet-5-5', 'claude-opus-4-8'],
     openAI: ['gpt-4o'],
   };
@@ -267,7 +267,7 @@ describe('createAgentKeyModel', () => {
   it('lists agent-builder models without retired ones or other providers', () => {
     expect(resolveAllowedModels(modelsConfig, ['Azure OpenAI', 'anthropic'])).toEqual([
       { model: 'gpt-6-luna', provider: 'Azure OpenAI' },
-      { model: 'gpt-6.1-sol', provider: 'Azure OpenAI' },
+      { model: 'gpt-6.2-sol', provider: 'Azure OpenAI' },
       { model: 'claude-sonnet-5-5', provider: 'anthropic' },
     ]);
   });

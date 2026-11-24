@@ -6,6 +6,7 @@
 export const RETIRED_MODELS: ReadonlySet<string> = new Set([
   'claude-sonnet-5',
   'claude-opus-4-8',
+  'gpt-6.1-sol',
   'gpt-6-sol',
   'gpt-5.6-terra',
   'gpt-5.6-luna',

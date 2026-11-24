@@ -189,11 +189,14 @@ endpoints:
       models:
         default:
           - gpt-6-luna
-          - gpt-6.1-sol
-          # Retired 2026-09-29 (5.6 Luna and 5.5 later that day; 6 Sol and 5.6 Terra 2026-10-13):
+          - gpt-6.2-sol
+          - gpt-6.1-terra
+          # Retired 2026-09-29 (5.6 Luna and 5.5 later that day; 6 Sol and 5.6 Terra 2026-10-13;
+          # 6.1 Sol 2026-11-24, though the hidden Deck Builder spec still runs on it):
           # hidden from every picker by RETIRED_MODELS (client/src/utils/endpoints.ts). Kept here
           # only because agents are validated against this list, so anything still pinned to them
           # would fail and log an illegal-model violation.
+          - gpt-6.1-sol
           - gpt-6-sol
           - gpt-5.6-terra
           - gpt-5.6-luna

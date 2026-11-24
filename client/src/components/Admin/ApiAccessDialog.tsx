@@ -44,7 +44,7 @@ const snippetFor = (key: string, agentId: string) => `from openai import OpenAI
 client = OpenAI(base_url="${window.location.origin}/api/agents/v1", api_key="${key}")
 
 response = client.responses.create(
-    model="${agentId}",  # or an allowed model, e.g. "gpt-6.1-sol"
+    model="${agentId}",  # or an allowed model, e.g. "gpt-6.2-sol"
     input="Hello!",
     extra_headers={"X-GiesChat-User-Token": student_id_token},
 )
