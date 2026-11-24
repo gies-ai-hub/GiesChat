@@ -202,11 +202,10 @@ endpoints:
           - gpt-5.6-luna
           - gpt-5.5
           - gpt-5.4
-          - gpt-5.4-mini
         fetch: false
       titleConvo: true
-      # Titles (and the dashboard's topics panel) stay on the cheapest deployment.
-      titleModel: 'gpt-5.4-mini'
+      # Titles, the dashboard's topics panel and the weekly digest summaries.
+      titleModel: 'gpt-6-luna'
       modelDisplayLabel: 'Azure OpenAI'
       addParams:
         web_search: true

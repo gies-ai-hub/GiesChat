@@ -40,7 +40,7 @@ sequenceDiagram
     <li><b>Background job.</b> <span class="path">api/server/controllers/agents/request.js</span> runs the generation as a job in <span class="path">packages/api/src/stream/GenerationJobManager.ts</span>. The job outlives the HTTP request, so a dropped tab can reconnect (<code>useResumeOnLoad</code>).</li>
     <li><b>Agent setup.</b> <span class="path">packages/api/src/agents/initialize.ts</span> loads the agent, its tools, MCP servers and files. <span class="path">api/server/services/Endpoints/agents/initialize.js</span> builds the <code>AgentClient</code>.</li>
     <li><b>Run.</b> <span class="path">packages/api/src/agents/run.ts</span> resolves the provider (<code>getProviderConfig</code>) and calls <code>Run.create</code> from <code>@librechat/agents</code>, which is LangGraph-based. Tool calls such as document search and MCP tools happen inside this loop.</li>
-    <li><b>Stream back and save.</b> Deltas flow through the job manager (in memory, or Redis with <code>USE_REDIS</code>) to the SSE stream. Messages are saved to MongoDB, token usage is recorded (<code>usage.ts</code>, <code>transactions.ts</code>) and a title is generated with gpt-5.4-mini.</li>
+    <li><b>Stream back and save.</b> Deltas flow through the job manager (in memory, or Redis with <code>USE_REDIS</code>) to the SSE stream. Messages are saved to MongoDB, token usage is recorded (<code>usage.ts</code>, <code>transactions.ts</code>) and a title is generated with gpt-6-luna.</li>
   </ol>
 
   <div class="callout"><b>Gotcha:</b> plain model chats (no agent picked) still go through the agents pipeline as an <i>ephemeral agent</i>. There is no separate "simple chat" path, so debugging a plain GPT-6 chat means reading the agents code.</div>

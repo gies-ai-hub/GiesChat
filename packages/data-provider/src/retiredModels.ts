@@ -12,5 +12,4 @@ export const RETIRED_MODELS: ReadonlySet<string> = new Set([
   'gpt-5.6-luna',
   'gpt-5.5',
   'gpt-5.4',
-  'gpt-5.4-mini',
 ]);

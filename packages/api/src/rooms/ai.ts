@@ -146,7 +146,7 @@ export function resolveRoomEndpoint(appConfig: AppConfig): RoomEndpoint | null {
   const defaultModel =
     typeof endpointConfig?.models?.default?.[0] === 'string'
       ? endpointConfig.models.default[0]
-      : 'gpt-5.4-mini';
+      : 'gpt-6-luna';
   if (endpointConfig?.baseURL && endpointConfig.apiKey) {
     const apiKey = extractEnvVariable(endpointConfig.apiKey);
     if (isResolved(apiKey)) {

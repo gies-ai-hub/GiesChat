@@ -39,7 +39,7 @@ Repeat these steps on any other environment:
 1. **Import the skill.** Skills UI → import `gies-deck-playbook/SKILL.md`.
 2. **Create the Slide Writer agent.**
    - Instructions: contents of `slide-writer.md`
-   - Model: `gpt-5.4-mini`
+   - Model: `gpt-6-luna`
    - **No tools, no MCP servers.** This is load-bearing, not an optimization.
 3. **Create the Deck Orchestrator agent.**
    - Instructions: contents of `orchestrator.md`

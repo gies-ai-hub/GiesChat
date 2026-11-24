@@ -30,7 +30,7 @@
     <tr><td>Deck Builder</td><td>Azure OpenAI</td><td>Hidden spec on gpt-6.1-sol; uses the PowerPoint MCP</td></tr>
   </table>
   <p>Do not turn on <code>modelSpecs.enforce</code> to lock chat: it rejects every request without a spec, which includes all agent chats (course tutors, class agents, embeds).</p>
-  <p>Every spec shares the Gies baseline prompt: short answers, no emojis, bold headings only, academic integrity. Titles are generated with <code>gpt-5.4-mini</code>.</p>
+  <p>Every spec shares the Gies baseline prompt: short answers, no emojis, bold headings only, academic integrity. Titles, the dashboard topics panel and the weekly digest summaries use <code>gpt-6-luna</code>.</p>
   <div class="callout"><b>Retiring a model:</b> remove its <code>modelSpecs</code> entry and add its id to <code>RETIRED_MODELS</code> in <span class="path">client/src/utils/endpoints.ts</span>, but <i>keep</i> it in the endpoint's <code>models</code> list. Agents are validated against that list, so agents still pinned to the old model would fail. Retired models stay hidden from every picker except on an agent that still uses one, so it can move off. Give it a <code>FALLBACK_GUIDE</code> label in <span class="path">ModelCards.tsx</span> so it doesn't show as a raw id. The class-dashboard default lives in <code>DASHBOARD_MODEL</code> in <span class="path">client/src/components/Admin/Dashboard.tsx</span>.</div>
 
   <h2>MCP servers</h2>
