@@ -50,6 +50,9 @@ const DASHBOARD_ORIGIN = 'dashboard';
 const DASHBOARD_MODEL = { provider: 'Azure OpenAI', model: 'gpt-6-luna' };
 /** Class agents may hold more File Context documents than a chat message may attach. */
 const DASHBOARD_DOCUMENT_LIMIT = 100;
+
+const BUILDER_DIALOG_CLASS = 'max-h-[90vh] w-11/12 max-w-3xl overflow-y-auto';
+
 /** The drill-down lives in the URL, so browser back and the sidebar link return to the list. */
 const AGENT_PARAM = 'agent';
 /** `?view=admin` is the Admin tab: every owner's agents, for `manage:agents` holders. */
@@ -564,7 +567,7 @@ export default function AdminDashboard() {
 
         {canCreateAgents && (
           <OGDialog open={isBuilding} onOpenChange={confirmClose(true, handleBuilderOpenChange)}>
-            <OGDialogContent className="max-h-[90vh] w-11/12 max-w-lg overflow-y-auto">
+            <OGDialogContent className={BUILDER_DIALOG_CLASS}>
               <OGDialogTitle>{localize('com_agents_create')}</OGDialogTitle>
               <AgentPanelSwitch
                 createdVia={DASHBOARD_ORIGIN}
@@ -615,7 +618,7 @@ export default function AdminDashboard() {
           open={editingAgent != null}
           onOpenChange={confirmClose(false, handleEditOpenChange)}
         >
-          <OGDialogContent className="max-h-[90vh] w-11/12 max-w-lg overflow-y-auto">
+          <OGDialogContent className={BUILDER_DIALOG_CLASS}>
             <OGDialogTitle>
               {localize('com_ui_admin_edit_agent_title', { name: editingAgent?.name ?? '' })}
             </OGDialogTitle>
