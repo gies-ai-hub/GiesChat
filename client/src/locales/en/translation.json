@@ -960,8 +960,6 @@
   "com_ui_admin_embed_theme": "Appearance",
   "com_ui_admin_embed_theme_light": "Light",
   "com_ui_admin_embed_theme_dark": "Dark",
-  "com_ui_admin_embed_greeting_toggle": "Agent opens the conversation",
-  "com_ui_admin_embed_greeting_hint": "Shown as the agent's first message in every new chat.",
   "com_ui_admin_embed_turn_on": "Turn on embedding",
   "com_ui_admin_embed_save": "Save settings",
   "com_ui_admin_embed_snippet_intro": "Paste this into Canvas (Embed → HTML) or any web page.",

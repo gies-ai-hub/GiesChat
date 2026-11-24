@@ -242,14 +242,6 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
               {description}
             </div>
           ))}
-        {embed?.greeting && (
-          <div
-            role="status"
-            className="animate-fadeIn mt-6 max-w-md rounded-2xl border border-border-light bg-surface-secondary-alt px-4 py-3 text-left text-sm text-text-primary"
-          >
-            {embed.greeting}
-          </div>
-        )}
         {selectedAgent && (
           <AgentContact
             agent={selectedAgent}

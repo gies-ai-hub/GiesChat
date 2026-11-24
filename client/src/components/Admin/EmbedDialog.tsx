@@ -19,9 +19,6 @@ interface EmbedDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const defaultGreeting = (agent: AdminAgentUsage) =>
-  `Hi! I'm ${agent.name}. ${agent.description?.trim() || 'Ask me anything.'}`;
-
 const escapeAttribute = (value: string) =>
   value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -43,8 +40,6 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
   const [live, setLive] = useState(agent?.embed ?? null);
   const [editing, setEditing] = useState(live == null);
   const [audience, setAudience] = useState<AgentEmbedAudience>(live?.audience ?? 'public');
-  const [greetingOn, setGreetingOn] = useState(live == null || live.greeting != null);
-  const [greeting, setGreeting] = useState(live?.greeting ?? (agent ? defaultGreeting(agent) : ''));
   const [theme, setTheme] = useState<AgentEmbedTheme>(live?.theme ?? 'light');
 
   useEffect(() => {
@@ -55,8 +50,6 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
     setLive(current);
     setEditing(current == null);
     setAudience(current?.audience ?? 'public');
-    setGreetingOn(current == null || current.greeting != null);
-    setGreeting(current?.greeting ?? defaultGreeting(agent));
     setTheme(current?.theme ?? 'light');
   }, [agent]);
 
@@ -79,7 +72,7 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
     update.mutate(
       {
         agentId: agent.agent_id,
-        settings: { audience, theme, greeting: greetingOn ? greeting.trim() : null },
+        settings: { audience, theme, greeting: null },
       },
       {
         onSuccess: (data) => {
@@ -120,10 +113,7 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
         : 'com_ui_admin_embed_audience_illinois',
     ),
     localize(theme === 'dark' ? 'com_ui_admin_embed_theme_dark' : 'com_ui_admin_embed_theme_light'),
-    greetingOn ? localize('com_ui_admin_embed_greeting_toggle') : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  ].join(' · ');
 
   return (
     <OGDialog open={agent != null} onOpenChange={onOpenChange}>
@@ -192,31 +182,6 @@ export default function EmbedDialog({ agent, onOpenChange }: EmbedDialogProps) {
                 ))}
               </div>
             </fieldset>
-            <div className="rounded-lg border border-border-light p-3">
-              <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold">
-                <input
-                  type="checkbox"
-                  checked={greetingOn}
-                  onChange={(event) => setGreetingOn(event.target.checked)}
-                />
-                {localize('com_ui_admin_embed_greeting_toggle')}
-              </label>
-              {greetingOn && (
-                <>
-                  <textarea
-                    aria-label={localize('com_ui_admin_embed_greeting_toggle')}
-                    value={greeting}
-                    onChange={(event) => setGreeting(event.target.value)}
-                    rows={3}
-                    maxLength={1000}
-                    className="mt-2 w-full rounded-md border border-border-medium bg-surface-primary p-2 text-sm"
-                  />
-                  <p className="mt-1 text-xs text-text-secondary">
-                    {localize('com_ui_admin_embed_greeting_hint')}
-                  </p>
-                </>
-              )}
-            </div>
             <div className="flex justify-end gap-2">
               {live != null && (
                 <Button variant="outline" onClick={() => setEditing(false)} disabled={busy}>
