@@ -88,13 +88,19 @@ function FileContext({
   const stageFiles = useCallback(
     (fileList: File[]) => {
       const errors: string[] = [];
-      const filesAreValid = validateFiles({
-        files,
-        fileList,
-        setError: (error) => errors.push(error),
-        fileConfig,
-        endpointFileConfig,
-      });
+      const limit = fileLimit ?? endpointFileConfig.fileLimit;
+      if (limit != null && files.size + pendingFiles.length + fileList.length > limit) {
+        errors.push(`File limit reached: ${limit} files`);
+      }
+      const filesAreValid =
+        errors.length === 0 &&
+        validateFiles({
+          files,
+          fileList,
+          setError: (error) => errors.push(error),
+          fileConfig,
+          endpointFileConfig: { ...endpointFileConfig, fileLimit: limit },
+        });
       if (!filesAreValid) {
         const error = errors[0] ?? 'com_error_files_validation';
         showToast({ message: localize(error as TranslationKeys) || error, status: 'error' });
@@ -103,7 +109,16 @@ function FileContext({
       const staged = fileList.map((file) => ({ id: v4(), file }));
       setPendingContextFiles((current) => [...current, ...staged]);
     },
-    [files, fileConfig, endpointFileConfig, setPendingContextFiles, showToast, localize],
+    [
+      files,
+      fileLimit,
+      fileConfig,
+      pendingFiles.length,
+      endpointFileConfig,
+      setPendingContextFiles,
+      showToast,
+      localize,
+    ],
   );
 
   const removePendingFile = useCallback(

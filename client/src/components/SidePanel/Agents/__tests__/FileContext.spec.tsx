@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { EModelEndpoint, mergeFileConfig } from 'librechat-data-provider';
 import type { TEndpointsConfig } from 'librechat-data-provider';
@@ -13,8 +13,14 @@ const mockEndpointsConfig: TEndpointsConfig = {
 
 let mockFileConfig = mergeFileConfig({ endpoints: { default: { fileLimit: 10 } } });
 
+let mockPendingFiles: { id: string; file: File }[] = [];
+const mockSetPendingFiles = jest.fn();
+
 jest.mock('~/Providers', () => ({
-  useAgentPanelContext: () => ({ pendingContextFiles: [], setPendingContextFiles: jest.fn() }),
+  useAgentPanelContext: () => ({
+    pendingContextFiles: mockPendingFiles,
+    setPendingContextFiles: mockSetPendingFiles,
+  }),
 }));
 
 jest.mock('~/data-provider', () => ({
@@ -163,5 +169,40 @@ describe('FileContext', () => {
       </Wrapper>,
     );
     expect(screen.getByText('com_agents_file_context_label')).toBeInTheDocument();
+  });
+
+  describe('before the agent is created', () => {
+    const pdfs = (count: number) =>
+      Array.from(
+        { length: count },
+        (_, i) => new File(['x'], `doc${i}.pdf`, { type: 'application/pdf' }),
+      );
+    const stage = (files: File[]) => {
+      const { container } = render(
+        <Wrapper>
+          <FileContext agent_id="ephemeral" fileLimit={100} />
+        </Wrapper>,
+      );
+      fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+        target: { files },
+      });
+    };
+
+    beforeEach(() => {
+      mockFileConfig = mergeFileConfig({ endpoints: { default: { fileLimit: 10 } } });
+      mockSetPendingFiles.mockClear();
+      mockPendingFiles = [];
+    });
+
+    it('stages more than the endpoint limit in one pick when the host allows it', () => {
+      stage(pdfs(40));
+      expect(mockSetPendingFiles).toHaveBeenCalledTimes(1);
+    });
+
+    it('counts already staged files against the host limit', () => {
+      mockPendingFiles = pdfs(95).map((file, i) => ({ id: String(i), file }));
+      stage(pdfs(6));
+      expect(mockSetPendingFiles).not.toHaveBeenCalled();
+    });
   });
 });
